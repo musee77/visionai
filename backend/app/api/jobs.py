@@ -65,24 +65,9 @@ async def search_jobs(
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
-@router.get("/{job_id}")
-async def get_job(
-    job_id: str,
-    db = Depends(get_db)
-):
-    """Get job details by ID - returns dict"""
-    
-    job_service = get_job_service(db)
-    job = await job_service.get_job_by_id(job_id)
-    
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    await job_service.increment_view_count(job_id)
-    
-    return JSONResponse(content=job)
-
-
+# Literal GET paths are registered before /{job_id}. FastAPI matches in
+# registration order, and a one-segment parameter captures a later literal
+# on that same segment (for example /featured).
 @router.get("/matched/me")
 async def get_my_matched_jobs(
     limit: int = Query(20, ge=1, le=100),
@@ -102,6 +87,108 @@ async def get_my_matched_jobs(
     except Exception as e:
         logger.error(f"Failed to get matched jobs: {e}", exc_info=True)
         return JSONResponse(content={"jobs": []})
+
+
+@router.get("/saved/me")
+async def get_saved_jobs(
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_active_user),
+    db = Depends(get_db)
+):
+    """Get user's saved jobs"""
+    
+    job_service = get_job_service(db)
+    
+    cursor = db.saved_jobs.find(
+        {"user_id": str(current_user["_id"])}
+    ).sort("saved_at", -1).skip((page - 1) * size).limit(size)
+    
+    saved_jobs = await cursor.to_list(length=size)
+    job_ids = [s["job_id"] for s in saved_jobs]
+    
+    jobs = []
+    for saved_item in saved_jobs:
+        job_id = saved_item["job_id"]
+        job = await job_service.get_job_by_id(job_id)
+        if job:
+            # Convert to SavedJobResponse format
+            job_dict = job if isinstance(job, dict) else job.dict()
+            job_dict["saved_at"] = saved_item["saved_at"]
+            job_dict["generated_cv_path"] = saved_item.get("generated_cv_path")
+            job_dict["generated_cover_letter_path"] = saved_item.get("generated_cover_letter_path")
+            job_dict["generated_cv_id"] = saved_item.get("generated_cv_id")
+            job_dict["generated_cover_letter_id"] = saved_item.get("generated_cover_letter_id")
+            jobs.append(job_dict)
+
+    
+    return JSONResponse(content={"jobs": jsonable_encoder(jobs)})
+
+
+@router.get("/stats/overview")
+async def get_job_stats(
+    db = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get job statistics and analytics"""
+    
+    from datetime import timedelta
+    
+    now = datetime.utcnow()
+    week_ago = now - timedelta(days=7)
+    month_ago = now - timedelta(days=30)
+    
+    total = await db.jobs.count_documents({"status": "active"})
+    
+    week_count = await db.jobs.count_documents({
+        "status": "active",
+        "created_at": {"$gte": week_ago}
+    })
+    
+    month_count = await db.jobs.count_documents({
+        "status": "active",
+        "created_at": {"$gte": month_ago}
+    })
+    
+    top_companies = await db.jobs.aggregate([
+        {"$match": {"status": "active"}},
+        {"$group": {"_id": "$company_name", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 10}
+    ]).to_list(10)
+    
+    top_locations = await db.jobs.aggregate([
+        {"$match": {"status": "active"}},
+        {"$group": {"_id": "$location", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 10}
+    ]).to_list(10)
+    
+    return {
+        "total_jobs": total,
+        "jobs_this_week": week_count,
+        "jobs_this_month": month_count,
+        "top_companies": top_companies,
+        "top_locations": top_locations
+    }
+
+
+@router.get("/{job_id}")
+async def get_job(
+    job_id: str,
+    db = Depends(get_db)
+):
+    """Get job details by ID - returns dict"""
+    
+    job_service = get_job_service(db)
+    job = await job_service.get_job_by_id(job_id)
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    await job_service.increment_view_count(job_id)
+    
+    return JSONResponse(content=job)
 
 
 @router.post("/save/{job_id}")
@@ -168,42 +255,6 @@ async def unsave_job(
         raise HTTPException(status_code=404, detail="Saved job not found")
     
     return {"message": "Job removed from saved"}
-
-
-@router.get("/saved/me")
-async def get_saved_jobs(
-    page: int = Query(1, ge=1),
-    size: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(get_current_active_user),
-    db = Depends(get_db)
-):
-    """Get user's saved jobs"""
-    
-    job_service = get_job_service(db)
-    
-    cursor = db.saved_jobs.find(
-        {"user_id": str(current_user["_id"])}
-    ).sort("saved_at", -1).skip((page - 1) * size).limit(size)
-    
-    saved_jobs = await cursor.to_list(length=size)
-    job_ids = [s["job_id"] for s in saved_jobs]
-    
-    jobs = []
-    for saved_item in saved_jobs:
-        job_id = saved_item["job_id"]
-        job = await job_service.get_job_by_id(job_id)
-        if job:
-            # Convert to SavedJobResponse format
-            job_dict = job if isinstance(job, dict) else job.dict()
-            job_dict["saved_at"] = saved_item["saved_at"]
-            job_dict["generated_cv_path"] = saved_item.get("generated_cv_path")
-            job_dict["generated_cover_letter_path"] = saved_item.get("generated_cover_letter_path")
-            job_dict["generated_cv_id"] = saved_item.get("generated_cv_id")
-            job_dict["generated_cover_letter_id"] = saved_item.get("generated_cover_letter_id")
-            jobs.append(job_dict)
-
-    
-    return JSONResponse(content={"jobs": jsonable_encoder(jobs)})
 
 
 @router.post("/trigger-scrape")
@@ -273,51 +324,3 @@ async def update_job(
     updated_job = await job_service.get_job_by_id(job_id)
     
     return JSONResponse(content=updated_job)
-
-
-@router.get("/stats/overview")
-async def get_job_stats(
-    db = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """Get job statistics and analytics"""
-    
-    from datetime import timedelta
-    
-    now = datetime.utcnow()
-    week_ago = now - timedelta(days=7)
-    month_ago = now - timedelta(days=30)
-    
-    total = await db.jobs.count_documents({"status": "active"})
-    
-    week_count = await db.jobs.count_documents({
-        "status": "active",
-        "created_at": {"$gte": week_ago}
-    })
-    
-    month_count = await db.jobs.count_documents({
-        "status": "active",
-        "created_at": {"$gte": month_ago}
-    })
-    
-    top_companies = await db.jobs.aggregate([
-        {"$match": {"status": "active"}},
-        {"$group": {"_id": "$company_name", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}},
-        {"$limit": 10}
-    ]).to_list(10)
-    
-    top_locations = await db.jobs.aggregate([
-        {"$match": {"status": "active"}},
-        {"$group": {"_id": "$location", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}},
-        {"$limit": 10}
-    ]).to_list(10)
-    
-    return {
-        "total_jobs": total,
-        "jobs_this_week": week_count,
-        "jobs_this_month": month_count,
-        "top_companies": top_companies,
-        "top_locations": top_locations
-    }
