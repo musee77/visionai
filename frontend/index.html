@@ -44,8 +44,13 @@
 
     <header class="mkt-hero mkt-hero-jobs">
         <div class="mkt-wrap">
-            <p class="mkt-kicker"><span class="mkt-dot"></span> Open roles near <span id="hero-location-name">you</span></p>
-            <h1 class="mkt-jobs-title">Jobs</h1>
+            <div class="mkt-jobs-bar">
+                <div>
+                    <p class="mkt-kicker"><span class="mkt-dot"></span> Open roles near <span id="hero-location-name">you</span></p>
+                    <h1 class="mkt-jobs-title">Jobs</h1>
+                </div>
+                <button type="button" id="nav-upload-btn" class="mkt-btn btn-gradient text-white">Upload CV</button>
+            </div>
 
             <div id="search-section" class="mkt-search">
                 <label class="mkt-field">
@@ -101,9 +106,48 @@
         </div>
     </section>
 
+    <div id="cv-upload-modal" class="mkt-modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="mkt-modal-backdrop" id="modal-backdrop"></div>
+        <div class="mkt-modal-dialog">
+            <div class="mkt-panel">
+                <button type="button" id="close-modal-btn" class="mkt-close" aria-label="Close">×</button>
+                <h3 id="modal-title">Upload your CV</h3>
+                <p class="mkt-panel-copy">We keep the file on this device until you sign in, then match it to these jobs.</p>
+                <div id="cv-upload-zone" class="mkt-drop">
+                    <strong>Drop a file or click to browse</strong>
+                    <span>PDF, DOCX, or TXT, up to 10MB</span>
+                </div>
+                <input type="file" id="cv-file-input" accept=".pdf,.docx,.doc,.txt">
+                <div id="preferences-container" class="hidden opacity-0 translate-y-4 space-y-3 mt-4">
+                    <div>
+                        <label class="mkt-label" for="job-title">Desired title</label>
+                        <input type="text" id="job-title" class="mkt-input" placeholder="e.g. Product designer">
+                    </div>
+                    <div>
+                        <label class="mkt-label" for="location">Location</label>
+                        <input type="text" id="location" class="mkt-input" placeholder="e.g. Remote">
+                    </div>
+                    <div>
+                        <label class="mkt-label" for="salary-range">Salary range</label>
+                        <select id="salary-range">
+                            <option value="">Select range</option>
+                            <option value="40-60k">$40k – $60k</option>
+                            <option value="60-80k">$60k – $80k</option>
+                            <option value="80-100k">$80k – $100k</option>
+                            <option value="100-120k">$100k – $120k</option>
+                            <option value="120k+">$120k+</option>
+                        </select>
+                    </div>
+                    <button id="get-started-btn" class="mkt-btn btn-gradient text-white w-full mt-2" type="button" disabled>Analyze and match</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="footer-container"></div>
 
     <script src="/assets/js/utils/geolocation.js"></script>
+    <script src="/assets/js/utils/pending-cv.js"></script>
     <script src="/assets/js/utils/currency.js"></script>
     <script src="/assets/js/utils/cache.js"></script>
     <script src="/assets/js/components/PublicNavbar.js"></script>

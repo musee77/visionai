@@ -113,6 +113,20 @@
     color: #161411;
 }
 
+.mkt-jobs-bar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.mkt-modal.hidden,
+#cv-file-input,
+#preferences-container.hidden {
+    display: none;
+}
+
 .mkt-search {
     margin-top: 2rem;
     padding: 0.55rem;
