@@ -72,8 +72,7 @@ const PublicNavbar = (function () {
                 setupEventListeners();
                 setActiveLink();
 
-                // Hide specific links on landing page
-                // Hide specific links and add Upload CV button on landing page
+                // The index is a job board. Product pages stay on Home.
                 const path = window.location.pathname;
                 if (path === '/' || path === '/index.html') {
                     const linksToHide = ['/features', '/how-it-works', '/pricing', '/info/help'];
@@ -81,26 +80,6 @@ const PublicNavbar = (function () {
                         const links = container.querySelectorAll(`a[href="${href}"]`);
                         links.forEach(link => link.classList.add('hidden'));
                     });
-
-                    // Inject Upload CV button for Desktop
-                    const navContainer = container.querySelector('.hidden.md\\:flex');
-                    if (navContainer) {
-                        const uploadBtn = document.createElement('button');
-                        uploadBtn.id = 'nav-upload-btn';
-                        uploadBtn.className = 'nav-link text-gray-600 hover:text-primary-600 transition-colors font-medium mr-4';
-                        uploadBtn.innerHTML = `
-                            <span class="flex items-center gap-2">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                                Upload CV
-                            </span>
-                        `;
-
-                        // Insert before Register (Get Started) button
-                        const registerBtn = navContainer.querySelector('a[href="/register"]');
-                        if (registerBtn) {
-                            navContainer.insertBefore(uploadBtn, registerBtn);
-                        }
-                    }
                 }
             } else {
                 console.error('PublicNavbar: Failed to fetch navbar HTML');

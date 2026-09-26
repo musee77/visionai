@@ -283,9 +283,9 @@ const Landing = {
         if (!container) return;
 
         container.innerHTML = LandingConfig.stats.map(stat => `
-            <div class="text-center rounded-lg bg-emerald-950/80 px-3 py-2 border border-emerald-700/60">
-                <div class="text-3xl font-bold mb-1 whitespace-nowrap" style="color: #ffffff;">${stat.value}</div>
-                <div class="text-sm uppercase tracking-wide font-medium whitespace-nowrap" style="color: #ffffff;">${stat.label}</div>
+            <div class="mkt-stat">
+                <div class="mkt-stat-value">${stat.value}</div>
+                <div class="mkt-stat-label">${stat.label}</div>
             </div>
         `).join('');
     },
@@ -295,13 +295,11 @@ const Landing = {
         if (!container) return;
 
         container.innerHTML = LandingConfig.features.map(feature => `
-            <div class="feature-card bg-gray-50 p-8 rounded-2xl border border-gray-100 hover:shadow-lg transition-all hover:bg-white group">
-                <div class="w-14 h-14 bg-white rounded-xl shadow-sm flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform duration-300">
-                    ${feature.icon}
-                </div>
-                <h3 class="text-xl font-bold text-gray-900 mb-3">${feature.title}</h3>
-                <p class="text-gray-600 leading-relaxed">${feature.description}</p>
-            </div>
+            <article class="mkt-feature">
+                <div class="mkt-feature-mark" aria-hidden="true">${feature.icon}</div>
+                <h3>${feature.title}</h3>
+                <p>${feature.description}</p>
+            </article>
         `).join('');
     },
 
@@ -373,6 +371,16 @@ const Landing = {
         };
 
         searchBtn.addEventListener('click', handleSearch);
+
+        document.querySelectorAll('[data-search-query]').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const query = chip.getAttribute('data-search-query') || '';
+                if (queryInput) queryInput.value = query;
+                this.loadJobs(query, locationInput ? locationInput.value.trim() : '');
+                const jobs = document.getElementById('jobs-wrapper');
+                if (jobs) jobs.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
 
         // Enter key support
         [queryInput, locationInput].forEach(input => {
