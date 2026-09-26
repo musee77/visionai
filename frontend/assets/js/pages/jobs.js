@@ -814,9 +814,9 @@ async function batchCustomize() {
 
 async function loadUserCVsForBatch() {
     try {
-        const response = await fetch(`${API_BASE_URL} /api/v1 / documents /? document_type = cv`, {
+        const response = await fetch(`${API_BASE_URL}/api/v1/documents/?document_type=cv`, {
             headers: {
-                'Authorization': `Bearer ${CVision.Utils.getToken()} `
+                'Authorization': `Bearer ${CVision.Utils.getToken()}`
             }
         });
 
@@ -856,9 +856,9 @@ async function checkApplicationLimit() {
 
     try {
         // Fetch stats from backend
-        const response = await fetch(`${API_BASE_URL} /api/v1 / applications / stats / overview`, {
+        const response = await fetch(`${API_BASE_URL}/api/v1/applications/stats/overview`, {
             headers: {
-                'Authorization': `Bearer ${CVision.Utils.getToken()} `
+                'Authorization': `Bearer ${CVision.Utils.getToken()}`
             }
         });
 
@@ -965,8 +965,29 @@ window.toggleBatchMode = toggleBatchMode;
 /**
  * Connect Gmail account
  */
-function connectGmail() {
-    window.location.href = `${CONFIG.API_BASE_URL}${CONFIG.API_PREFIX} /auth/gmail / connect`;
+async function connectGmail() {
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}${CONFIG.API_PREFIX}/auth/gmail/connect`, {
+            headers: {
+                'Authorization': `Bearer ${CVision.Utils.getToken()}`
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || errorData.message || 'Failed to initiate connection');
+        }
+
+        const data = await response.json();
+        if (data.success && data.data && data.data.auth_url) {
+            window.location.href = data.data.auth_url;
+            return;
+        }
+        throw new Error('Gmail authorization URL was not returned');
+    } catch (error) {
+        console.error('Gmail connect error:', error);
+        CVision.Utils.showAlert(error.message || 'Failed to connect Gmail', 'error');
+    }
 }
 
 // Logic migrated to JobApply.js component
