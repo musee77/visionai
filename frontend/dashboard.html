@@ -281,23 +281,35 @@
         </div>
 
         <!-- Main Dashboard Grid -->
-        <div class="grid lg:grid-cols-3 gap-6 sm:gap-8 mb-6 sm:mb-8 min-w-0">
-            <!-- CV Upload Section -->
-            <div class="lg:col-span-1 min-w-0">
+        <div class="grid lg:grid-cols-4 gap-6 sm:gap-8 mb-6 sm:mb-8 min-w-0">
+            <!-- Upload Section -->
+            <div class="lg:col-span-2 min-w-0">
                 <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
-                    <h2 class="text-base sm:text-lg font-semibold text-gray-900 mb-4">Upload Your CV</h2>
+                    <h2 class="text-base sm:text-lg font-semibold text-gray-900 mb-4">Upload Documents</h2>
 
-                    <!-- File Upload Zone -->
-                    <div id="dropZone"
-                        class="file-upload-zone border-2 border-dashed border-gray-300 rounded-lg p-4 sm:p-6 text-center hover:border-primary-500 hover:bg-primary-50 transition-all cursor-pointer">
-                        <div class="text-3xl sm:text-4xl mb-2 sm:mb-3">📄</div>
-                        <p class="text-sm sm:text-base text-gray-600 font-medium mb-1">Drop CV or click</p>
-                        <p class="text-xs sm:text-sm text-gray-500">PDF, DOCX, TXT (max 10MB)</p>
+                    <div class="grid sm:grid-cols-2 gap-4">
+                        <!-- CV Upload Zone -->
+                        <div id="dropZone"
+                            class="file-upload-zone border-2 border-dashed border-gray-300 rounded-lg p-4 sm:p-6 text-center hover:border-primary-500 hover:bg-primary-50 transition-all cursor-pointer">
+                            <div class="text-3xl sm:text-4xl mb-2 sm:mb-3">📄</div>
+                            <p class="text-sm sm:text-base text-gray-600 font-medium mb-1">Drop CV or click</p>
+                            <p class="text-xs sm:text-sm text-gray-500">PDF, DOCX, TXT (max 10MB)</p>
+                        </div>
+
+                        <!-- Cover Letter Upload Zone -->
+                        <div id="coverLetterDropZone"
+                            class="border-2 border-dashed border-gray-300 rounded-lg p-4 sm:p-6 text-center hover:border-primary-500 hover:bg-primary-50 transition-all cursor-pointer">
+                            <div class="text-3xl sm:text-4xl mb-2 sm:mb-3">📝</div>
+                            <p class="text-sm sm:text-base text-gray-600 font-medium mb-1">Drop cover letter or click</p>
+                            <p class="text-xs sm:text-sm text-gray-500">PDF, DOCX, TXT (max 10MB)</p>
+                        </div>
                     </div>
 
                     <input type="file" id="fileInput" class="hidden" accept=".pdf,.docx,.doc,.txt">
+                    <input type="file" id="coverLetterFileInput" class="hidden" accept=".pdf,.docx,.doc,.txt">
                     <!-- Legacy uploadLoading removed - CvUploader modal handles progress -->
                 </div>
+
             </div>
 
             <!-- Documents List -->
@@ -443,7 +455,8 @@
     <script src="/assets/js/components/ui/toast.js?v=1"></script>
     <script src="/assets/js/components/ui/modal.js?v=1"></script>
     <script src="/assets/js/main.js?v=1"></script>
-    <script src="/assets/js/components/cv-uploader.js?v=1"></script>
+    <script src="/assets/js/utils/pending-cv.js"></script>
+    <script src="/assets/js/components/cv-uploader.js?v=2"></script>
     <script src="/assets/js/pages/dashboard.js?v=1.1"></script>
     <script src="/assets/js/components/auto-apply-button.js"></script>
     <script src="/assets/js/components/run-test-button.js"></script>

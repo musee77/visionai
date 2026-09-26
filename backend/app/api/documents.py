@@ -2,7 +2,7 @@
 Documents API - Simplified for Phase 1 testing
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
@@ -11,6 +11,8 @@ from datetime import datetime
 from app.services.documents.document_service import document_service
 from app.dependencies import get_current_active_user
 from app.models.user import User
+from app.database import get_database
+from app.services.core.subscription_service import SubscriptionService
 
 router = APIRouter()
 
@@ -48,13 +50,34 @@ class DocumentListResponse(BaseModel):
 @router.post("/upload", response_model=CVParseResponse)
 async def upload_cv(
     file: UploadFile = File(..., description="CV file (PDF, DOCX, DOC, TXT)"),
+    document_type: str = Form("cv"),
     current_user: User = Depends(get_current_active_user)
 ):
     """
     Upload and parse CV with AI
     """
     try:
-        result = await document_service.process_cv_upload(file, str(current_user["_id"]))
+        if document_type not in {"cv", "cover_letter"}:
+            raise HTTPException(status_code=400, detail="document_type must be cv or cover_letter")
+
+        user_id = str(current_user["_id"])
+        if document_type == "cover_letter":
+            db = await get_database()
+            service = SubscriptionService(db)
+            subscription = await service.get_user_subscription(user_id)
+            plan = await service.get_plan(subscription.plan_id) if subscription else None
+            has_cover_letter_access = plan and (
+                plan.metadata.get("entitlement") == "manual_plus"
+                or plan.tier.value in {"basic", "premium"}
+            )
+            if not has_cover_letter_access:
+                raise HTTPException(
+                    status_code=402,
+                    detail="Upload a cover letter requires the Manual Apply + Cover Letter offer"
+                )
+            result = await document_service.process_cover_letter_upload(file, user_id)
+        else:
+            result = await document_service.process_cv_upload(file, user_id)
         
         return CVParseResponse(
             success=result["success"],

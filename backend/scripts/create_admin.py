@@ -3,11 +3,13 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import sys
 from datetime import datetime
 import os
+import secrets
 
 # Add parent directory to path to import app modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app.core.config import settings
+from app.core.security import hash_password
 
 # Use settings from environment
 MONGODB_URL = settings.MONGODB_URL
@@ -20,11 +22,10 @@ async def create_admin():
         db = client[DB_NAME]
         users_collection = db.users
         
-        email = "how to deleye and create admin agan by comnnecting to a;as with ,pngposh"
+        email = "admin@synovae.com"
         password = "password123"  # Plain text password for display
         
-        # Hash for 'password123' (bcrypt)
-        hashed_password = "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxwKc.6IymVFt7H.8O.7d3x/j1a6."
+        hashed_password = hash_password(password)
         
         # Check if user exists
         existing = await users_collection.find_one({"email": email})
@@ -33,6 +34,10 @@ async def create_admin():
             print("Deleting existing user and creating fresh...")
             await users_collection.delete_one({"email": email})
             print("✅ Existing user deleted.")
+
+        referral_code = "ADMIN123"
+        while await users_collection.find_one({"referral_code": referral_code}, {"_id": 1}):
+            referral_code = f"ADMIN{secrets.token_hex(4).upper()}"
 
         # Create new user
         print(f"\n🔨 Creating new admin user: {email}")
@@ -53,7 +58,7 @@ async def create_admin():
             "usage_stats": {},
             "preferences": {},
             "profile": {},
-            "referral_code": "ADMIN123"
+            "referral_code": referral_code
         }
         
         await users_collection.insert_one(new_user)

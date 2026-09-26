@@ -35,6 +35,22 @@ const PricingPlans = (function () {
                 'Watermarked documents'
             ]
         },
+        manualPlus: {
+            id: 'plan_manual_plus',
+            name: 'Manual Apply + Cover Letter',
+            tier: 'free',
+            description: 'One payment for unlimited manual applications',
+            monthlyPrice: 249,
+            yearlyPrice: 249,
+            oneTime: true,
+            isPopular: true,
+            features: [
+                'Unlimited manual applications',
+                'Upload and reuse cover letters',
+                'No recurring billing'
+            ],
+            limitations: []
+        },
         basic: {
             id: 'plan_basic',
             name: 'Basic',
@@ -119,6 +135,7 @@ const PricingPlans = (function () {
      * Get billing period text
      */
     function getBillingPeriod() {
+        if (currentBillingInterval === 'one_time') return 'one time';
         return currentBillingInterval === 'yearly' ? 'year' : 'month';
     }
 
@@ -175,7 +192,7 @@ const PricingPlans = (function () {
                     <button class="w-full bg-green-100 text-green-700 rounded-xl px-6 py-4 font-bold cursor-not-allowed border-2 border-green-300">
                         ✓ Current Plan
                     </button>`;
-            } else if (plan.tier === 'free') {
+            } else if (plan.tier === 'free' && !plan.oneTime) {
                 // No button for free tier when authenticated
                 buttonHtml = '';
             } else {
@@ -186,7 +203,7 @@ const PricingPlans = (function () {
                 buttonHtml = `
                     <button onclick="PricingPlans.selectPlan('${plan.id}', '${plan.name}', ${price}, '${planCode}')" 
                         class="w-full ${btnClass} rounded-xl px-6 py-4 font-bold hover:shadow-lg transition-all">
-                        Upgrade
+                        ${plan.oneTime ? 'Unlock offer' : 'Upgrade'}
                     </button>`;
             }
         }
@@ -223,7 +240,7 @@ const PricingPlans = (function () {
                     <h3 class="text-2xl font-bold text-gray-900 mb-4">${plan.name}</h3>
                     <div class="flex justify-center items-baseline mb-2">
                         <span class="text-4xl font-extrabold text-gray-900">${formatPrice(price)}</span>
-                        <span class="text-gray-500 ml-1">/${getBillingPeriod()}</span>
+                        <span class="text-gray-500 ml-1">${plan.oneTime ? 'one time' : `/${getBillingPeriod()}`}</span>
                     </div>
                     <p class="text-gray-600 text-sm">${plan.description}</p>
                     ${currentBillingInterval === 'yearly' && plan.tier !== 'free' ? `
@@ -252,11 +269,11 @@ const PricingPlans = (function () {
         }
 
         // Get plans in order
-        const plans = [PLAN_CONFIG.free, PLAN_CONFIG.basic, PLAN_CONFIG.premium];
+        const plans = [PLAN_CONFIG.free, PLAN_CONFIG.manualPlus, PLAN_CONFIG.basic, PLAN_CONFIG.premium];
 
         // For yearly billing, update plan IDs
         const displayPlans = plans.map(plan => {
-            if (currentBillingInterval === 'yearly' && plan.tier !== 'free') {
+            if (currentBillingInterval === 'yearly' && plan.tier !== 'free' && !plan.oneTime) {
                 return { ...plan, id: `${plan.id}_annual` };
             }
             return plan;

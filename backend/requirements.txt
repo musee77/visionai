@@ -61,9 +61,8 @@ prometheus_client==0.23.1
 prompt_toolkit==3.0.52
 pyasn1==0.6.1
 pycparser==2.23
-pydantic==2.5.0
+pydantic>=2.7.0
 pydantic-settings==2.1.0
-pydantic_core==2.14.1
 pyee==13.0.0
 PyJWT==2.10.1
 pymongo==4.6.0
@@ -93,7 +92,6 @@ typing_extensions==4.15.0
 tzdata==2025.2
 urllib3==2.5.0
 uvicorn==0.24.0
-uvloop==0.21.0
 vine==5.1.0
 watchfiles==1.1.0
 wcwidth==0.2.14

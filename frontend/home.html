@@ -17,6 +17,7 @@
 
     <!-- Global Styles -->
     <link rel="stylesheet" href="/assets/css/global.css">
+    <link rel="stylesheet" href="/assets/css/landing.css">
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -42,30 +43,42 @@
     </script>
 </head>
 
-<body class="bg-gray-50 font-sans">
+<body class="bg-slate-50 font-sans text-slate-900">
     <!-- Navigation -->
     <div id="public-navbar-container"></div>
 
     <!-- Hero Section with CV Upload -->
-    <section class="pt-10 pb-6 lg:pt-16 bg-gray-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <section class="relative overflow-hidden bg-slate-950 text-white pt-10 pb-6 lg:pt-16">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.25),transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(168,85,247,0.25),transparent_28%)]"></div>
+        <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div class="grid lg:grid-cols-2 gap-12 items-center">
                 <!-- Hero Content -->
                 <div class="text-left">
-                    <h1 class="text-4xl md:text-6xl font-bold mb-6 leading-tight text-gray-900">
+                    <h1 class="text-4xl md:text-6xl font-bold mb-6 leading-tight text-white">
                         AI-Powered Job <br />
                         <span
-                            class="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-primary-800">Application
+                            class="text-transparent bg-clip-text bg-gradient-to-r from-sky-300 via-indigo-300 to-violet-300">Application
                             Platform</span>
                     </h1>
-                    <p class="text-xl md:text-2xl mb-8 text-gray-600 leading-relaxed">
+                    <p class="text-xl md:text-2xl mb-8 text-slate-300 leading-relaxed">
                         Automate your job search with intelligent CV customization, job matching, and one-click
                         applications
                     </p>
 
                     <!-- Quick Stats -->
-                    <div id="stats-container" class="grid grid-cols-3 gap-8 mb-8 border-l-4 border-primary-500 pl-6">
-                        <!-- Stats driven by JS -->
+                    <div id="stats-container" class="grid grid-cols-3 gap-8 mb-8 border-l-4 border-emerald-500 pl-6 text-white">
+                        <div class="text-center rounded-lg bg-emerald-950/80 px-3 py-2 border border-emerald-700/60">
+                            <div class="text-3xl font-bold mb-1 whitespace-nowrap" style="color: #ffffff;">10K+</div>
+                            <div class="text-sm uppercase tracking-wide font-medium whitespace-nowrap" style="color: #ffffff;">Jobs Matched</div>
+                        </div>
+                        <div class="text-center rounded-lg bg-emerald-950/80 px-3 py-2 border border-emerald-700/60">
+                            <div class="text-3xl font-bold mb-1 whitespace-nowrap" style="color: #ffffff;">85%</div>
+                            <div class="text-sm uppercase tracking-wide font-medium whitespace-nowrap" style="color: #ffffff;">Success Rate</div>
+                        </div>
+                        <div class="text-center rounded-lg bg-emerald-950/80 px-3 py-2 border border-emerald-700/60">
+                            <div class="text-3xl font-bold mb-1 whitespace-nowrap" style="color: #ffffff;">2Min</div>
+                            <div class="text-sm uppercase tracking-wide font-medium whitespace-nowrap" style="color: #ffffff;">Setup Time</div>
+                        </div>
                     </div>
 
                     <!-- CTA Buttons -->
@@ -250,6 +263,7 @@
     <!-- Global Scripts -->
     <script src="/assets/js/utils/geolocation.js"></script>
     <script src="/assets/js/utils/currency.js"></script>
+    <script src="/assets/js/utils/pending-cv.js"></script>
     <script src="/assets/js/components/PublicNavbar.js"></script>
     <script src="/assets/js/components/PricingPlans.js"></script>
     <script src="/assets/js/main.js"></script>

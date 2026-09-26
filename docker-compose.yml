@@ -1,20 +1,20 @@
 services:
-  # mongo:
-  #   image: mongo:7.0
-  #   container_name: synovae_db_mongo
-  #   environment:
-  #     MONGO_INITDB_DATABASE: synovae_db
-  #   volumes:
-  #     - mongo_data:/data/db
-  #   ports:
-  #     - "27017:27017"
-  #   networks:
-  #     - vision_ai_network
-  #   healthcheck:
-  #     test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/synovae_db
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
+  mongo:
+    image: mongo:7.0
+    container_name: synovae_db_mongo
+    environment:
+      MONGO_INITDB_DATABASE: synovae_db
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - vision_ai_network
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet mongodb://localhost:27017/synovae_db --eval 'db.runCommand({ ping: 1 }).ok' | grep 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7-alpine
@@ -77,7 +77,10 @@ services:
     networks:
       - vision_ai_network
     depends_on:
-      - redis
+      redis:
+        condition: service_started
+      mongo:
+        condition: service_healthy
 
   celery_worker:
     build:
@@ -103,6 +106,7 @@ services:
     depends_on:
       - redis
       - backend
+      - mongo
     networks:
       - vision_ai_network
 
@@ -123,6 +127,7 @@ services:
       - DATABASE_NAME=${DATABASE_NAME}
     depends_on:
       - redis
+      - mongo
     networks:
       - vision_ai_network
 

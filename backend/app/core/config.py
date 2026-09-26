@@ -162,6 +162,9 @@ class Settings(BaseSettings):
     # Job board APIs - Optional (for job scraping)
     INDEED_PUBLISHER_ID: Optional[str] = Field(default=None, env="INDEED_PUBLISHER_ID")
     INDEED_API_KEY: Optional[str] = Field(default=None, env="INDEED_API_KEY")
+    JOB_API_URLS: str = Field(default="", env="JOB_API_URLS")
+    JOB_WEEKLY_MIN_POSTS: int = Field(default=10, env="JOB_WEEKLY_MIN_POSTS")
+    JOB_WEEKLY_MAX_POSTS: int = Field(default=30, env="JOB_WEEKLY_MAX_POSTS")
     
     # File storage
     UPLOAD_DIR: str = Field(default="/app/uploads", env="UPLOAD_DIR")

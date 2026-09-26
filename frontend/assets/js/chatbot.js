@@ -73,6 +73,7 @@ const CVisionChatbot = {
     ],
 
     init() {
+        if (document.getElementById('chatButton')) return;
         this.createChatWidget();
         this.attachEventListeners();
         this.sendWelcomeMessage();
@@ -308,8 +309,12 @@ const CVisionChatbot = {
         this.addMessage('bot', "Analysis complete: All our agents are currently assisting other users. 😔\n\nHowever, I can create a priority support ticket for you right here. An agent will assume this thread and email you shortly.\n\nWhat is the best email address to reach you at?");
         this.chatState = 'awaiting_email';
 
-        // Auto-fill email if user is logged in (simulated check)
-        // In a real app we'd check currentUser.email
+        const user = window.CVision?.Utils?.getUser?.();
+        if (user?.email) {
+            this.ticketData.email = user.email;
+            this.chatState = 'awaiting_message';
+            this.addMessage('bot', `I found your account email (${user.email}). What message would you like to leave for the support team?`);
+        }
     },
 
     handleEmailInput(email) {
@@ -385,10 +390,12 @@ const CVisionChatbot = {
     }
 };
 
-// Initialize chatbot when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+// Initialize safely whether the script loads before or after DOMContentLoaded.
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => CVisionChatbot.init(), { once: true });
+} else {
     CVisionChatbot.init();
-});
+}
 
 // Make openLiveChat function available globally (for help.html)
 function openLiveChat() {

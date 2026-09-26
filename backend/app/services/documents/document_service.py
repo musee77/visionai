@@ -107,6 +107,51 @@ class DocumentService:
                 detail=f"Failed to process CV: {str(e)}"
             )
 
+    async def process_cover_letter_upload(self, file: UploadFile, user_id: str) -> Dict[str, Any]:
+        """Store a reusable cover letter without attempting CV parsing."""
+        try:
+            self._validate_file(file)
+            await file.seek(0)
+            file_content = await file.read()
+            file_path = await self._save_file(file_content, file.filename, user_id)
+            text_content = self._extract_text(file_content, Path(file.filename).suffix.lower())
+            now = datetime.utcnow()
+            document_record = {
+                "user_id": user_id,
+                "file_info": {
+                    "original_filename": file.filename,
+                    "file_path": str(file_path),
+                    "file_size": len(file_content),
+                    "content_type": file.content_type,
+                    "upload_date": now
+                },
+                "text_content": text_content[:2000],
+                "cv_data": {},
+                "processing_metadata": {},
+                "status": "completed",
+                "document_type": "cover_letter",
+                "is_active": True,
+                "created_at": now,
+                "updated_at": now
+            }
+            db = await get_database()
+            result = await db.documents.insert_one(document_record)
+            return {
+                "success": True,
+                "document_id": str(result.inserted_id),
+                "file_info": document_record["file_info"],
+                "cv_data": {},
+                "status": "completed",
+                "message": "Cover letter uploaded successfully"
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error processing cover letter upload: {e}")
+            if 'file_path' in locals() and Path(file_path).exists():
+                Path(file_path).unlink()
+            raise HTTPException(status_code=500, detail=f"Failed to upload cover letter: {str(e)}")
+
     async def customize_cv_for_job(self, document_id: str, job_description: str, 
                                  company_name: str, user_id: str,
                                  user_preferences: Dict[str, Any] = None) -> Dict[str, Any]:

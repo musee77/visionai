@@ -31,8 +31,37 @@ async function initializeDashboard() {
     await loadUserProfile();
     await loadDashboardStats(); // Load detailed stats
     await loadDocuments();
+    await uploadPendingLandingCv();
     await loadSavedJobs();
 
+
+async function uploadPendingLandingCv() {
+    if (!window.PendingCvStore) return;
+
+    try {
+        const file = await PendingCvStore.take();
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file, file.name);
+
+        const response = await fetch(`${API_BASE_URL}/api/v1/documents/upload`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${CVision.Utils.getToken()}` },
+            body: formData
+        });
+
+        if (!response.ok) {
+            throw new Error(`Pending CV upload failed (${response.status})`);
+        }
+
+        CVision.Utils.showAlert('Your uploaded CV is ready to use.', 'success');
+        await loadDocuments();
+    } catch (error) {
+        console.error('Could not upload pending landing CV:', error);
+        CVision.Utils.showAlert('Your CV could not be uploaded. Please upload it again.', 'error');
+    }
+}
     // setupAutomationStatus(); // Logic integrated into loadAutomationStatus
     await loadAutomationStatus();
 

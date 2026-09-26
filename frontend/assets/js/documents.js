@@ -56,6 +56,13 @@ class DocumentManager {
             fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
         }
 
+        document.getElementById('documentTypeSelect')?.addEventListener('change', (e) => {
+            const isCoverLetter = e.target.value === 'cover_letter';
+            document.getElementById('uploadHeading').textContent = isCoverLetter ? 'Upload Your Cover Letter' : 'Upload Your CV';
+            document.getElementById('dropZoneText').textContent = isCoverLetter ? 'Drag and drop your cover letter here, or click to browse' : 'Drag and drop your CV here, or click to browse';
+            document.getElementById('uploadProgressText').textContent = isCoverLetter ? 'Uploading your cover letter...' : 'Processing your CV...';
+        });
+
         // Only attach dropZone click listener (uploadCvBtn doesn't exist in HTML)
         if (dropZone) {
             this.setupDragAndDrop(dropZone);
@@ -142,11 +149,12 @@ class DocumentManager {
                 return;
             }
 
-            this.showLoading('Uploading and analyzing CV...');
-            await this.uploadFile(file);
+            const documentType = document.getElementById('documentTypeSelect')?.value || 'cv';
+            this.showLoading(documentType === 'cover_letter' ? 'Uploading cover letter...' : 'Uploading and analyzing CV...');
+            await this.uploadFile(file, documentType);
 
             this.hideLoading();
-            this.showAlert('CV uploaded and processed successfully!', 'success');
+            this.showAlert(documentType === 'cover_letter' ? 'Cover letter uploaded successfully!' : 'CV uploaded and processed successfully!', 'success');
             await this.loadDocuments();
 
             // Clear file input
@@ -176,9 +184,10 @@ class DocumentManager {
         return { valid: true };
     }
 
-    async uploadFile(file) {
+    async uploadFile(file, documentType = 'cv') {
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('document_type', documentType);
 
         const response = await fetch(`${this.apiBaseUrl}/upload`, {
             method: 'POST',

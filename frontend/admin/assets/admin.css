@@ -1,0 +1,185 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+:root {
+    --admin-ink: #10211b;
+    --admin-muted: #66756f;
+    --admin-line: #dce8e1;
+    --admin-green: #166534;
+    --admin-mint: #dff5e8;
+    --admin-bg: #f3f8f4;
+}
+
+body {
+    background: var(--admin-bg) !important;
+    color: var(--admin-ink);
+    font-family: 'DM Sans', sans-serif;
+}
+
+.admin-login {
+    background:
+        radial-gradient(circle at 15% 15%, rgba(105, 211, 151, 0.2), transparent 28%),
+        radial-gradient(circle at 85% 85%, rgba(34, 101, 67, 0.3), transparent 32%),
+        #0b2118 !important;
+}
+
+.admin-login::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.16;
+    background-image: linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: linear-gradient(to bottom right, black, transparent 70%);
+}
+
+.admin-login-card {
+    border: 1px solid #dce8e1;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32) !important;
+}
+
+h1, h2, h3, h4 {
+    font-family: 'Space Grotesk', sans-serif;
+}
+
+body > .flex.h-screen > #admin-sidebar,
+#admin-sidebar {
+    width: 17rem;
+    min-width: 17rem;
+}
+
+#admin-sidebar aside {
+    width: 100%;
+    background: #102b20;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#admin-sidebar aside > div:first-child {
+    padding: 1.75rem 1.5rem 1.25rem;
+}
+
+#admin-sidebar h1 {
+    color: #f2fff7;
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    font-size: 1.35rem;
+    letter-spacing: -0.03em;
+}
+
+#admin-sidebar nav {
+    margin-top: 1.25rem;
+    padding: 0 0.75rem;
+}
+
+#admin-sidebar nav a {
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+    border-radius: 0.65rem;
+    color: #b9d1c3;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 0.65rem 0.9rem;
+    margin: 0.2rem 0;
+}
+
+#admin-sidebar nav a:hover,
+#admin-sidebar nav a.bg-gray-800 {
+    background: #1c4935 !important;
+    color: #ffffff;
+}
+
+#admin-sidebar nav a.border-l-4 {
+    border-left: 0 !important;
+    box-shadow: inset 3px 0 0 #74d69a;
+}
+
+main {
+    background: var(--admin-bg);
+}
+
+main > header {
+    background: rgba(255, 255, 255, 0.9) !important;
+    border-bottom-color: var(--admin-line) !important;
+    backdrop-filter: blur(14px);
+}
+
+main > header h2 {
+    color: var(--admin-ink);
+    letter-spacing: -0.035em;
+}
+
+main > header button,
+main > header a {
+    color: var(--admin-green);
+}
+
+main > div.p-6,
+main > div.p-4 {
+    max-width: 1500px;
+    margin: 0 auto;
+}
+
+main .bg-white {
+    border-color: var(--admin-line) !important;
+    box-shadow: 0 10px 28px rgba(16, 43, 32, 0.055) !important;
+}
+
+main input:focus,
+main select:focus,
+main textarea:focus {
+    border-color: #43a86c !important;
+    box-shadow: 0 0 0 3px rgba(67, 168, 108, 0.16) !important;
+    outline: none;
+}
+
+main button.bg-blue-600,
+main a.bg-blue-600 {
+    background: var(--admin-green) !important;
+}
+
+main button.bg-blue-600:hover,
+main a.bg-blue-600:hover {
+    background: #0f4d27 !important;
+}
+
+@media (max-width: 768px) {
+    body > .flex.h-screen,
+    body > .flex.h-screen > main {
+        min-width: 0;
+    }
+
+    body > .flex.h-screen > #admin-sidebar,
+    #admin-sidebar {
+        width: 4.25rem;
+        min-width: 4.25rem;
+    }
+
+    #admin-sidebar aside > div:first-child {
+        padding: 1.25rem 0.5rem;
+        text-align: center;
+    }
+
+    #admin-sidebar h1 {
+        font-size: 0;
+    }
+
+    #admin-sidebar h1::after {
+        content: 'C';
+        font-size: 1.5rem;
+    }
+
+    #admin-sidebar nav {
+        padding: 0 0.4rem;
+    }
+
+    #admin-sidebar nav a {
+        justify-content: center;
+        padding: 0.7rem 0.4rem;
+        font-size: 0;
+    }
+
+    #admin-sidebar nav a::first-letter {
+        font-size: 1rem;
+    }
+}

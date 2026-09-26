@@ -219,6 +219,7 @@ const API = {
     async request(endpoint, options = {}) {
         const url = `${CONFIG.API_BASE_URL}${CONFIG.API_PREFIX}${endpoint}`;
         const token = Utils.getToken();
+        const isLoginRequest = endpoint === '/auth/login' || endpoint === '/admin/login';
 
         const config = {
             headers: {
@@ -234,12 +235,23 @@ const API = {
         }
 
         try {
-            const response = await fetch(url, config);
+            let response;
+            for (let attempt = 0; attempt < 2; attempt++) {
+                try {
+                    response = await fetch(url, config);
+                    if (![502, 503, 504].includes(response.status) || attempt === 1) break;
+                } catch (networkError) {
+                    if (attempt === 1) throw networkError;
+                }
+                await new Promise(resolve => setTimeout(resolve, 400));
+            }
 
             // Handle backend errors (502/503) - redirect to login
-            if (response.status === 502 || response.status === 503) {
-                console.error('Backend is down or unavailable, redirecting to login...');
-                Utils.removeToken();
+            if ([502, 503, 504].includes(response.status)) {
+                console.error('Backend is temporarily unavailable.');
+                if (isLoginRequest) {
+                    throw new Error('The server is temporarily unavailable. Please try again.');
+                }
                 Utils.removeToken();
                 window.location.href = Utils.getLoginUrl();
                 return;
@@ -271,7 +283,7 @@ const API = {
             }
 
             // If unauthorized and we have a refresh token, try to refresh
-            if (response.status === 401 && Utils.getRefreshToken()) {
+            if (response.status === 401 && !isLoginRequest && Utils.getRefreshToken()) {
                 const refreshed = await this.refreshAccessToken();
                 if (refreshed) {
                     // Retry the original request with new token
@@ -296,9 +308,8 @@ const API = {
             }
 
             // If still unauthorized after refresh attempt, redirect to login
-            if (response.status === 401) {
+            if (response.status === 401 && !isLoginRequest) {
                 console.error('Unauthorized, redirecting to login...');
-                Utils.removeToken();
                 Utils.removeToken();
                 window.location.href = Utils.getLoginUrl();
                 return;
@@ -314,7 +325,7 @@ const API = {
 
             // Only redirect to login if it's a genuine network error (backend down)
             // NOT for application errors like 404, 500, etc.
-            if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+            if (error.name === 'TypeError' && error.message.includes('Failed to fetch') && !isLoginRequest) {
                 console.error('Network error, backend may be down. Redirecting to login...');
                 Utils.removeToken();
                 window.location.href = Utils.getLoginUrl();

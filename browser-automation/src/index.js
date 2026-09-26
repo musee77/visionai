@@ -7,6 +7,7 @@ const cors = require('cors');
 const { AutofillEngine } = require('./automation/autofill');
 const { FormDetector } = require('./automation/form-detector');
 const { SiteHandlerFactory } = require('./automation/site-handlers/factory');
+const { AuthHandler } = require('./automation/auth-handler');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -15,454 +16,208 @@ const AUTH_TOKEN = process.env.BROWSER_AUTOMATION_TOKEN || 'dev-automation-token
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// Store active browser sessions
 const activeSessions = new Map();
 
-// Authentication middleware
-// const authenticate = (req, res, next) => {
-//     const authHeader = req.headers.authorization;
-//     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-//         return res.status(401).json({ error: 'Unauthorized' });
-//     }
-
-//     const token = authHeader.substring(7);
-//     if (token !== AUTH_TOKEN) {
-//         return res.status(401).json({ error: 'Invalid token' });
-//     }
-
-//     next();
-// };
-// Authentication middleware
 const authenticate = (req, res, next) => {
-
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-
+    if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
     const token = authHeader.substring(7);
-
-    if (token !== AUTH_TOKEN) {
-        return res.status(401).json({ error: 'Invalid token' });
-    }
-
+    if (token !== AUTH_TOKEN) return res.status(401).json({ error: 'Invalid token' });
     next();
 };
 
-// Health check
 app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
-        service: 'Browser Automation Service (Playwright)',
+        service: 'Browser Automation Service',
         active_sessions: activeSessions.size,
-        version: '2.0.0'
+        version: '2.6.0'
     });
 });
 
-// Start automation session
 app.post('/api/automation/start', authenticate, async (req, res) => {
     const { session_id, url, autofill_data, job_source } = req.body;
-
-    if (!session_id || !url || !autofill_data) {
-        return res.status(400).json({
-            error: 'Missing required fields: session_id, url, autofill_data'
-        });
-    }
+    if (!session_id || !url || !autofill_data) return res.status(400).json({ error: 'Missing fields' });
 
     try {
-        console.log(`Starting browser automation for session: ${session_id}`);
-        console.log(`Target URL: ${url}`);
-        console.log(`Job source: ${job_source}`);
-
-        // Launch browser with Playwright
         const headlessEnv = process.env.HEADLESS ? process.env.HEADLESS.toLowerCase().trim() : 'true';
         const isHeadless = headlessEnv !== 'false';
 
-        console.log(`[Browser Config] HEADLESS env: "${process.env.HEADLESS}" -> Mode: ${isHeadless ? 'Headless (Background)' : 'Headful (Visible UI)'}`);
-
-        // Force disable Playwright Inspector in ALL modes to prevent "Assistant" window
         delete process.env.PWDEBUG;
         process.env.DEBUG = '0';
 
         const browser = await chromium.launch({
             headless: isHeadless,
-            devtools: false,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-gpu',
-                '--disable-web-security',  // Helps with CORS issues
-                '--disable-features=IsolateOrigins,site-per-process'
-            ],
-            // Playwright-specific options
-            slowMo: 50, // Slow down by 50ms for better visibility
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled'],
+            slowMo: 50,
         });
 
-        // Create a new context (like an incognito window)
         const context = await browser.newContext({
-            viewport: null, // Use full window size
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-                '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            // Additional Playwright features
-            locale: 'en-US',
-            timezoneId: 'America/New_York',
-            permissions: ['geolocation', 'notifications'],
+            viewport: { width: 1280, height: 800 },
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
         });
 
         const page = await context.newPage();
+        activeSessions.set(session_id, { browser, context, page, autofill_data, job_source, started_at: new Date(), status: 'initialized' });
 
-        // Store session
-        activeSessions.set(session_id, {
-            browser,
-            context,
-            page,
-            autofill_data,
-            job_source,
-            started_at: new Date(),
-            status: 'initialized'
+        performAutofill(session_id, url, autofill_data, job_source, page).catch(err => {
+            console.error(`Autofill error:`, err);
+            updateSessionStatus(session_id, 'error', err.message);
         });
 
-        // Navigate and autofill in background
-        performAutofill(session_id, url, autofill_data, job_source, page)
-            .catch(err => {
-                console.error(`Autofill error for session ${session_id}:`, err);
-                updateSessionStatus(session_id, 'error', err.message);
-            });
-
-        res.json({
-            browser_session_id: session_id,
-            status: 'started',
-            message: 'Browser automation started successfully'
-        });
-
+        res.json({ browser_session_id: session_id, status: 'started' });
     } catch (error) {
-        console.error('Failed to start browser automation:', error);
-        res.status(500).json({
-            error: 'Failed to start browser automation',
-            details: error.message
-        });
+        res.status(500).json({ error: 'Failed' });
     }
 });
 
-// Get session status
 app.get('/api/automation/status/:session_id', authenticate, (req, res) => {
     const { session_id } = req.params;
     const session = activeSessions.get(session_id);
-
-    if (!session) {
-        return res.status(404).json({ error: 'Session not found' });
-    }
-
+    if (!session) return res.status(404).json({ error: 'Not found' });
     res.json({
         session_id,
         status: session.status,
-        started_at: session.started_at,
         filled_fields: session.filled_fields || [],
-        errors: session.errors || []
+        errors: session.errors || [],
+        new_credentials: session.portal_credentials || null,
+        verification_domain: session.portal_credentials?.domain || null
     });
 });
 
-// Close session
 app.post('/api/automation/close/:session_id', authenticate, async (req, res) => {
-    const { session_id } = req.params;
-    const session = activeSessions.get(session_id);
-
-    if (!session) {
-        return res.status(404).json({ error: 'Session not found' });
-    }
-
-    try {
-        await session.context.close(); // Close context first
+    const session = activeSessions.get(req.params.session_id);
+    if (session) {
+        await session.context.close();
         await session.browser.close();
-        activeSessions.delete(session_id);
-        res.json({ message: 'Session closed successfully' });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to close session' });
+        activeSessions.delete(req.params.session_id);
     }
+    res.json({ success: true });
 });
 
 async function performAutofill(session_id, url, autofillData, jobSource, page) {
-    console.log(`=== STARTING AUTOFILL FOR SESSION ${session_id} ===`);
-
     const session = activeSessions.get(session_id);
-    if (!session) {
-        console.error(`Session ${session_id} not found in activeSessions!`);
-        return;
-    }
-
-    console.log(`Autofill data received:`, JSON.stringify(autofillData, null, 2));
+    const handler = SiteHandlerFactory.getHandler(url, jobSource);
+    let activePage = page;
+    let applyClickCount = 0;
+    let attempts = 0;
+    const maxAttempts = 6;
+    const filledFields = [];
 
     try {
         updateSessionStatus(session_id, 'navigating');
+        await activePage.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await activePage.waitForTimeout(3000);
 
-        console.log(`Navigating to: ${url}`);
-        const response = await page.goto(url, {
-            waitUntil: 'domcontentloaded',
-            timeout: 60000
-        });
+        // --- DYNAMIC MULTI-STAGE LOOP ---
+        while (attempts < maxAttempts) {
+            attempts++;
+            console.log(`[Autofill] Stage ${attempts} | URL: ${activePage.url()}`);
 
-        console.log(`Navigation response status: ${response?.status()}`);
-        console.log(`Page loaded: ${await page.title()}`);
+            const formDetector = new FormDetector(activePage);
+            const authHandler = new AuthHandler(activePage, formDetector, handler, autofillData);
+            const pageType = await authHandler.classifier.classify();
+            console.log(`[Autofill] Page classified as: ${pageType}`);
 
-        await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {
-            console.log('Network not idle after 10s, but continuing...');
-        });
+            if (pageType === 'captcha') {
+                updateSessionStatus(session_id, 'manual_action_required', 'CAPTCHA detected.');
+                return;
+            }
 
-        await page.waitForTimeout(3000);
-
-        updateSessionStatus(session_id, 'detecting_forms');
-
-        const handler = SiteHandlerFactory.getHandler(url, jobSource);
-
-        // Prepare page (e.g. click "Apply" buttons) - this may open a new tab
-        let activePage = page;
-        if (handler && typeof handler.preparePage === 'function') {
-            try {
-                const newPage = await handler.preparePage(page);
-                if (newPage && newPage !== page) {
-                    console.log('[Autofill] Handler returned new page (new tab detected). Switching context...');
+            // 1. Handle Job Description
+            if (pageType === 'job_description' && applyClickCount < 3) {
+                applyClickCount++;
+                console.log(`[Autofill] Job description - Clicking Apply/Continue (Attempt ${applyClickCount})...`);
+                const newPage = await handler.preparePage(activePage);
+                if (newPage && newPage !== activePage) {
                     activePage = newPage;
-
-                    // Update session reference
                     if (session) session.page = activePage;
-
-                    // Wait for the new page to stabilize
                     await activePage.waitForLoadState('domcontentloaded').catch(() => { });
-                    await activePage.waitForTimeout(2000);
-
-                    console.log(`[Autofill] New tab URL: ${activePage.url()}`);
-                    console.log(`[Autofill] New tab title: ${await activePage.title()}`);
                 }
-            } catch (prepareError) {
-                // Check if original page is still valid
-                if (page.isClosed()) {
-                    console.log('[Autofill] Original page closed. Checking for new tabs in context...');
-                    // Try to find any open page in the context
-                    const pages = session.context.pages();
-                    const validPage = pages.find(p => !p.isClosed() && p.url() !== 'about:blank');
-                    if (validPage) {
-                        console.log(`[Autofill] Found valid page: ${validPage.url()}`);
-                        activePage = validPage;
-                        if (session) session.page = activePage;
-                        await activePage.waitForLoadState('domcontentloaded').catch(() => { });
-                    } else {
-                        throw new Error('All pages in context are closed or invalid');
-                    }
+                await activePage.waitForTimeout(4000);
+                continue;
+            }
+
+            // 2. Handle Auth Wall
+            if (pageType === 'login' || pageType === 'register') {
+                console.log('[Autofill] Auth Wall detected.');
+                const authResult = await authHandler.handleAuth({
+                    autoCreateAccount: autofillData.auto_create_account || false,
+                    credentials: autofillData.portal_credentials
+                });
+                if (authResult.status === 'pending_verification') {
+                    updateSessionStatus(session_id, 'pending_verification', authResult.message);
+                    session.portal_credentials = authResult.credentials;
+                    return;
+                } else if (authResult.status === 'needs_authentication') {
+                    throw new Error('LOGIN_REQUIRED');
+                } else if (authResult.status === 'success') {
+                    await activePage.waitForTimeout(4000);
+                    continue;
+                }
+            }
+
+            // 3. Find and Fill Forms
+            const forms = await formDetector.detectForms();
+            const excludePatterns = ['search', 'filter', 'subscribe', 'newsletter'];
+            const appForms = forms.filter(form => {
+                const combinedText = form.fields?.map(f => `${f.name} ${f.id} ${f.placeholder} ${f.label}`).join(' ').toLowerCase();
+                const isSearch = excludePatterns.some(p => combinedText.includes(p));
+                const hasAppFields = combinedText.includes('email') || combinedText.includes('name') || combinedText.includes('resume') ||
+                    combinedText.includes('cv') || combinedText.includes('apply');
+                return !isSearch || hasAppFields;
+            });
+
+            if (appForms.length > 0) {
+                console.log(`[Autofill] Found ${appForms.length} application forms. Filling...`);
+                updateSessionStatus(session_id, 'filling_forms');
+                const autofillEngine = new AutofillEngine(activePage, handler);
+                const result = await autofillEngine.fillForms(appForms, autofillData);
+                filledFields.push(...result);
+                session.filled_fields = filledFields;
+
+                // Try to SUBMIT or Click NEXT
+                console.log('[Autofill] Attempting to submit/proceed to next page...');
+                const subBtn = await activePage.$('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Next"), button:has-text("Continue"), button:has-text("Proceed"), button:has-text("Continue Application"), [role="button"]:has-text("Apply"), [role="button"]:has-text("Continue")');
+                if (subBtn) {
+                    await subBtn.click();
+                    await activePage.waitForTimeout(5000);
+                    continue; // See if there is more on the next page
                 } else {
-                    console.warn('[Autofill] preparePage error but original page still valid:', prepareError.message);
+                    console.log('[Autofill] No submit button found. Presuming completion.');
+                    break;
                 }
             }
+
+            // 4. Default / Stuck
+            console.log('[Autofill] No conclusive state. Waiting for changes...');
+            await activePage.waitForTimeout(4000);
+            if (attempts > 3 && appForms.length === 0) break; // Exit if stuck
         }
 
-        // Ensure we have a valid page before continuing
-        if (activePage.isClosed()) {
-            throw new Error('[Autofill] Active page is closed. New tab might have closed prematurely.');
-        }
+        if (filledFields.length === 0) throw new Error('No form found or filled after multiple attempts.');
 
-        const formDetector = new FormDetector(activePage);
-        const forms = await formDetector.detectForms();
-
-        console.log(`[Autofill V2.1] Detected ${forms.length} total forms on ${activePage.url()}`);
-        console.log(`Current page URL: ${activePage.url()}`);
-
-        // Filter out non-application forms (search bars, filters, etc.)
-        const excludePatterns = ['search', 'filter', 'subscribe', 'newsletter', 'login', 'signin'];
-        const applicationForms = forms.filter(form => {
-            const fieldNames = form.fields?.map(f =>
-                (f.name || f.id || f.placeholder || f.label || '').toLowerCase()
-            ).join(' ');
-
-            // Skip if it looks like a search/nav form
-            const isSearchForm = excludePatterns.some(p => fieldNames.includes(p));
-
-            // Prefer forms with typical application fields
-            const hasAppFields = form.fields?.some(f => {
-                const combined = `${f.name} ${f.id} ${f.placeholder} ${f.label}`.toLowerCase();
-                return combined.includes('email') ||
-                    combined.includes('name') ||
-                    combined.includes('phone') ||
-                    combined.includes('resume') ||
-                    combined.includes('cv') ||
-                    combined.includes('cover');
-            });
-
-            if (isSearchForm && !hasAppFields) {
-                console.log(`Skipping non-application form: ${fieldNames.substring(0, 50)}...`);
-                return false;
-            }
-            return true;
-        });
-
-        console.log(`Filtered to ${applicationForms.length} application forms`);
-
-        // Throw error if no application forms found
-        if (applicationForms.length === 0) {
-            throw new Error('No application form detected. This job might require manual application on the company\'s website or a search for an "Apply" button failed.');
-        }
-
-        // DIAGNOSTIC: If no forms found, dump page info
-        if (applicationForms.length === 0) {
-            console.warn('⚠️ DIAGNOSTIC: Zero application forms detected. Dumping page info...');
-            const title = await activePage.title();
-            const bodyText = await activePage.evaluate(() => document.body.innerText.substring(0, 500));
-            console.log(`Page Title: ${title}`);
-            console.log(`Body snippet: ${bodyText.substring(0, 300)}...`);
-
-            // Check for common ATS indicators
-            const hasFileInput = await activePage.$('input[type="file"]');
-            const hasEmailInput = await activePage.$('input[type="email"]');
-            console.log(`Has file input: ${!!hasFileInput}, Has email input: ${!!hasEmailInput}`);
-
-            // Check if we're on a login page
-            const currentUrl = activePage.url().toLowerCase();
-            const pageTitle = title.toLowerCase();
-            if (currentUrl.includes('login') || currentUrl.includes('signin') ||
-                pageTitle.includes('login') || pageTitle.includes('sign in')) {
-                console.warn('⚠️ LOGIN PAGE DETECTED - User may need to authenticate manually');
-            }
-        }
-
-        // Log form details
-        applicationForms.forEach((form, index) => {
-            console.log(`Form ${index + 1}:`, {
-                fields: form.fields?.length || 0,
-                fieldNames: form.fields?.map(f => f.name || f.id || f.placeholder).filter(Boolean)
-            });
-        });
-
-        updateSessionStatus(session_id, 'filling_forms');
-
-        const autofillEngine = new AutofillEngine(activePage, handler);
-        const filledFields = await autofillEngine.fillForms(applicationForms, autofillData);
-
-        // Throw error if no fields were actually filled
-        if (filledFields.length === 0) {
-            throw new Error('Found an application form, but could not identify any fields to autofill using your profile data.');
-        }
-
-        session.filled_fields = filledFields;
         updateSessionStatus(session_id, 'completed', null, filledFields);
-
-        console.log(`Autofill completed for session ${session_id}`);
-        console.log(`Filled ${filledFields.length} fields`);
-
-        if (filledFields.length > 0) {
-            console.log('Filled fields:', filledFields);
-        }
-
-        await activePage.screenshot({ path: `/tmp/completed-${session_id}.png` }).catch(() => { });
+        await activePage.screenshot({ path: `/tmp/done-${session_id}.png` }).catch(() => { });
 
     } catch (error) {
-        console.error(`Autofill failed for session ${session_id}:`, error);
-
-        if (error.message === 'LOGIN_REQUIRED') {
-            updateSessionStatus(session_id, 'login_required', 'This job requires manual login or account creation on the job board.');
-
-            // Allow some time for frontend to poll the status
-            await page.waitForTimeout(5000).catch(() => { });
-
-            // Close session specifically because of login wall
-            try {
-                if (session && session.browser) {
-                    await session.browser.close();
-                    console.log(`Browser closed for session ${session_id} due to login wall.`);
-                }
-            } catch (closeError) {
-                console.error('Error closing browser after login wall:', closeError);
-            }
-        }
-
-        try {
-            if (activePage && !activePage.isClosed()) {
-                await activePage.screenshot({ path: `/tmp/error-${session_id}.png` }).catch(() => { });
-                console.log(`Error screenshot saved: /tmp/error-${session_id}.png`);
-            }
-        } catch (screenshotError) {
-            console.error('Could not take error screenshot');
-        }
-
-        updateSessionStatus(session_id, 'error', error.message === 'LOGIN_REQUIRED' ? 'Manual login required' : error.message);
+        console.error('Autofill error:', error);
+        updateSessionStatus(session_id, 'error', error.message);
     }
 }
 
 function updateSessionStatus(session_id, status, error = null, filledFields = null) {
     const session = activeSessions.get(session_id);
-    if (session) {
-        session.status = status;
-        session.updated_at = new Date();
-
-        if (error) {
-            session.errors = session.errors || [];
-            session.errors.push({
-                message: error,
-                timestamp: new Date()
-            });
-        }
-
-        if (filledFields) {
-            session.filled_fields = filledFields;
-        }
+    if (!session) return;
+    session.status = status;
+    session.updated_at = new Date();
+    if (error) {
+        session.errors = session.errors || [];
+        session.errors.push({ message: error, timestamp: new Date() });
     }
+    if (filledFields) session.filled_fields = filledFields;
 }
 
-// Cleanup inactive sessions (after 30 minutes)
-setInterval(() => {
-    const thirtyMinutesAgo = Date.now() - 30 * 60 * 1000;
-
-    for (const [session_id, session] of activeSessions.entries()) {
-        if (session.started_at.getTime() < thirtyMinutesAgo) {
-            console.log(`Cleaning up inactive session: ${session_id}`);
-            session.context.close().catch(console.error);
-            session.browser.close().catch(console.error);
-            activeSessions.delete(session_id);
-        }
-    }
-}, 5 * 60 * 1000); // Check every 5 minutes
-
-// Check Application Status Endpoint
-app.post('/api/automation/check-status', async (req, res) => {
-    try {
-        const { url, options } = req.body;
-
-        if (!url) {
-            return res.status(400).json({ error: 'URL is required' });
-        }
-
-        console.log(`[${new Date().toISOString()}] Status check requested for: ${url}`);
-
-        const { checkStatus } = require('./automation/status-checker');
-        const result = await checkStatus(url, options || {});
-
-        res.json(result);
-
-    } catch (error) {
-        console.error('Status check endpoint error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
 app.listen(PORT, () => {
-    console.log(`Browser automation service running on port ${PORT}`);
-    console.log(`Authentication token configured: ${AUTH_TOKEN ? 'Yes' : 'No'}`);
-});
-
-process.on('SIGTERM', async () => {
-    console.log('Shutting down gracefully...');
-
-    // Close all active browser sessions
-    for (const [session_id, session] of activeSessions.entries()) {
-        await session.context.close().catch(console.error);
-        await session.browser.close().catch(console.error);
-    }
-
-    process.exit(0);
+    console.log(`Service running on port ${PORT}`);
 });

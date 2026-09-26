@@ -97,18 +97,25 @@ const Landing = {
     },
 
     async init() {
-        // Detect currency from geolocation first
-        if (window.CVision && window.CVision.Currency) {
-            await CVision.Currency.initFromGeolocation();
-        }
-
+        // Render visible page content before optional geolocation work.
         this.renderStats();
         this.renderFeatures();
         this.renderPricing();
+
         this.initMobileMenu();
         this.initUpload();
         this.initSmoothScroll();
         this.initSearch();
+
+        // Detect currency from geolocation first
+        if (window.CVision && window.CVision.Currency) {
+            try {
+                await CVision.Currency.initFromGeolocation();
+            } catch (error) {
+                console.warn('Currency detection unavailable:', error);
+            }
+        }
+
         this.loadJobs();
     },
 
@@ -205,7 +212,7 @@ const Landing = {
             }
         });
 
-        function handleFileUpload(file) {
+        async function handleFileUpload(file) {
             // Validate file
             const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
             if (!allowedTypes.includes(file.type)) {
@@ -216,6 +223,16 @@ const Landing = {
             if (file.size > 10 * 1024 * 1024) {
                 CVision.Utils.showAlert('File size must be less than 10MB', 'error');
                 return;
+            }
+
+            if (window.PendingCvStore) {
+                try {
+                    await PendingCvStore.save(file);
+                } catch (error) {
+                    console.error('Could not preserve CV for sign-in:', error);
+                    CVision.Utils.showAlert('Could not preserve your CV. Please try again.', 'error');
+                    return;
+                }
             }
 
             uploadedFile = file;
@@ -266,9 +283,9 @@ const Landing = {
         if (!container) return;
 
         container.innerHTML = LandingConfig.stats.map(stat => `
-            <div class="text-left">
-                <div class="text-3xl font-bold text-gray-900 mb-1">${stat.value}</div>
-                <div class="text-sm text-gray-500 uppercase tracking-wide font-medium">${stat.label}</div>
+            <div class="text-center rounded-lg bg-emerald-950/80 px-3 py-2 border border-emerald-700/60">
+                <div class="text-3xl font-bold mb-1 whitespace-nowrap" style="color: #ffffff;">${stat.value}</div>
+                <div class="text-sm uppercase tracking-wide font-medium whitespace-nowrap" style="color: #ffffff;">${stat.label}</div>
             </div>
         `).join('');
     },

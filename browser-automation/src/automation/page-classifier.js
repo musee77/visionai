@@ -24,26 +24,60 @@ class PageClassifier {
             const title = document.title.toLowerCase();
             const textRaw = document.body.innerText.toLowerCase();
 
+            // 0. Check for CAPTCHA or Anti-Bot Pages
+            const captchaSelectors = [
+                'iframe[src*="recaptcha"]',
+                'iframe[src*="hcaptcha"]',
+                'iframe[src*="challenges.cloudflare.com"]',
+                '.g-recaptcha',
+                '#g-recaptcha',
+                '.h-captcha',
+                '#h-captcha',
+                '#cf-turnstile',
+                '#px-captcha', // PerimeterX
+                '[id*="captcha"]',
+                '[class*="captcha"]'
+            ];
+
+            const hasCaptcha = captchaSelectors.some(s => !!document.querySelector(s));
+            const hasBotText = textRaw.includes('verify you are a human') ||
+                textRaw.includes('verify you are not a robot') ||
+                textRaw.includes('checking your browser') ||
+                textRaw.includes('access denied');
+
+            if (hasCaptcha || (hasBotText && textRaw.length < 2000)) {
+                return 'captcha';
+            }
+
             // 1. Check for Login/Register Pages (Auth Walls)
             // Heuristic: Password field + Keywords
             const hasPasswordField = !!document.querySelector('input[type="password"]');
 
-            const loginKeywords = ['login', 'sign in', 'signin', 'log in'];
-            const registerKeywords = ['register', 'sign up', 'signup', 'create account', 'join'];
+            const loginKeywords = ['login', 'sign in', 'signin', 'log in', 'access'];
+            const registerKeywords = ['register', 'sign up', 'signup', 'create account', 'join', 'start now', 'get started'];
 
             const isLoginUrl = loginKeywords.some(k => url.includes(k));
             const isLoginTitle = loginKeywords.some(k => title.includes(k));
+            const isLoginContent = loginKeywords.some(k => textRaw.includes(k));
 
             const isRegisterUrl = registerKeywords.some(k => url.includes(k));
             const isRegisterTitle = registerKeywords.some(k => title.includes(k));
+            const isRegisterContent = registerKeywords.some(k => textRaw.includes(k));
 
             // Strong signal: Password field represents specific intent
             if (hasPasswordField) {
-                if (isLoginUrl || isLoginTitle) return 'login';
+                // If we see registration keywords, it's likely a signup page
                 if (isRegisterUrl || isRegisterTitle) return 'register';
 
-                // Even without URL/Title match, a sparse page with a password field is likely a login/auth wall
-                if (textRaw.length < 2000) return 'login';
+                // If it's a login URL or title, it's login
+                if (isLoginUrl || isLoginTitle) return 'login';
+
+                // Count input fields. Registration usually has more fields (name, confirm password, etc.)
+                const inputCount = document.querySelectorAll('input:not([type="hidden"])').length;
+                if (inputCount > 3 && isRegisterContent) return 'register';
+
+                // Default for password fields is login if it's a small page
+                if (textRaw.length < 3000) return 'login';
             }
 
             // 2. Check for Application Page
@@ -64,7 +98,7 @@ class PageClassifier {
 
             // 3. Check for Job Description / Landing Page
             // Heuristic: "Apply" button exists but no substantive forms yet
-            const applyButtonRegex = /apply|start application/i;
+            const applyButtonRegex = /apply|start application|continue application|continue|proceed/i;
             const buttons = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"]'));
 
             // Check visible buttons only

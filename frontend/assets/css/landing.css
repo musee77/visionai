@@ -1,7 +1,124 @@
 /* Landing Page Job Explorer Styles */
 
+body {
+    background: linear-gradient(180deg, #f8fafc 0%, #eef4ff 100%);
+}
+
 #explore-jobs {
     background: linear-gradient(to bottom, #ffffff, #f8faff);
+}
+
+.hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.6rem 1rem;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 9999px;
+    background: rgba(15, 23, 42, 0.35);
+    backdrop-filter: blur(10px);
+    color: #e2e8f0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.hero-badge .pulse {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+    animation: pulse 1.8s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 12px rgba(52, 211, 153, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(52, 211, 153, 0);
+    }
+}
+
+.hero-panel {
+    position: relative;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 1.75rem;
+    box-shadow: 0 30px 80px rgba(15, 23, 42, 0.45);
+    overflow: hidden;
+}
+
+.hero-panel::before {
+    content: "";
+    position: absolute;
+    inset: -20% 20% auto auto;
+    width: 16rem;
+    height: 16rem;
+    background: radial-gradient(circle, rgba(96, 165, 250, 0.45), transparent 65%);
+    pointer-events: none;
+}
+
+.hero-stat-card {
+    background: rgba(15, 23, 42, 0.72);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 1rem;
+    padding: 1rem;
+    backdrop-filter: blur(8px);
+}
+
+.hero-stat-card .mini-label {
+    color: #94a3b8;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.feature-card {
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    border-radius: 1.5rem;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.05);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.feature-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 22px 50px rgba(15, 23, 42, 0.08);
+}
+
+.process-step {
+    position: relative;
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.04);
+}
+
+.process-number {
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
+
+.section-shell {
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    border-radius: 2rem;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
 }
 
 .job-explorer-card {
@@ -104,8 +221,6 @@
     border-color: #667eea;
 }
 
-
-/* Responsive card sizes handled by grid layout now */
 .job-explorer-card {
     height: 100%;
 }

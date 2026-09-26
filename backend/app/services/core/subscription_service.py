@@ -60,6 +60,21 @@ class SubscriptionService:
             ai_model_version="basic",
             data_retention_days=30
         )
+
+        manual_plus_limits = SubscriptionLimits(
+            monthly_manual_applications=create_limit("monthly_manual_applications", 999999),
+            monthly_auto_applications=create_limit("monthly_auto_applications", 0),
+            monthly_cv_generations=create_limit("monthly_cv_generations", 0),
+            monthly_cover_letters=create_limit("monthly_cover_letters", 999999),
+            concurrent_applications=create_limit("concurrent_applications", 1, "instant", False),
+            max_jobs_per_search=50,
+            api_rate_limit_per_minute=10,
+            storage_mb=100,
+            team_members=1,
+            export_formats=["pdf", "docx"],
+            ai_model_version="basic",
+            data_retention_days=3650
+        )
         
         basic_limits = SubscriptionLimits(
             monthly_manual_applications=create_limit("monthly_manual_applications", 9999),
@@ -141,6 +156,24 @@ class SubscriptionService:
                 ],
                 is_active=True,
                 sort_order=0
+            ),
+            "plan_manual_plus": SubscriptionPlan(
+                id="plan_manual_plus",
+                name="Manual Apply + Cover Letter",
+                tier=SubscriptionTier.FREE,
+                description="Upload a cover letter and apply manually without limits",
+                price=Money(amount=249, currency=Currency.USD),
+                billing_interval="one_time",
+                trial_period_days=0,
+                limits=manual_plus_limits,
+                features=[
+                    "Unlimited manual applications",
+                    "Upload and reuse cover letters",
+                    "CV upload and storage"
+                ],
+                is_active=True,
+                sort_order=1,
+                metadata={"one_time": True, "entitlement": "manual_plus"}
             ),
             # Basic Monthly
             "plan_basic": SubscriptionPlan(
@@ -235,8 +268,8 @@ class SubscriptionService:
         
         now = datetime.utcnow()
         
-        # Calculate billing period duration
-        period_days = 365 if plan.billing_interval == "yearly" else 30
+        # One-time entitlements remain active indefinitely; recurring plans use their billing period.
+        period_days = 36500 if plan.billing_interval == "one_time" else (365 if plan.billing_interval == "yearly" else 30)
         
         subscription_data = {
             "_id": f"sub_{user_id}_{uuid.uuid4().hex[:8]}",
@@ -261,8 +294,10 @@ class SubscriptionService:
             "updated_at": now
         }
         
-        # Handle paid tiers with Paystack
-        if plan.tier != SubscriptionTier.FREE and reference:
+        # Verify every paid plan, including one-time entitlements whose tier remains free.
+        if plan.price.amount > 0:
+            if not reference:
+                raise ValueError("Payment reference is required")
             try:
                 # Verify transaction reference
                 verification = await self.paystack_client.verify_transaction(reference)
@@ -281,9 +316,10 @@ class SubscriptionService:
                 # Check amount (Paystack returns amount in kobo/cents)
                 # expected_price.amount is also in kobo/cents
                 # Note: This logic assumes expected_price.amount is in the same unit as Paystack verification.
-                if verification["amount"] < expected_price.amount: 
-                    logger.warning(f"Transaction amount mismatch. Expected >= {expected_price.amount} {verification_currency}, got {verification['amount']}")
-                    # raise ValueError("Transaction amount too low")
+                if verification["amount"] < expected_price.amount:
+                    raise ValueError(
+                        f"Transaction amount is below the required price of {expected_price.amount}"
+                    )
                 
                 customer_data = verification.get("customer", {})
                 customer_code = customer_data.get("customer_code")

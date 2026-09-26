@@ -26,7 +26,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 2147483000;
     transition: all 0.3s ease;
 }
 
@@ -69,7 +69,7 @@
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
     display: flex;
     flex-direction: column;
-    z-index: 1000;
+    z-index: 2147483000;
     overflow: hidden;
     transform: scale(0.8) translateY(20px);
     opacity: 0;

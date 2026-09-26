@@ -17,6 +17,8 @@ class CvUploader {
         this.config = Object.assign({
             dropZoneId: 'dropZone',
             fileInputId: 'fileInput',
+            coverDropZoneId: 'coverLetterDropZone',
+            coverFileInputId: 'coverLetterFileInput',
             loadingId: 'uploadLoading',
             apiPath: '/api/v1/documents/upload',
             maxSize: 10 * 1024 * 1024, // 10MB
@@ -33,6 +35,9 @@ class CvUploader {
 
         this.dropZone = document.getElementById(this.config.dropZoneId);
         this.fileInput = document.getElementById(this.config.fileInputId);
+        this.coverDropZone = document.getElementById(this.config.coverDropZoneId);
+        this.coverFileInput = document.getElementById(this.config.coverFileInputId);
+        this.documentType = 'cv';
         this.loadingEl = document.getElementById(this.config.loadingId);
 
         // Upload state management
@@ -45,7 +50,7 @@ class CvUploader {
     }
 
     init() {
-        if (!this.dropZone || !this.fileInput) {
+        if (!this.dropZone || !this.fileInput || !this.coverDropZone || !this.coverFileInput) {
             console.error('CvUploader: Drop zone or file input not found');
             return;
         }
@@ -138,11 +143,25 @@ class CvUploader {
         this.dropZone.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
+            this.documentType = 'cv';
             this.fileInput.click();
         });
 
         // File Input Change
         this.fileInput.addEventListener('change', (e) => {
+            this.documentType = 'cv';
+            this.handleFileSelect(e);
+        });
+
+        this.coverDropZone.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.documentType = 'cover_letter';
+            this.coverFileInput.click();
+        });
+
+        this.coverFileInput.addEventListener('change', (e) => {
+            this.documentType = 'cover_letter';
             this.handleFileSelect(e);
         });
 
@@ -172,6 +191,35 @@ class CvUploader {
             const files = e.dataTransfer.files;
             if (files.length > 0) {
                 // Don't sync to fileInput.files - it triggers change event causing duplicate upload
+                this.documentType = 'cv';
+                this.processFile(files[0]);
+            }
+        });
+
+        this.setupCoverLetterDragAndDrop();
+    }
+
+    setupCoverLetterDragAndDrop() {
+        ['dragenter', 'dragover'].forEach((eventName) => {
+            this.coverDropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.coverDropZone.classList.add('border-primary-500', 'bg-primary-50');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach((eventName) => {
+            this.coverDropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.coverDropZone.classList.remove('border-primary-500', 'bg-primary-50');
+            });
+        });
+
+        this.coverDropZone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                this.documentType = 'cover_letter';
                 this.processFile(files[0]);
             }
         });
@@ -199,8 +247,8 @@ class CvUploader {
             return;
         }
 
-        // Check single CV limit if enabled
-        if (this.config.singleCvOnly) {
+        // Only CV uploads replace an existing CV; cover letters can be uploaded repeatedly.
+        if (this.config.singleCvOnly && this.getDocumentType() === 'cv') {
             const canUpload = await this.checkSingleCvLimit(file);
             if (!canUpload) {
                 this.resetInput();
@@ -238,6 +286,7 @@ class CvUploader {
         try {
             const formData = new FormData();
             formData.append('file', file);
+            formData.append('document_type', this.getDocumentType());
 
             const token = window.CVision ? CVision.Utils.getToken() : localStorage.getItem('access_token');
             const uploadUrl = `${this.apiBaseUrl}${this.config.apiPath}`;
@@ -251,7 +300,9 @@ class CvUploader {
             });
 
             // Transition to parsing immediately as backend starts processing
-            this.updateProgress(2, 'Analysing CV content with AI...');
+            this.updateProgress(2, this.getDocumentType() === 'cover_letter'
+                ? 'Saving cover letter...'
+                : 'Analysing CV content with AI...');
 
             if (!response.ok) {
                 let errorMessage = `Upload failed (${response.status})`;
@@ -269,7 +320,9 @@ class CvUploader {
             const result = await response.json();
 
             // Step 3: Done
-            this.updateProgress(3, 'Analysis complete!');
+            this.updateProgress(3, this.getDocumentType() === 'cover_letter'
+                ? 'Cover letter uploaded!'
+                : 'Analysis complete!');
 
             // Success results
             setTimeout(() => {
@@ -336,7 +389,9 @@ class CvUploader {
         document.getElementById('cv-modal-action').classList.add('hidden');
 
         // Reset title and status
-        document.getElementById('cv-modal-title').textContent = 'Uploading CV';
+        document.getElementById('cv-modal-title').textContent = this.getDocumentType() === 'cover_letter'
+            ? 'Uploading Cover Letter'
+            : 'Uploading CV';
         document.getElementById('cv-modal-status').textContent = 'Preparing upload...';
     }
 
@@ -379,6 +434,14 @@ class CvUploader {
     }
 
     showAnalysisResults(result) {
+        if (this.getDocumentType() === 'cover_letter') {
+            document.getElementById('cv-modal-title').textContent = 'Cover Letter Uploaded Successfully!';
+            document.getElementById('cv-modal-results').classList.add('hidden');
+            document.getElementById('cv-modal-close').classList.remove('hidden');
+            document.getElementById('cv-modal-action').classList.remove('hidden');
+            return;
+        }
+
         const cvData = result.cv_data || result.document?.cv_data || {};
         const skills = Array.isArray(cvData.skills) ? cvData.skills : [];
         const experience = Array.isArray(cvData.experience) ? cvData.experience : [];
@@ -429,6 +492,10 @@ class CvUploader {
         if (this.fileInput) {
             this.fileInput.value = '';
         }
+    }
+
+    getDocumentType() {
+        return this.documentType;
     }
 
     async checkSingleCvLimit(file) {

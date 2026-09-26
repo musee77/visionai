@@ -13,7 +13,7 @@ from app.models.job import (
     Job, JobCreate, JobUpdate, JobResponse, JobSearch,
     JobFilter, JobListResponse, JobStatus, JobSource
 )
-from app.integrations.job_boards.indeed import IndeedClient
+from app.integrations.job_boards.connectors import build_job_connectors
 # from app.integrations.job_boards.linkedin import LinkedInScraper
 from app.services.core.cache_service import cache_service
 
@@ -28,13 +28,7 @@ class JobService:
         self.jobs_collection = db.jobs
         self.generic_scraper = GenericJobScraper()
         
-        # Add RemoteOK JSON API client (reliable, no auth needed)
-        try:
-            from app.integrations.job_boards.remoteok_client import RemoteOKClient
-            self.remoteok_client = RemoteOKClient()
-        except ImportError:
-            logger.warning("RemoteOK client not available")
-            self.remoteok_client = None
+        self.job_connectors = build_job_connectors()
 
     async def search_jobs(
         self,
@@ -199,25 +193,21 @@ class JobService:
         location: str,
         limit: int = 50
     ) -> List[JobCreate]:
-        """Aggregate jobs from RemoteOK API"""
+        """Aggregate, normalize, and deduplicate jobs from enabled APIs."""
         
         all_jobs = []
         
-        # Try RemoteOK JSON API (free, no auth needed)
-        if self.remoteok_client:
+        for connector in self.job_connectors:
             try:
-                remoteok_results = await self.remoteok_client.search_jobs(
+                connector_jobs = await connector.search(
                     query=query,
+                    location=location,
                     limit=limit
                 )
-                remoteok_jobs = [
-                    self.remoteok_client.normalize_job(job)
-                    for job in remoteok_results
-                ]
-                all_jobs.extend(remoteok_jobs)
-                logger.info(f"Got {len(remoteok_jobs)} jobs from RemoteOK API")
+                all_jobs.extend(connector_jobs)
+                logger.info("Got %s jobs from %s API", len(connector_jobs), connector.name)
             except Exception as e:
-                logger.error(f"RemoteOK API failed: {e}")
+                logger.error("%s API failed: %s", connector.name, e, exc_info=True)
         
         # Deduplicate
         unique_jobs = self.deduplicate_jobs(all_jobs)
@@ -344,7 +334,7 @@ class JobService:
             {"$inc": {"view_count": 1}}
         )
     
-    async def expire_old_jobs(self, days: int = 90) -> int:
+    async def expire_old_jobs(self, days: int = 30) -> int:
         """Mark old jobs as expired"""
         
         cutoff_date = datetime.utcnow() - timedelta(days=days)

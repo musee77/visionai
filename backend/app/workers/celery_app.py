@@ -74,4 +74,14 @@ celery_app.conf.beat_schedule = {
         'schedule': crontab(hour='*/6'),  # Every 6 hours
         'args': ()
     },
+    'weekly-api-job-import': {
+        'task': 'app.workers.job_scraper.import_weekly_api_jobs',
+        'schedule': crontab(day_of_week=1, hour=2, minute=0),  # Monday at 2 AM UTC
+        'args': ()
+    },
+    'expire-month-old-jobs': {
+        'task': 'app.workers.job_scraper.expire_old_jobs_task',
+        'schedule': crontab(hour=3, minute=0),  # Daily at 3 AM UTC
+        'args': (30,)
+    },
 }

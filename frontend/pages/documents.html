@@ -37,7 +37,13 @@
         <!-- Upload Section -->
         <div class="mb-8">
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                <h2 class="text-lg font-semibold text-gray-900 mb-4">Upload Your CV</h2>
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <h2 id="uploadHeading" class="text-lg font-semibold text-gray-900">Upload Your CV</h2>
+                    <select id="documentTypeSelect" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                        <option value="cv">CV / Resume</option>
+                        <option value="cover_letter">Cover letter</option>
+                    </select>
+                </div>
 
                 <input type="file" id="cvFileInput" class="hidden" accept=".pdf,.docx,.doc,.txt">
 
@@ -45,7 +51,7 @@
                 <div id="dropZone"
                     class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-primary-500 hover:bg-primary-50 transition-all cursor-pointer">
                     <div class="text-4xl mb-3">📄</div>
-                    <p class="text-lg text-gray-600 font-medium mb-2">Drag and drop your CV here, or click to browse</p>
+                    <p id="dropZoneText" class="text-lg text-gray-600 font-medium mb-2">Drag and drop your CV here, or click to browse</p>
                     <p class="text-sm text-gray-500">Supported formats: PDF, DOCX, DOC, TXT (Max 10MB)</p>
                 </div>
 
@@ -54,7 +60,7 @@
                     <div class="bg-primary-50 border border-primary-200 rounded-lg p-4">
                         <div class="flex items-center">
                             <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600 mr-3"></div>
-                            <span class="text-primary-800 font-medium">Processing your CV...</span>
+                            <span id="uploadProgressText" class="text-primary-800 font-medium">Processing your CV...</span>
                         </div>
                     </div>
                 </div>
@@ -65,7 +71,7 @@
         <div class="bg-white rounded-xl shadow-sm border border-gray-100">
             <div class="p-6 border-b border-gray-200">
                 <div class="flex justify-between items-center">
-                    <h2 class="text-lg font-semibold text-gray-900">Your CVs</h2>
+                    <h2 class="text-lg font-semibold text-gray-900">Your Documents</h2>
                     <span class="text-sm text-gray-500" id="documentsCountText">Loading...</span>
                 </div>
             </div>

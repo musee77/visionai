@@ -7,6 +7,7 @@
     <title>Find Jobs - CVision AI</title>
     <script src="/assets/js/auth-guard.js"></script>
     <link rel="stylesheet" href="../assets/css/global.css">
+    <link rel="stylesheet" href="../assets/css/chatbot.css">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -289,8 +290,14 @@
     </script>
 
     <!-- Chatbot -->
-    <link rel="stylesheet" href="../assets/css/chatbot.css">
-    <script src="../assets/js/chatbot.js"></script>
+    <script src="../assets/js/chatbot.js" defer></script>
+    <script>
+        window.addEventListener('load', () => {
+            if (typeof CVisionChatbot !== 'undefined') {
+                CVisionChatbot.init();
+            }
+        }, { once: true });
+    </script>
 
 </body>
 

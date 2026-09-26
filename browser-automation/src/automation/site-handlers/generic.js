@@ -6,11 +6,81 @@ class GenericHandler {
     }
 
     /**
-     * Prepare the page before form detection (optional override)
-     * Useful for clicking "Apply" buttons to reveal forms/modals
+     * Prepare the page by finding and clicking "Apply" buttons.
+     * Useful for generic sites where the form is hidden behind a button.
      */
     async preparePage(page) {
-        // Default implementation does nothing
+        console.log('[GenericHandler] Searching for "Apply" button...');
+
+        // Common text on apply buttons
+        const applyKeywords = [
+            'continue application', 'start application', 'continue', 'proceed',
+            'apply now', 'quick apply', 'apply for this job',
+            'submit application', 'apply to this position', 'apply'
+        ];
+
+        // 1. Try to find by text content using Playwright's locator
+        for (const keyword of applyKeywords) {
+            try {
+                // Look for buttons, links, or inputs with the text
+                const selectors = [
+                    `button:has-text("${keyword}")`,
+                    `a:has-text("${keyword}")`,
+                    `input[value*="${keyword}" i]`,
+                    `[role="button"]:has-text("${keyword}")`,
+                    `.btn:has-text("${keyword}")`,
+                    `.button:has-text("${keyword}")`
+                ];
+
+                for (const selector of selectors) {
+                    const element = page.locator(selector).first();
+                    if (await element.isVisible()) {
+                        console.log(`[GenericHandler] Found potential button with text "${keyword}" using selector: ${selector}`);
+
+                        // Set up listener for new tabs if it opens one
+                        const [newPage] = await Promise.all([
+                            page.context().waitForEvent('page', { timeout: 5000 }).catch(() => null),
+                            element.click()
+                        ]);
+
+                        if (newPage) {
+                            console.log('[GenericHandler] Click opened a new tab.');
+                            return newPage;
+                        }
+
+                        // Wait to see if the same page changes
+                        await page.waitForTimeout(2000);
+                        return page;
+                    }
+                }
+            } catch (e) {
+                // Continue to next keyword/selector
+            }
+        }
+
+        console.log('[GenericHandler] No obvious "Apply" button found via text.');
+
+        // 2. Fallback: Look for aria-labels or titles
+        const ariaSelectors = [
+            '[aria-label*="apply" i]',
+            '[title*="apply" i]'
+        ];
+
+        for (const selector of ariaSelectors) {
+            try {
+                const element = page.locator(selector).first();
+                if (await element.isVisible()) {
+                    console.log(`[GenericHandler] Found potential button via ARIA/Title: ${selector}`);
+                    const [newPage] = await Promise.all([
+                        page.context().waitForEvent('page', { timeout: 5000 }).catch(() => null),
+                        element.click()
+                    ]);
+                    return newPage || page;
+                }
+            } catch (e) { }
+        }
+
+        return page;
     }
 
     /**
@@ -98,6 +168,10 @@ class GenericHandler {
             // Resume/Cover Letter
             resume: ['resume', 'cv', 'curriculum-vitae'],
             coverLetter: ['cover-letter', 'coverletter', 'cover_letter', 'letter'],
+
+            // Authentication
+            password: ['password', 'pass', 'pwd', 'secret'],
+            passwordConfirm: ['confirm', 'verification', 'retype', 'repeat'],
         };
     }
 
@@ -218,6 +292,10 @@ class GenericHandler {
 
                 case 'file':
                     console.log('File upload field detected - skipping for now');
+                    break;
+
+                case 'password':
+                    await page.fill(selector, String(value));
                     break;
 
                 default:

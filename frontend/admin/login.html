@@ -6,20 +6,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Login - CVision</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/admin/assets/admin.css">
     <link rel="stylesheet" href="/assets/css/global.css">
 </head>
 
-<body class="bg-gray-900">
+<body class="admin-login bg-gray-900">
     <div class="min-h-screen flex items-center justify-center px-4">
         <div class="max-w-md w-full">
             <!-- Logo & Title -->
             <div class="text-center mb-8">
+                <div class="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-400 text-2xl font-bold text-emerald-950 shadow-lg shadow-emerald-950/30">C</div>
                 <h1 class="text-4xl font-bold text-white mb-2">CVision Admin</h1>
-                <p class="text-gray-400">Administrator Access Only</p>
+                <p class="text-gray-400">Secure workspace for your operations team</p>
             </div>
 
             <!-- Login Form -->
-            <div class="bg-white rounded-xl shadow-2xl p-8">
+            <div class="admin-login-card bg-white rounded-xl shadow-2xl p-8">
                 <form id="adminLoginForm" class="space-y-6">
                     <!-- Error Message -->
                     <div id="formError" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
@@ -32,8 +34,8 @@
                             Admin Email
                         </label>
                         <input type="email" id="email" required
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="admin@cvision.com">
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                            placeholder="admin@synovae.com" autocomplete="email">
                         <p id="emailError" class="hidden text-red-600 text-sm mt-1"></p>
                     </div>
 
@@ -43,14 +45,14 @@
                             Password
                         </label>
                         <input type="password" id="password" required
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="Enter admin password">
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                            placeholder="Enter admin password" autocomplete="current-password">
                         <p id="passwordError" class="hidden text-red-600 text-sm mt-1"></p>
                     </div>
 
                     <!-- Login Button -->
                     <button type="submit" id="loginButton"
-                        class="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        class="w-full bg-emerald-700 text-white py-3 rounded-lg font-medium hover:bg-emerald-800 transition disabled:opacity-50 disabled:cursor-not-allowed">
                         <span class="button-text">Sign In as Admin</span>
                         <div
                             class="loading-spinner hidden inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin">

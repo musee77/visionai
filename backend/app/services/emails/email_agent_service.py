@@ -835,17 +835,44 @@ class EmailAgentService:
             
             for msg_info in messages:
                 msg = gmail_service.get_message(gmail_auth, msg_info['id'])
-                body = msg.get('body', '')
+                
+                # Extract body from Gmail message
+                body = ""
+                snippet = msg.get('snippet', '')
+                
+                payload = msg.get('payload', {})
+                parts = payload.get('parts', [])
+                
+                if not parts and payload.get('body', {}).get('data'):
+                    # Not multipart
+                    import base64
+                    data = payload['body']['data']
+                    body = base64.urlsafe_b64decode(data).decode('utf-8')
+                else:
+                    # Multipart
+                    for part in parts:
+                        if part.get('mimeType') == 'text/plain' and part.get('body', {}).get('data'):
+                            import base64
+                            data = part['body']['data']
+                            body = base64.urlsafe_b64decode(data).decode('utf-8')
+                            break
+                        elif part.get('mimeType') == 'text/html' and part.get('body', {}).get('data'):
+                            import base64
+                            data = part['body']['data']
+                            body = base64.urlsafe_b64decode(data).decode('utf-8')
+                
+                # Use body or snippet for research
+                search_text = body + " " + snippet
                 
                 # Look for URLs
                 # Regex for common verification links
                 url_pattern = r'https?://[^\s<>"]+/(?:verify|activate|confirm|auth|registration)[^\s<>"]*'
-                links = re.findall(url_pattern, body)
+                links = re.findall(url_pattern, search_text)
                 
                 if not links:
                     # Fallback: find any link from that domain that isn't a tracking pixel
                     generic_pattern = rf'https?://[^\s<>"]*{re.escape(domain)}[^\s<>"]*'
-                    links = [l for l in re.findall(generic_pattern, body) if len(l) > 20]
+                    links = [l for l in re.findall(generic_pattern, search_text) if len(l) > 20]
                 
                 if links:
                     # Return the first matching link (usually the primary button link)
