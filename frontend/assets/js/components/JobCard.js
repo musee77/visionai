@@ -92,7 +92,7 @@ class JobCardComponent {
             </div>
         ` : '';
 
-        const matchBadge = (!isPublic && job.match_score)
+        const matchBadge = (job.match_score && (!isPublic || job.cv_matched))
             ? `<span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-green-50 text-green-700 border border-green-100 shadow-sm mr-2 mb-2 transition-all group-hover:bg-green-100">
                  <svg class="w-3.5 h-3.5 mr-1.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/></svg>
                  ${Math.round(job.match_score * 100)}% Match
@@ -151,7 +151,7 @@ class JobCardComponent {
             </div>
             ${!isPublic ? `
             <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 mt-auto">${window.JobActions ? window.JobActions.getButtonsHTML(job) : ''}</div>`
-                : `<div class="px-6 py-4 bg-primary-50 text-primary-700 text-sm font-bold text-center border-t border-primary-100 transition-all group-hover:bg-primary-600 group-hover:text-white">View Details</div>`}
+                : `<div class="px-6 py-4 bg-primary-600 text-white text-sm font-bold text-center border-t border-primary-700 transition-all group-hover:bg-primary-700">Apply</div>`}
         `;
         return card;
     }

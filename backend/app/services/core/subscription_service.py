@@ -42,7 +42,7 @@ class SubscriptionService:
         
         # Shared limits configurations
         free_limits = SubscriptionLimits(
-            monthly_manual_applications=create_limit("monthly_manual_applications", 5),
+            monthly_manual_applications=create_limit("monthly_manual_applications", 3),
             monthly_auto_applications=create_limit("monthly_auto_applications", 0),
             monthly_cv_generations=create_limit("monthly_cv_generations", 0),
             monthly_cover_letters=create_limit("monthly_cover_letters", 0),
@@ -126,22 +126,18 @@ class SubscriptionService:
         ]
         
         premium_features = [
-            "Unlimited manual applications",
-            "Unlimited auto-applications",
+            "Auto-apply included",
+            "Manual applications with no monthly cap",
+            "Billed monthly",
             "Full automation enabled",
-            "Advanced ML autofill",
-            "24/7 priority support",
-            "Advanced analytics dashboard",
-            "Team collaboration (5 seats)",
-            "API access",
-            "White-label options"
+            "Advanced analytics dashboard"
         ]
         
         self.PLANS = {
             # Free Plan
             "plan_free": SubscriptionPlan(
                 id="plan_free",
-                name="Free Plan",
+                name="Free",
                 tier=SubscriptionTier.FREE,
                 description="Get started with manual applications",
                 price=Money(amount=0, currency=Currency.USD),
@@ -149,9 +145,9 @@ class SubscriptionService:
                 trial_period_days=0,
                 limits=free_limits,
                 features=[
-                    "5 manual applications per month",
-                    "No auto-apply",
-                    "No CV customization",
+                    "3 manual applications per month",
+                    "Auto-apply is on Premium",
+                    "CV upload and storage",
                     "Email support"
                 ],
                 is_active=True,
@@ -159,37 +155,39 @@ class SubscriptionService:
             ),
             "plan_manual_plus": SubscriptionPlan(
                 id="plan_manual_plus",
-                name="Manual Apply + Cover Letter",
-                tier=SubscriptionTier.FREE,
-                description="Upload a cover letter and apply manually without limits",
-                price=Money(amount=249, currency=Currency.USD),
+                name="Basic",
+                tier=SubscriptionTier.BASIC,
+                description="One-time Basic plan",
+                price=Money(amount=299, currency=Currency.USD),
                 billing_interval="one_time",
                 trial_period_days=0,
                 limits=manual_plus_limits,
                 features=[
-                    "Unlimited manual applications",
+                    "Manual applications with no monthly cap",
                     "Upload and reuse cover letters",
                     "CV upload and storage"
                 ],
-                is_active=True,
+                is_active=False,
                 sort_order=1,
                 metadata={"one_time": True, "entitlement": "manual_plus"}
             ),
-            # Basic Monthly
             "plan_basic": SubscriptionPlan(
                 id="plan_basic",
-                name="Basic Plan",
+                name="Basic",
                 tier=SubscriptionTier.BASIC,
-                description="Perfect for active job seekers",
-                price=Money(amount=2000, currency=Currency.USD),  # $20.00/month
+                description="Basic plan, billed monthly",
+                price=Money(amount=299, currency=Currency.USD),
                 billing_interval="monthly",
-                trial_period_days=7,
-                limits=basic_limits,
-                features=basic_features,
-                is_popular=True,
+                trial_period_days=0,
+                limits=manual_plus_limits,
+                features=[
+                    "Manual applications with no monthly cap",
+                    "Upload and reuse cover letters",
+                    "Billed monthly"
+                ],
+                is_popular=False,
                 is_active=True,
-                sort_order=1,
-                paystack_plan_code=getattr(settings, 'PAYSTACK_BASIC_PLAN_CODE', None)
+                sort_order=1
             ),
             # Basic Annual (2 months free = 10 months price)
             "plan_basic_annual": SubscriptionPlan(
@@ -202,18 +200,18 @@ class SubscriptionService:
                 trial_period_days=7,
                 limits=basic_limits,
                 features=basic_features + ["2 months FREE"],
-                is_popular=True,
-                is_active=True,
+                is_popular=False,
+                is_active=False,
                 sort_order=1,
                 paystack_plan_code=getattr(settings, 'PAYSTACK_BASIC_ANNUAL_PLAN_CODE', None)
             ),
             # Premium Monthly
             "plan_premium": SubscriptionPlan(
                 id="plan_premium",
-                name="Premium Plan",
+                name="Premium",
                 tier=SubscriptionTier.PREMIUM,
-                description="Full automation for serious professionals",
-                price=Money(amount=5000, currency=Currency.USD),  # $50.00/month
+                description="Monthly Premium plan",
+                price=Money(amount=2999, currency=Currency.USD),  # $29.99/month
                 billing_interval="monthly",
                 trial_period_days=14,
                 limits=premium_limits,
@@ -233,7 +231,7 @@ class SubscriptionService:
                 trial_period_days=14,
                 limits=premium_limits,
                 features=premium_features + ["2 months FREE"],
-                is_active=True,
+                is_active=False,
                 sort_order=2,
                 paystack_plan_code=getattr(settings, 'PAYSTACK_PREMIUM_ANNUAL_PLAN_CODE', None)
             )
@@ -656,6 +654,7 @@ class SubscriptionService:
         }
         
         usage_field = usage_field_map.get(event_type, event_type)
+        previous_usage = subscription.current_usage.get(usage_field, 0)
         
         # Update current usage
         usage_key = f"current_usage.{usage_field}"
@@ -663,10 +662,35 @@ class SubscriptionService:
             {"_id": subscription.id},
             {"$inc": {usage_key: quantity}}
         )
+
+        if event_type == "auto_application":
+            await self._consume_referral_auto_bonus(user_id, subscription.plan_id, previous_usage, quantity)
         
         usage_event["id"] = usage_event["_id"]
         return UsageEvent(**usage_event)
     
+    async def _find_account(self, user_id: str):
+        if ObjectId.is_valid(str(user_id)):
+            return await self.db.users.find_one({"_id": ObjectId(str(user_id))})
+        return await self.db.users.find_one({"_id": user_id})
+
+    async def _consume_referral_auto_bonus(self, user_id: str, plan_id: str, previous_usage: int, quantity: int):
+        plan = await self.get_plan(plan_id)
+        plan_limit = 0
+        if plan and plan.limits and plan.limits.monthly_auto_applications:
+            plan_limit = plan.limits.monthly_auto_applications.max_value
+        new_total = previous_usage + quantity
+        overflow = max(0, new_total - plan_limit) - max(0, previous_usage - plan_limit)
+        if overflow <= 0:
+            return
+        account = await self._find_account(user_id)
+        if not account:
+            return
+        await self.db.users.update_one(
+            {"_id": account["_id"], "referral_bonus_auto_applications": {"$gte": overflow}},
+            {"$inc": {"referral_bonus_auto_applications": -overflow}}
+        )
+
     async def check_usage_limit(
         self,
         user_id: str,
@@ -705,14 +729,19 @@ class SubscriptionService:
             return True, 0, 9999
         
         limit = limit_obj.max_value
-        
+        bonus = 0
+        if event_type == "auto_application":
+            account = await self._find_account(user_id)
+            bonus = int((account or {}).get("referral_bonus_auto_applications") or 0)
+
         # Get current usage
         current_usage = subscription.current_usage.get(usage_field, 0)
-        
-        # Check if adding quantity would exceed limit
-        allowed = (current_usage + quantity) <= limit
-        
-        return allowed, current_usage, limit
+
+        # Bonus is spent as it is used, so it is not subtracted from the plan usage twice.
+        remaining = max(0, limit - current_usage) + bonus
+        allowed = quantity <= remaining
+
+        return allowed, current_usage, limit + bonus
     
     async def get_plan(self, plan_id: str) -> Optional[SubscriptionPlan]:
         """Get subscription plan by ID or tier"""
@@ -736,7 +765,7 @@ class SubscriptionService:
     async def list_plans(self, currency: Optional[str] = None) -> List[SubscriptionPlan]:
         """List all available plans, optionally customized for a currency"""
         plans = sorted(
-            self.PLANS.values(),
+            [plan for plan in self.PLANS.values() if plan.is_active],
             key=lambda x: x.sort_order
         )
         

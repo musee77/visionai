@@ -87,7 +87,7 @@ async function initAutoApplyPage() {
 
     const cvData = await loadCVData();
     await loadStats();
-    // await loadMatchingJobs(cvData); // Removed as requested
+    await loadMatchingJobs(cvData);
     await loadSuggestedRoles();
     // await loadSettings(); // Removed - data comes from autoApplyBtn
 
@@ -178,6 +178,7 @@ function renderCVProfile(containerId, cvData, userInfo = null) {
             <button onclick="document.getElementById('fileInput').click()" class="btn-apply" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 500;">
                 Upload CV
             </button>
+            <div id="suggestedRolesContainer" class="mt-6 text-left"></div>
         </div>
         `;
         return;
@@ -512,6 +513,11 @@ async function loadSuggestedRoles() {
     }
 }
 
+function scorePercent(score) {
+    const value = Number(score) || 0;
+    return Math.round(value <= 1 ? value * 100 : value);
+}
+
 // Load stats
 async function loadStats() {
     try {
@@ -521,18 +527,21 @@ async function loadStats() {
             }
         });
 
+        if (!response.ok) return;
+
         const stats = await response.json();
+        document.getElementById('todayApplications').textContent = stats.today_applications || 0;
+        document.getElementById('totalApplications').textContent = stats.total_applications || 0;
+        document.getElementById('avgMatchScore').textContent = scorePercent(stats.avg_match_score) + '%';
+        document.getElementById('interviewRate').textContent = scorePercent(stats.interview_rate) + '%';
 
-        if (stats) {
-            document.getElementById('todayApplications').textContent = stats.today_applications || 0;
-            document.getElementById('totalApplications').textContent = stats.total_applications || 0;
-            document.getElementById('avgMatchScore').textContent = Math.round((stats.avg_match_score || 0) * 100) + '%';
-            document.getElementById('interviewRate').textContent = Math.round((stats.interview_rate || 0) * 100) + '%';
+        const limitSpan = document.getElementById('dailyLimit');
+        if (limitSpan && stats.daily_limit) limitSpan.textContent = stats.daily_limit;
 
-            if (stats.daily_limit) {
-                const limitSpan = document.getElementById('dailyLimit');
-                if (limitSpan) limitSpan.textContent = stats.daily_limit;
-            }
+        const remaining = document.getElementById('remainingToday');
+        if (remaining) {
+            const left = stats.remaining_today ?? Math.max(0, (stats.daily_limit || 0) - (stats.today_applications || 0));
+            remaining.textContent = left;
         }
     } catch (error) {
         console.error('Error loading stats:', error);
@@ -594,20 +603,23 @@ async function loadMatchingJobs(cvData = null) {
         }
 
         const jobsHTML = jobs.map(job => {
-            const score = job.match_score || 0;
-            const scoreClass = score >= 0.8 ? 'score-high' : score >= 0.6 ? 'score-medium' : 'score-low';
+            const score = scorePercent(job.match_score || 0);
+            const scoreClass = score >= 80 ? 'score-high' : score >= 60 ? 'score-medium' : 'score-low';
             const isApplied = job.applied || false;
+            const jobId = job._id || job.id;
+            const company = job.company_name || job.company || 'Company';
+            const description = job.description || '';
 
             return `
         <div class="job-card">
             <div class="job-header">
                 <div>
                     <div class="job-title">${job.title}</div>
-                    <div class="job-company">${job.company}</div>
+                    <div class="job-company">${company}</div>
                 </div>
                 <div class="match-score">
                     <div class="score-circle ${scoreClass}">
-                        ${Math.round(score * 100)}%
+                        ${score}%
                     </div>
                     <div class="score-label">Match</div>
                 </div>
@@ -624,15 +636,15 @@ async function loadMatchingJobs(cvData = null) {
                 </div>
             </div>
             <div class="job-description">
-                ${truncate(job.description, 200)}
+                ${truncate(description, 200)}
             </div>
             <div class="job-actions">
-                <button class="btn-apply ${isApplied ? 'auto-applied' : ''}" 
+                <button class="btn-apply ${isApplied ? 'auto-applied' : ''}"
                     ${isApplied ? 'disabled' : ''}
-                    onclick="${isApplied ? '' : `viewJob('${job.id}')`}">
+                    onclick="${isApplied ? '' : `viewJob('${jobId}')`}">
                     ${isApplied ? '✓ Applied' : 'Apply Now'}
                 </button>
-                <button class="btn-view" onclick="viewJob('${job.id}')">View Details</button>
+                <button class="btn-view" onclick="viewJob('${jobId}')">View Details</button>
             </div>
         </div>
     `;
@@ -656,7 +668,7 @@ async function loadMatchingJobs(cvData = null) {
 async function saveSettings() {
     // Check Premium Access
     if (typeof PremiumGuard !== 'undefined') {
-        if (!PremiumGuard.enforce('AUTO_APPLY', 'Premium Automation', 'Saving automation settings requires a Basic or Premium subscription.')) {
+        if (!PremiumGuard.enforce('AUTO_APPLY', 'Premium Automation', 'Saving automation settings requires a Premium subscription.')) {
             return;
         }
     }
@@ -665,7 +677,7 @@ async function saveSettings() {
     const minScore = parseInt(document.getElementById('minScoreSlider').value) / 100;
 
     try {
-        await fetch('/api/v1/auto-apply/settings', {
+        const response = await fetch('/api/v1/auto-apply/settings', {
             method: 'PUT',
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -677,7 +689,16 @@ async function saveSettings() {
             })
         });
 
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const detail = errorData.detail;
+            throw new Error(typeof detail === 'string' ? detail : 'Could not save settings');
+        }
+
         document.getElementById('dailyLimit').textContent = maxApps;
+        const remaining = document.getElementById('remainingToday');
+        const sentToday = parseInt(document.getElementById('todayApplications').textContent, 10) || 0;
+        if (remaining) remaining.textContent = Math.max(0, maxApps - sentToday);
         showNotification('Settings saved successfully!');
     } catch (error) {
         console.error('Error saving settings:', error);
@@ -690,10 +711,12 @@ async function saveSettings() {
 
 // Helpers
 function truncate(str, n) {
+    if (!str) return '';
     return (str.length > n) ? str.substr(0, n - 1) + '&hellip;' : str;
 }
 
 function getTimeAgo(dateString) {
+    if (!dateString) return 'recently';
     const date = new Date(dateString);
     const now = new Date();
     const seconds = Math.floor((now - date) / 1000);
@@ -763,24 +786,25 @@ function showNotification(message, type = 'success') {
 }
 
 function viewJob(jobId) {
-    window.location.href = `/jobs/${jobId}`;
+    if (!jobId || jobId === 'undefined') return;
+    window.location.href = `/pages/jobs.html?job=${encodeURIComponent(jobId)}`;
 }
 
-// Listen for sliders
 document.addEventListener('DOMContentLoaded', () => {
     const maxSlider = document.getElementById('maxApplicationsSlider');
     const minSlider = document.getElementById('minScoreSlider');
 
-    // Listen for sliders
     if (maxSlider) {
         maxSlider.addEventListener('input', (e) => {
-            document.getElementById('maxApplicationsValue').textContent = e.target.value;
+            const disp = document.getElementById('maxApplicationsValueDisplay');
+            if (disp) disp.textContent = e.target.value + ' Apps';
         });
     }
 
     if (minSlider) {
         minSlider.addEventListener('input', (e) => {
-            document.getElementById('minScoreValue').textContent = e.target.value;
+            const disp = document.getElementById('minScoreValueDisplay');
+            if (disp) disp.textContent = e.target.value + '% Match';
         });
     }
 

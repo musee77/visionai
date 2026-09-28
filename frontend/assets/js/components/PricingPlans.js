@@ -24,66 +24,43 @@ const PricingPlans = (function () {
             yearlyPrice: 0,
             isPopular: false,
             features: [
-                '1 manual application per day',
+                '3 manual applications per month',
                 'Basic job search',
-                'CV upload & analysis',
-                'Community support'
+                'CV upload & analysis'
             ],
             limitations: [
-                'No automated applications',
-                'No CV customization',
-                'Watermarked documents'
+                'Auto-apply is on Premium'
             ]
-        },
-        manualPlus: {
-            id: 'plan_manual_plus',
-            name: 'Manual Apply + Cover Letter',
-            tier: 'free',
-            description: 'One payment for unlimited manual applications',
-            monthlyPrice: 249,
-            yearlyPrice: 249,
-            oneTime: true,
-            isPopular: true,
-            features: [
-                'Unlimited manual applications',
-                'Upload and reuse cover letters',
-                'No recurring billing'
-            ],
-            limitations: []
         },
         basic: {
             id: 'plan_basic',
             name: 'Basic',
             tier: 'basic',
-            description: 'For active job seekers',
-            monthlyPrice: 1999, // cents
-            yearlyPrice: 19990, // cents (~17% savings)
-            isPopular: true,
+            description: 'Basic plan, billed monthly',
+            monthlyPrice: 299,
+            yearlyPrice: 2990,
+            isPopular: false,
             features: [
-                '10 automated applications daily',
-                'Up to 20 manual applications daily',
-                'Premium CV templates',
-                'No watermarks',
-                'Basic auto-fill',
-                'Email notifications'
+                'Manual applications with no monthly cap',
+                'Upload and reuse cover letters',
+                'Billed monthly'
             ],
-            limitations: []
+            limitations: [
+                'Auto-apply is on Premium'
+            ]
         },
         premium: {
             id: 'plan_premium',
             name: 'Premium',
             tier: 'premium',
-            description: 'For serious professionals',
-            monthlyPrice: 3999, // cents
-            yearlyPrice: 39990, // cents (~17% savings)
-            isPopular: false,
+            description: 'Monthly Premium plan',
+            monthlyPrice: 2999,
+            yearlyPrice: 2999,
+            isPopular: true,
             features: [
-                '30 automated applications daily',
-                'Up to 50 manual applications daily',
-                'Priority support',
-                'Advanced analytics',
-                'Full automation',
-                'Interview prep assistance'
+                'Auto-apply included',
+                'Manual applications with no monthly cap',
+                'Billed monthly'
             ],
             limitations: []
         }
@@ -100,7 +77,7 @@ const PricingPlans = (function () {
      */
     function formatPrice(amountInCents) {
         if (window.CVision && window.CVision.Currency) {
-            return CVision.Currency.format(amountInCents);
+            return CVision.Currency.format(amountInCents, 'USD');
         }
         // Fallback to USD
         return `$${(amountInCents / 100).toFixed(2)}`;
@@ -164,14 +141,16 @@ const PricingPlans = (function () {
      */
     function renderPlanCard(plan) {
         const price = getPrice(plan);
-        const isCurrentPlan = currentSubscription && currentSubscription.plan_id === plan.id;
+        const currentPlanId = currentSubscription && currentSubscription.plan_id;
+        const isCurrentPlan = currentPlanId === plan.id
+            || (plan.id === 'plan_basic' && currentPlanId === 'plan_manual_plus');
 
         // Determine button based on mode and plan state
         let buttonHtml = '';
 
         if (mode === 'public') {
             // Public mode - always show CTA to register
-            if (plan.tier === 'free') {
+            if ((plan.monthlyPrice || 0) === 0) {
                 buttonHtml = `
                     <a href="/register" class="block w-full py-4 px-6 bg-gray-100 text-gray-800 hover:bg-gray-200 rounded-xl font-bold text-center transition-all">
                         Get Started Free
@@ -243,9 +222,6 @@ const PricingPlans = (function () {
                         <span class="text-gray-500 ml-1">${plan.oneTime ? 'one time' : `/${getBillingPeriod()}`}</span>
                     </div>
                     <p class="text-gray-600 text-sm">${plan.description}</p>
-                    ${currentBillingInterval === 'yearly' && plan.tier !== 'free' ? `
-                        <p class="text-green-600 text-sm font-semibold mt-1">Save 2 months!</p>
-                    ` : ''}
                 </div>
 
                 <ul class="space-y-4 mb-8">
@@ -269,7 +245,7 @@ const PricingPlans = (function () {
         }
 
         // Get plans in order
-        const plans = [PLAN_CONFIG.free, PLAN_CONFIG.manualPlus, PLAN_CONFIG.basic, PLAN_CONFIG.premium];
+        const plans = [PLAN_CONFIG.free, PLAN_CONFIG.basic, PLAN_CONFIG.premium];
 
         // For yearly billing, update plan IDs
         const displayPlans = plans.map(plan => {
@@ -283,8 +259,7 @@ const PricingPlans = (function () {
         const headerHtml = `
             <div class="text-center mb-12">
                 <h2 class="text-3xl font-bold text-gray-900 mb-4">Choose Your Plan</h2>
-                <p class="text-gray-600 mb-8">Select the perfect plan for your job search journey</p>
-                ${renderBillingToggle()}
+                <p class="text-gray-600 mb-8">Free, Basic, and Premium.</p>
             </div>
         `;
 

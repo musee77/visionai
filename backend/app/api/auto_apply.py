@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Optional
 from datetime import datetime, timedelta
 from bson import ObjectId
+from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_user
 from app.database import get_database
@@ -26,14 +27,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["auto-apply"])
 
 
+class AutoApplyEnableRequest(BaseModel):
+    max_daily_applications: int = Field(default=5, ge=1, le=10)
+    min_match_score: float = Field(default=0.7, ge=0.5, le=0.9)
+
+
+class AutoApplySettingsUpdate(BaseModel):
+    max_daily_applications: Optional[int] = Field(default=None, ge=1, le=10)
+    min_match_score: Optional[float] = Field(default=None, ge=0.5, le=0.9)
+
+
 def require_premium(user: dict) -> bool:
-    """Check if user has premium subscription"""
+    """Auto-apply is included with Premium, or with unused referral applications."""
     subscription_tier = user.get("subscription_tier", "free")
-    # DEBUG: Allowed free tier for testing
-    if subscription_tier not in ["basic", "premium", "free", "freemium"]:
+    bonus = int(user.get("referral_bonus_auto_applications") or 0)
+    if subscription_tier != "premium" and bonus <= 0:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Premium subscription required for auto-apply feature"
+            detail="Premium is required for auto-apply"
         )
     return True
 
@@ -53,39 +64,37 @@ async def get_auto_apply_status(
         "max_daily_applications": preferences.get("max_daily_applications", 5),
         "min_match_score": preferences.get("min_match_score", 0.7),
         "subscription_tier": current_user.get("subscription_tier", "free"),
-        "is_premium": current_user.get("subscription_tier") in ["basic", "premium"]
+        "is_premium": current_user.get("subscription_tier") == "premium" or int(current_user.get("referral_bonus_auto_applications") or 0) > 0
     }
 
 
 @router.post("/enable")
 async def enable_auto_apply(
-    max_daily_applications: int = 5,
-    min_match_score: float = 0.7,
+    settings: AutoApplyEnableRequest,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_database)
 ):
     """
-    Enable auto-apply for current user (Premium only)
+    Enable auto-apply for current user (paid automated plan only)
     """
     require_premium(current_user)
-    
-    # Validate inputs
-    if max_daily_applications < 1 or max_daily_applications > 10:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Max daily applications must be between 1 and 10"
-        )
-    
-    if min_match_score < 0.5 or min_match_score > 0.9:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Min match score must be between 0.5 and 0.9"
-        )
-    
-    # Enable auto-apply
+
+    max_daily_applications = settings.max_daily_applications
+    min_match_score = settings.min_match_score
     user_id = str(current_user["_id"])
+
+    await db["users"].update_one(
+        {"_id": current_user["_id"]},
+        {"$set": {
+            "preferences.auto_apply_enabled": True,
+            "preferences.auto_monitor_enabled": True,
+            "preferences.max_daily_applications": max_daily_applications,
+            "preferences.min_match_score": min_match_score,
+            "preferences.auto_apply_enabled_at": datetime.utcnow()
+        }}
+    )
     enable_auto_apply_for_user.delay(user_id, max_daily_applications, min_match_score)
-    
+
     return {
         "success": True,
         "message": "Auto-apply enabled successfully",
@@ -230,6 +239,7 @@ async def get_auto_apply_stats(
     today_applications = await applications_collection.count_documents({
         "user_id": user_id,
         "auto_applied": True,
+        "status": {"$nin": ["failed"]},
         "created_at": {"$gte": today_start}
     })
     
@@ -256,7 +266,7 @@ async def get_auto_apply_stats(
     interviews = await applications_collection.count_documents({
         "user_id": user_id,
         "auto_applied": True,
-        "status": {"$in": ["interview_scheduled", "interview_completed"]}
+        "status": {"$in": ["interview_scheduled", "interview_completed", "interviewed"]}
     })
     
     interview_rate = (interviews / total_auto_apps) if total_auto_apps > 0 else 0
@@ -394,15 +404,37 @@ async def get_matching_jobs(
     # Format for response
     formatted_jobs = []
     for job in matching_jobs:
+        salary_range = job.get("salary_range") or {}
+        salary = job.get("salary") or ""
+        if not salary and isinstance(salary_range, dict):
+            def _amount(value):
+                try:
+                    return f"{float(value):,.0f}"
+                except (TypeError, ValueError):
+                    return None
+
+            minimum = _amount(salary_range.get("min_amount"))
+            maximum = _amount(salary_range.get("max_amount"))
+            currency = salary_range.get("currency") or ""
+            if isinstance(currency, dict):
+                currency = currency.get("value") or ""
+            if minimum and maximum:
+                salary = f"{currency} {minimum}–{maximum}".strip()
+            elif minimum:
+                salary = f"{currency} {minimum}+".strip()
+
+        job_id = str(job["_id"])
         formatted_jobs.append({
-            "_id": str(job["_id"]),
+            "_id": job_id,
+            "id": job_id,
             "title": job.get("title", ""),
-            "company": job.get("company", ""),
+            "company": job.get("company_name") or job.get("company") or "",
+            "company_name": job.get("company_name") or job.get("company") or "",
             "location": job.get("location", ""),
-            "salary": job.get("salary", ""),
-            "description": job.get("description", ""),
+            "salary": salary,
+            "description": job.get("description") or "",
             "requirements": job.get("requirements", ""),
-            "created_at": job.get("created_at"),
+            "created_at": job.get("created_at") or job.get("posted_date"),
             "match_score": job.get("match_score", 0),
             "applied": False
         })
@@ -412,8 +444,7 @@ async def get_matching_jobs(
 
 @router.put("/settings")
 async def update_auto_apply_settings(
-    max_daily_applications: Optional[int] = None,
-    min_match_score: Optional[float] = None,
+    settings: AutoApplySettingsUpdate,
     current_user: dict = Depends(get_current_user),
     db = Depends(get_database)
 ):
@@ -421,23 +452,15 @@ async def update_auto_apply_settings(
     Update auto-apply settings
     """
     require_premium(current_user)
-    
+
     update_data = {}
-    
+    max_daily_applications = settings.max_daily_applications
+    min_match_score = settings.min_match_score
+
     if max_daily_applications is not None:
-        if max_daily_applications < 1 or max_daily_applications > 10:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Max daily applications must be between 1 and 10"
-            )
         update_data["preferences.max_daily_applications"] = max_daily_applications
-    
+
     if min_match_score is not None:
-        if min_match_score < 0.5 or min_match_score > 0.9:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Min match score must be between 0.5 and 0.9"
-            )
         update_data["preferences.min_match_score"] = min_match_score
     
     if update_data:

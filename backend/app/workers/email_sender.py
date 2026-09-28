@@ -92,8 +92,16 @@ def send_application_email(
                 {"_id": ObjectId(application_id)},
                 {
                     "$set": {
+                        "status": "submitted",
                         "email_status": "sent",
                         "updated_at": datetime.utcnow()
+                    },
+                    "$push": {
+                        "timeline": {
+                            "status": "submitted",
+                            "timestamp": datetime.utcnow(),
+                            "note": "Application email sent"
+                        }
                     }
                 }
             )
@@ -115,11 +123,13 @@ def send_application_email(
             logger.error(f"Failed to send application email: {e}")
             
             # Update application status to "failed"
+            retries_exhausted = self.request.retries >= self.max_retries
             await db.applications.update_one(
                 {"_id": ObjectId(application_id)},
                 {
                     "$set": {
-                        "email_status": "failed",
+                        "status": "failed" if retries_exhausted else "pending",
+                        "email_status": "failed" if retries_exhausted else "retrying",
                         "email_error": str(e),
                         "last_email_attempt": datetime.utcnow()
                     }

@@ -3,7 +3,7 @@
 Job-related API endpoints
 """
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, Body, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from typing import Optional, List
@@ -20,8 +20,24 @@ from app.services.intelligence.matching_service import matching_service
 from app.api.deps import get_current_user, get_current_active_user, get_db_session as get_db
 from app.workers.job_scraper import scrape_jobs_task
 import logging
+import re
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+_ROLE_WORDS = (
+    "engineer", "developer", "designer", "manager", "analyst", "specialist",
+    "consultant", "architect", "lead", "director", "officer", "coordinator",
+    "assistant", "nurse", "teacher", "accountant", "marketer", "writer",
+    "scientist", "technician", "administrator", "representative",
+)
+_SKILL_TERMS = (
+    "python", "javascript", "typescript", "react", "node", "java", "sql",
+    "excel", "sales", "marketing", "figma", "aws", "docker", "kubernetes",
+    "accounting", "customer service", "project management", "data analysis",
+    "photoshop", "seo", "nursing", "teaching", "recruitment", "finance",
+    "product management", "ux", "ui", "c++", "c#", "php", "golang", "swift",
+)
 
 router = APIRouter()
 
@@ -63,6 +79,130 @@ async def search_jobs(
     except Exception as e:
         logger.error(f"Job search failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+
+def _profile_from_cv_text(text: str, job_title: Optional[str]) -> tuple:
+    """Pull a short role and skill list from CV text. Nothing is stored."""
+    lines = [re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if line.strip()]
+    title = (job_title or "").strip()[:80]
+    if not title:
+        for line in lines[:25]:
+            lowered = line.lower()
+            if "@" in line or not (4 < len(line) < 70):
+                continue
+            if any(word in lowered for word in _ROLE_WORDS):
+                title = line
+                break
+
+    lowered_text = text.lower()
+    skills = [
+        skill for skill in _SKILL_TERMS
+        if re.search(rf"\b{re.escape(skill)}\b", lowered_text)
+    ]
+
+    skills_heading = re.search(r"skills?\s*[:\n](.{0,400})", text, flags=re.IGNORECASE)
+    if skills_heading:
+        for part in re.split(r"[,•|\n]", skills_heading.group(1)):
+            token = part.strip(" .-–—")
+            if 2 < len(token) < 40 and token.lower() not in skills:
+                skills.append(token)
+            if len(skills) >= 12:
+                break
+
+    return title, skills[:12]
+
+
+@router.post("/match-cv")
+async def match_jobs_from_cv(
+    file: UploadFile = File(...),
+    job_title: Optional[str] = Form(None),
+    location: Optional[str] = Form(None),
+    db=Depends(get_db),
+):
+    """Match live jobs to an uploaded CV without saving the file."""
+    from app.services.documents.document_service import document_service
+
+    filename = file.filename or ""
+    extension = Path(filename).suffix.lower()
+    if extension not in {".pdf", ".docx", ".doc", ".txt"}:
+        raise HTTPException(status_code=400, detail="Upload a PDF, DOCX, or TXT file")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="The CV file is empty")
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File size must be less than 10MB")
+
+    try:
+        text = document_service._extract_text(content, extension)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("CV text extraction failed: %s", exc)
+        raise HTTPException(status_code=400, detail="Could not read that CV. Try a text-based PDF, DOCX, or TXT file.")
+
+    title, skills = _profile_from_cv_text(text[:20000], job_title)
+    search_terms = []
+    if title:
+        search_terms.append(title)
+    search_terms.extend(skills[:4])
+
+    job_service = get_job_service(db)
+    found = {}
+    relaxed = False
+
+    async def collect(query: Optional[str], search_location: Optional[str]):
+        safe_query = re.escape(query) if query else None
+        result = await job_service.search_jobs(
+            query=safe_query,
+            location=search_location or None,
+            page=1,
+            size=20,
+        )
+        for job in result.get("jobs", []):
+            if hasattr(job, "model_dump"):
+                payload = job.model_dump(mode="json")
+            elif hasattr(job, "dict"):
+                payload = job.dict()
+            else:
+                payload = dict(job)
+            job_id = str(payload.get("id") or payload.get("_id") or "")
+            if job_id:
+                found[job_id] = payload
+
+    place = (location or "").strip() or None
+    for term in search_terms or [None]:
+        await collect(term, place)
+
+    if not found and place:
+        relaxed = True
+        for term in search_terms or [None]:
+            await collect(term, None)
+
+    if not found:
+        relaxed = True
+        await collect(None, None)
+
+    cv_data = {
+        "skills": skills,
+        "experience": [{"title": title}] if title else [],
+    }
+    ranked = []
+    for job in found.values():
+        score = matching_service._calculate_simple_match_score(cv_data, job)
+        if title or skills:
+            job["match_score"] = round(score, 2)
+            job["cv_matched"] = True
+        ranked.append(job)
+
+    ranked.sort(key=lambda job: job.get("match_score") or 0, reverse=True)
+
+    return JSONResponse(content=jsonable_encoder({
+        "jobs": ranked[:40],
+        "query": title or (skills[0] if skills else ""),
+        "matched": bool(title or skills),
+        "relaxed": relaxed and bool(search_terms),
+    }))
 
 
 @router.get("/{job_id}")

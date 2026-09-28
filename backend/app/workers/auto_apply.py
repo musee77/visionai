@@ -118,7 +118,7 @@ async def generate_custom_cv(user_cv: Dict, job: Dict) -> str:
         job_data = {
             "_id": str(job["_id"]),
             "title": job.get("title", ""),
-            "company_name": job.get("company", ""),
+            "company_name": job.get("company_name") or job.get("company") or "",
             "description": job.get("description", ""),
             "requirements": job.get("requirements", []),
             "skills_required": job.get("skills_required", [])
@@ -193,7 +193,7 @@ async def generate_cover_letter(user_cv: Dict, job: Dict) -> str:
         job_data = {
             "_id": str(job["_id"]),
             "title": job.get("title", ""),
-            "company_name": job.get("company", ""),
+            "company_name": job.get("company_name") or job.get("company") or "",
             "description": job.get("description", ""),
             "requirements": job.get("requirements", []),
             "skills_required": job.get("skills_required", [])
@@ -310,7 +310,8 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
         applications_today = await db.applications.count_documents({
             "user_id": user_id,
             "created_at": {"$gte": today_start},
-            "auto_applied": True
+            "auto_applied": True,
+            "status": {"$nin": ["failed"]}
         })
         
         if applications_today >= max_daily_applications:
@@ -333,7 +334,12 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
         
         # Get jobs from last 7 days
         seven_days_ago = datetime.utcnow() - timedelta(days=7)
-        exclude_ids = [ObjectId(jid) for jid in applied_job_ids]
+        exclude_ids = []
+        for jid in applied_job_ids:
+            try:
+                exclude_ids.append(jid if isinstance(jid, ObjectId) else ObjectId(jid))
+            except Exception:
+                continue
         
         # Get recommended roles using Matching Service (Dynamic)
         from app.services.intelligence.matching_service import matching_service
@@ -453,19 +459,32 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
         
         # Apply to each matching job
         for idx, (job, match_score) in enumerate(top_matches):
+            application_record_id = None
             try:
+                from app.services.core.subscription_service import SubscriptionService
+                allowed, _, _ = await SubscriptionService(db).check_usage_limit(str(user_id), "auto_application")
+                if not allowed:
+                    logger.info(f"User {user_id} has no automated applications left")
+                    break
+
                 job_id = str(job["_id"])
                 
-                # Resolve recipient email (prioritize application specific, then contact, then company)
+                company_name = job.get("company_name") or job.get("company") or ""
                 recipient_email = (
-                    job.get("application_email") or 
-                    job.get("contact_email") or 
-                    job.get("email") or 
-                    (job.get("company_info", {}) or {}).get("contact", {}).get("email")
+                    job.get("application_email") or
+                    job.get("contact_email") or
+                    job.get("email") or
+                    (job.get("company_info") or {}).get("contact", {}).get("email")
                 )
-                
-                if not recipient_email:
-                    logger.warning(f"Skipping job {job_id}: No valid email found despite query filter.")
+                apply_url = job.get("external_url") or job.get("apply_url") or job.get("application_url")
+                has_gmail = bool(user.get("gmail_auth"))
+                can_email = bool(recipient_email and has_gmail)
+                can_browser = bool(apply_url)
+
+                if not can_email and not can_browser:
+                    logger.warning(
+                        f"Skipping job {job_id}: no Gmail path and no apply link."
+                    )
                     continue
                 
                 # Calculate progress
@@ -482,14 +501,14 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
                 
                 await asyncio.sleep(1.0) # UX Delay
 
-                logger.info(f"Auto-applying to {job.get('title')} at {job.get('company_name')} (score: {match_score})")
+                logger.info(f"Auto-applying to {job.get('title')} at {company_name} (score: {match_score})")
                 
                 # Generate custom CV
                 if task_instance:
                      task_instance.update_state(state='PROGRESS', meta={
                         'current': int(current_base), 
                         'total': 100, 
-                        'status': f'Generating Smart CV for {job.get("company_name")}...'
+                        'status': f'Generating Smart CV for {company_name}...'
                     })
                 
                 logger.info(f">>> STARTED: Generating Smart CV for {job_id}")
@@ -523,23 +542,23 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
                     "user_id": user_id,
                     "job_id": job_id,
                     "job_title": job.get("title"),
-                    "company_name": job.get("company_name"),
+                    "company_name": company_name,
                     "location": job.get("location"),
-                    "status": "submitted",
+                    "status": "pending",
                     "source": "auto_apply",
                     "auto_applied": True,
-                    "email_monitoring_enabled": True,  # UI Toggle State
+                    "email_monitoring_enabled": True,
                     "priority": "medium",
                     "match_score": match_score,
                     "cv_document_id": custom_cv_id,
                     "cover_letter_document_id": cover_letter_id,
                     "created_at": datetime.utcnow(),
                     "updated_at": datetime.utcnow(),
-                    "deleted_at": None,  # Critical: API queries for deleted_at: None
+                    "deleted_at": None,
                     "timeline": [{
-                        "status": "submitted",
+                        "status": "pending",
                         "timestamp": datetime.utcnow(),
-                        "note": f"Auto-applied (match score: {match_score:.2f})"
+                        "note": f"Queued auto-apply (match score: {match_score:.2f})"
                     }],
                     "documents": [],
                     "communications": [],
@@ -549,31 +568,19 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
                 
                 result = await db.applications.insert_one(application)
                 application_id = str(result.inserted_id)
+                application_record_id = result.inserted_id
                 
                 if task_instance:
                     task_instance.update_state(state='PROGRESS', meta={
                         'current': int(current_base + (progress_step * 0.9)), 
                         'total': 100, 
-                        'status': f'Sending application to {job.get("company_name")}...'
+                        'status': f'Sending application to {company_name}...'
                     })
 
-                # Send application via email agent
-                # Extract rich form data using the shared service for consistency with Quick Apply
-                form_data = await email_agent_service.extract_form_data_from_cv(user_id, cv_data=user_cv, db=db)
-                
-                # Add the specific message for this application
-                form_data["message"] = f"Please find attached my CV and cover letter for the {job.get('title')} position."
-                
-                # Debug Log
-                logger.info(f"Preparing to send application to: {recipient_email}")
-                logger.info(f"Formatted Data Payload: {form_data}")
-
-                applications_sent += 1
-                stats["applications_sent"] += 1
-                
-                # BRANCHING LOGIC: Email vs Browser Automation
-                if recipient_email:
-                    # Queue email sending
+                sent = False
+                if can_email:
+                    form_data = await email_agent_service.extract_form_data_from_cv(user_id, cv_data=user_cv, db=db)
+                    form_data["message"] = f"Please find attached my CV and cover letter for the {job.get('title')} position."
                     from app.workers.email_sender import send_application_email
                     send_application_email.delay(
                         user_id=user_id,
@@ -585,14 +592,52 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
                         cover_letter_document_id=cover_letter_id,
                         additional_message=None
                     )
-                    logger.info(f"Successfully queued email application for job {job_id}")
-                else:
-                    logger.info(f"Successfully triggered browser automation for job {job_id}")
-                
-                logger.info(f"Successfully processed auto-apply for job {job_id}")
+                    await db.applications.update_one(
+                        {"_id": result.inserted_id},
+                        {"$set": {"email_status": "queued", "updated_at": datetime.utcnow()}}
+                    )
+                    sent = True
+                    logger.info(f"Queued email application for job {job_id}")
+                elif can_browser:
+                    from app.services.automation.browser_automation_service import BrowserAutomationService
+                    browser_result = await BrowserAutomationService.auto_apply_to_job(
+                        user_id=user_id,
+                        application_id=application_id,
+                        job_id=job_id,
+                        cv_id=custom_cv_id
+                    )
+                    sent = bool(browser_result and browser_result.get("success"))
+                    if not sent:
+                        await db.applications.update_one(
+                            {"_id": result.inserted_id},
+                            {"$set": {
+                                "status": "failed",
+                                "automation_status": "failed",
+                                "automation_error": (browser_result or {}).get("error", "Browser apply failed"),
+                                "updated_at": datetime.utcnow()
+                            }}
+                        )
+                        logger.warning(f"Browser auto-apply failed for job {job_id}")
+
+                if sent:
+                    applications_sent += 1
+                    stats["applications_sent"] += 1
+                    from app.services.core.subscription_service import SubscriptionService
+                    await SubscriptionService(db).track_usage(str(user_id), "auto_application")
+                    logger.info(f"Successfully processed auto-apply for job {job_id}")
                 
             except Exception as e:
                 logger.error(f"Error auto-applying to job {job.get('_id')}: {e}")
+                if application_record_id is not None:
+                    await db.applications.update_one(
+                        {"_id": application_record_id},
+                        {"$set": {
+                            "status": "failed",
+                            "email_status": "failed",
+                            "email_error": str(e),
+                            "updated_at": datetime.utcnow()
+                        }}
+                    )
                 continue
         
         if task_instance:
@@ -623,9 +668,7 @@ def auto_apply_to_matching_jobs():
             
             # Get users with auto-apply enabled
             auto_apply_users = await db.users.find({
-                "preferences.auto_apply_enabled": True,
-                "gmail_auth": {"$exists": True, "$ne": None},
-                "cv_data": {"$exists": True, "$ne": None}
+                "preferences.auto_apply_enabled": True
             }).to_list(length=None)
             
             if not auto_apply_users:

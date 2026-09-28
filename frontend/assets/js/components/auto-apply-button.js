@@ -69,7 +69,7 @@ class AutoApplyButton {
         // Check Premium Access before enabling
         if (!this.isEnabled) {
             if (typeof PremiumGuard !== 'undefined') {
-                if (!PremiumGuard.enforce('AUTO_APPLY', 'Premium Automation', 'Auto-applying to jobs requires a Basic or Premium subscription.')) {
+                if (!PremiumGuard.enforce('AUTO_APPLY', 'Premium Automation', 'Auto-applying to jobs requires a Premium subscription.')) {
                     return;
                 }
             }

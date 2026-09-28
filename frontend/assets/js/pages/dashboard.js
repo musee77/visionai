@@ -563,7 +563,7 @@ async function uploadPendingLandingCv() {
 
         // Check Premium Access
         if (typeof PremiumGuard !== 'undefined') {
-            if (!PremiumGuard.enforce('AUTO_APPLY', 'Premium Automation', 'Saving automation settings requires a Basic or Premium subscription.')) {
+            if (!PremiumGuard.enforce('AUTO_APPLY', 'Premium Automation', 'Saving automation settings requires a Premium subscription.')) {
                 return;
             }
         } else {

@@ -1,30 +1,51 @@
-<!-- Admin Sidebar -->
-<aside class="w-64 bg-gray-900 text-white flex-shrink-0 h-full flex flex-col">
-    <div class="p-6">
-        <h1 class="text-2xl font-bold text-gradient">CVision Admin</h1>
+<aside class="admin-nav">
+    <div class="admin-brand">
+        <span class="admin-mark">S</span>
+        <div class="admin-brand-copy">
+            <p class="admin-brand-kicker">Admin</p>
+            <h1>synovae</h1>
+        </div>
     </div>
-    <nav class="mt-6 space-y-1">
-        <a href="index" class="block px-6 py-3 hover:bg-gray-800 transition" data-page="index">Dashboard</a>
-        <a href="users" class="block px-6 py-3 hover:bg-gray-800 transition" data-page="users">Users</a>
-        <a href="tickets" class="block px-6 py-3 hover:bg-gray-800 transition" data-page="tickets">Support
-            Tickets</a>
-        <a href="documents" class="block px-6 py-3 hover:bg-gray-800 transition" data-page="documents">Documents</a>
-        <a href="subscriptions" class="block px-6 py-3 hover:bg-gray-800 transition"
-            data-page="subscriptions">Subscriptions</a>
-        <a href="applications" class="block px-6 py-3 hover:bg-gray-800 transition"
-            data-page="applications">Applications</a>
-        <a href="referrals" class="block px-6 py-3 hover:bg-gray-800 transition" data-page="referrals">Referrals</a>
-        <a href="blog-admin" class="block px-6 py-3 hover:bg-gray-800 transition" data-page="blog-admin">Blog</a>
-        <a href="settings" class="block px-6 py-3 hover:bg-gray-800 transition" data-page="settings">Settings</a>
-
-        <a href="../dashboard" class="block px-6 py-3 hover:bg-gray-800 mt-8 border-t border-gray-800">
-            <span class="flex items-center">
-                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-                </svg>
-                Back to App
-            </span>
+    <nav>
+        <a href="index" data-page="index">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h7v7H4V6zm9 0h7v4h-7V6zM4 15h7v3H4v-3zm9-3h7v6h-7v-6z"/></svg>
+            <span>Dashboard</span>
+        </a>
+        <a href="users" data-page="users">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 19v-1a4 4 0 00-4-4H7a4 4 0 00-4 4v1m17 0v-1a3 3 0 00-2.2-2.9M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/></svg>
+            <span>Users</span>
+        </a>
+        <a href="tickets" data-page="tickets">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 10h8M8 14h5M6 4h12a2 2 0 012 2v9l-4-2H6a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg>
+            <span>Support</span>
+        </a>
+        <a href="documents" data-page="documents">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 4h6l4 4v12a1 1 0 01-1 1H8a1 1 0 01-1-1V5a1 1 0 011-1z"/></svg>
+            <span>Documents</span>
+        </a>
+        <a href="subscriptions" data-page="subscriptions">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 7h16M4 12h16M7 17h6"/></svg>
+            <span>Subscriptions</span>
+        </a>
+        <a href="applications" data-page="applications">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 5h6m-7 4h8m-9 4h10M6 3h12a1 1 0 011 1v16l-3-2-3 2-3-2-3 2V4a1 1 0 011-1z"/></svg>
+            <span>Applications</span>
+        </a>
+        <a href="referrals" data-page="referrals">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 11a3 3 0 100-6 3 3 0 000 6zM8 13a3 3 0 100-6 3 3 0 000 6zm8 1a4 4 0 014 4v1H4v-1a4 4 0 014-4"/></svg>
+            <span>Referrals</span>
+        </a>
+        <a href="blog-admin" data-page="blog-admin">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M5 5h11a3 3 0 013 3v11H8a3 3 0 01-3-3V5zM5 8H3m2 4H3m2 4H3"/></svg>
+            <span>Blog</span>
+        </a>
+        <a href="settings" data-page="settings">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9c.3.7.9 1.2 1.6 1.3H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
+            <span>Settings</span>
         </a>
     </nav>
+    <a class="admin-back" href="../dashboard">
+        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 19l-7-7 7-7"/></svg>
+        <span>Back to app</span>
+    </a>
 </aside>

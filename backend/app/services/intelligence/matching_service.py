@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
 from bson import ObjectId
@@ -192,25 +193,28 @@ class MatchingService:
         # 2. Fill with recent jobs
         
         suggested_roles = await self.get_suggested_roles(cv_data, limit=3)
-        role_queries = [{"title": {"$regex": role["title"], "$options": "i"}} for role in suggested_roles]
-        
+        role_queries = [
+            {"title": {"$regex": re.escape(role["title"]), "$options": "i"}}
+            for role in suggested_roles
+            if role.get("title")
+        ]
+        active_clause = {"$or": [{"status": "active"}, {"is_active": True}]}
+
         candidate_jobs = []
-        
+
         if role_queries:
             candidate_jobs = await self.db.jobs.find({
                 "_id": {"$nin": exclude_ids},
-                "is_active": True,
                 "created_at": {"$gte": start_date},
-                "$or": role_queries
+                "$and": [active_clause, {"$or": role_queries}]
             }).limit(limit * 3).to_list(length=limit * 3)
-            
-        # If not enough, get generic recent jobs
+
         if len(candidate_jobs) < limit * 2:
             current_ids = [j["_id"] for j in candidate_jobs]
             more_jobs = await self.db.jobs.find({
                 "_id": {"$nin": exclude_ids + current_ids},
-                "is_active": True,
-                "created_at": {"$gte": start_date}
+                "created_at": {"$gte": start_date},
+                "$and": [active_clause]
             }).limit(limit * 2).to_list(length=limit * 2)
             candidate_jobs.extend(more_jobs)
             

@@ -225,7 +225,7 @@ class User(BaseModel):
 
 class UserResponse(BaseModel):
     id: str
-    email: EmailStr
+    email: str
     first_name: str
     last_name: str
     full_name: Optional[str] = None
@@ -239,9 +239,12 @@ class UserResponse(BaseModel):
     last_login: Optional[datetime] = None
     gmail_connected: bool = False
     cv_data: Optional[Dict[str, Any]] = None  # Parsed CV data for frontend access
+    referral_bonus_auto_applications: int = 0
 
     @model_validator(mode='before')
     def generate_full_name(cls, values):
+        if not isinstance(values, dict):
+            return values
         first = values.get('first_name')
         last = values.get('last_name')
         email = values.get('email')

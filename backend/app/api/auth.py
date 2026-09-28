@@ -42,6 +42,7 @@ class UserRegister(BaseModel):
     password: str
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    referral_code: Optional[str] = None
 
 
 class LocationData(BaseModel):
@@ -155,6 +156,19 @@ async def register(user_data: UserRegister, request: Request):
         
         result = await users_collection.insert_one(user_doc)
         user_doc["_id"] = result.inserted_id
+
+        if user_data.referral_code:
+            try:
+                from app.database import get_database
+                from app.services.core.referral_service import ReferralService
+                db = await get_database()
+                await ReferralService(db).record_signup(
+                    referee_user_id=str(result.inserted_id),
+                    referee_email=user_data.email,
+                    code=user_data.referral_code
+                )
+            except Exception as referral_error:
+                logger.warning(f"Referral was not recorded for {user_data.email}: {referral_error}")
         
         # detailed user creation for auth service hook? No, keep it simple here or use AuthService
         

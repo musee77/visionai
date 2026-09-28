@@ -1,7 +1,158 @@
-/* Landing Page Job Explorer Styles */
+/* Landing pages: index (job search) and home (product) */
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,680&family=Inter:wght@400;500;600;700&display=swap');
 
 body {
-    background: linear-gradient(180deg, #f8fafc 0%, #eef4ff 100%);
+    background: #f4f0e8;
+    color: #1c1917;
+}
+
+.landing-page {
+    background:
+        radial-gradient(900px 420px at 8% -10%, rgba(102, 126, 234, 0.16), transparent 60%),
+        radial-gradient(700px 380px at 100% 0%, rgba(180, 140, 90, 0.14), transparent 55%),
+        #f4f0e8;
+}
+
+.display {
+    font-family: Fraunces, Georgia, "Times New Roman", serif;
+    font-optical-sizing: auto;
+    letter-spacing: -0.035em;
+}
+
+.eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #4c51bf;
+}
+
+.landing-kicker {
+    width: 1.75rem;
+    height: 1px;
+    background: #4c51bf;
+}
+
+.search-dock {
+    background: #fffdf9;
+    border: 1px solid #e6dfd2;
+    border-radius: 1.25rem;
+    box-shadow: 0 18px 50px rgba(48, 36, 18, 0.08);
+}
+
+.search-field {
+    background: #f7f4ee;
+    border: 1px solid transparent;
+    color: #1c1917;
+}
+
+.search-field:focus {
+    background: #fff;
+    border-color: #667eea;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
+    outline: none;
+}
+
+.stat-tile {
+    background: #fffdf9;
+    border: 1px solid #e6dfd2;
+    border-radius: 1rem;
+    padding: 0.9rem 0.75rem;
+    text-align: center;
+}
+
+.stat-value {
+    font-family: Fraunces, Georgia, serif;
+    font-size: 1.85rem;
+    line-height: 1;
+    color: #1c1917;
+}
+
+.stat-label {
+    margin-top: 0.4rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #78716c;
+}
+
+.feature-icon {
+    width: 3rem;
+    height: 3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.9rem;
+    background: #f3efe6;
+    font-size: 1.35rem;
+    margin-bottom: 1.25rem;
+}
+
+.upload-hero {
+    position: relative;
+}
+
+.upload-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 100%;
+    background:
+        linear-gradient(180deg, rgba(255, 253, 249, 0.55), rgba(244, 240, 232, 0));
+    pointer-events: none;
+}
+
+.upload-card {
+    position: relative;
+    background: #fffdf9;
+    border: 1px solid #e6dfd2;
+    border-radius: 1.75rem;
+    box-shadow: 0 24px 60px rgba(48, 36, 18, 0.1);
+}
+
+.upload-step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 9999px;
+    background: #1c1917;
+    color: #faf7f2;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.closing-band {
+    background: #1c1917;
+    color: #faf7f2;
+    border-radius: 2rem;
+    box-shadow: 0 24px 60px rgba(28, 25, 23, 0.18);
+}
+
+.ghost-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.9rem;
+    border: 1px solid #d6cfc3;
+    background: #fffdf9;
+    color: #1c1917;
+    font-weight: 600;
+    transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.ghost-btn:hover {
+    border-color: #4c51bf;
+    color: #4c51bf;
+    transform: translateY(-1px);
 }
 
 #explore-jobs {
@@ -12,15 +163,14 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 0.625rem;
-    padding: 0.6rem 1rem;
-    border: 1px solid rgba(148, 163, 184, 0.2);
+    padding: 0.45rem 0.85rem;
+    border: 1px solid #e6dfd2;
     border-radius: 9999px;
-    background: rgba(15, 23, 42, 0.35);
-    backdrop-filter: blur(10px);
-    color: #e2e8f0;
+    background: #fffdf9;
+    color: #44403c;
     font-size: 0.8rem;
     font-weight: 600;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
 }
 
 .hero-badge .pulse {
@@ -46,43 +196,42 @@ body {
 
 .hero-panel {
     position: relative;
-    background: rgba(15, 23, 42, 0.8);
-    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: #fffdf9;
+    border: 1px solid #e6dfd2;
     border-radius: 1.75rem;
-    box-shadow: 0 30px 80px rgba(15, 23, 42, 0.45);
+    box-shadow: 0 24px 60px rgba(48, 36, 18, 0.08);
     overflow: hidden;
 }
 
 .hero-panel::before {
     content: "";
     position: absolute;
-    inset: -20% 20% auto auto;
-    width: 16rem;
-    height: 16rem;
-    background: radial-gradient(circle, rgba(96, 165, 250, 0.45), transparent 65%);
+    inset: 0 auto auto 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, #667eea, #764ba2);
     pointer-events: none;
 }
 
 .hero-stat-card {
-    background: rgba(15, 23, 42, 0.72);
-    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: #f7f4ee;
+    border: 1px solid #efe8dc;
     border-radius: 1rem;
     padding: 1rem;
-    backdrop-filter: blur(8px);
 }
 
 .hero-stat-card .mini-label {
-    color: #94a3b8;
+    color: #78716c;
     font-size: 0.72rem;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
 }
 
 .feature-card {
-    background: rgba(255, 255, 255, 0.88);
-    border: 1px solid rgba(148, 163, 184, 0.15);
+    background: #fffdf9;
+    border: 1px solid #e6dfd2;
     border-radius: 1.5rem;
-    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.05);
+    box-shadow: 0 10px 30px rgba(48, 36, 18, 0.04);
     transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
@@ -93,11 +242,10 @@ body {
 
 .process-step {
     position: relative;
-    background: #ffffff;
-    border: 1px solid rgba(148, 163, 184, 0.15);
+    background: #fffdf9;
+    border: 1px solid #e6dfd2;
     border-radius: 1.5rem;
     padding: 1.5rem;
-    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.04);
 }
 
 .process-number {
@@ -115,10 +263,9 @@ body {
 }
 
 .section-shell {
-    background: rgba(255, 255, 255, 0.75);
-    border: 1px solid rgba(148, 163, 184, 0.12);
+    background: #fffdf9;
+    border: 1px solid #e6dfd2;
     border-radius: 2rem;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
 }
 
 .job-explorer-card {

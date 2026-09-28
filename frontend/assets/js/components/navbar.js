@@ -151,36 +151,19 @@ const CVisionNavbar = (function () {
 
 
             if (!response.ok) {
-                if (response.status === 401) {
-                    // Clear invalid tokens
-                    localStorage.removeItem('token');
-                    localStorage.removeItem(TOKEN_KEY);
-                    localStorage.removeItem('cvision_user');
-                    showLoggedOutState();
-
-                    // Optionally redirect to login
-                    // window.location.href = '/login.html';
-                    return;
-                }
-
-                // Try to get error details
-                let errorDetail = 'Unknown error';
-                try {
-                    const errorData = await response.json();
-                    errorDetail = errorData.detail || errorData.message || JSON.stringify(errorData);
-                } catch (e) {
-                    errorDetail = await response.text();
-                }
-
-                throw new Error(`Failed to load user info: ${response.status} - ${errorDetail}`);
+                logout();
+                return;
             }
 
             const data = await response.json();
 
             // Handle both direct response and nested user object
             const user = data.user || data;
+            if (!user || !user.email) {
+                logout();
+                return;
+            }
             userInfo = user;
-
 
             // Update UI with user information
             updateUserDisplay(user);
@@ -190,13 +173,8 @@ const CVisionNavbar = (function () {
 
 
         } catch (error) {
-
-            // Show error in UI
-            const userFullName = document.getElementById('userFullName');
-            if (userFullName) {
-                userFullName.textContent = 'Error loading user';
-                userFullName.style.color = '#ef4444';
-            }
+            console.error('CVisionNavbar: Error loading user:', error);
+            logout();
         }
     }
 
@@ -243,7 +221,7 @@ const CVisionNavbar = (function () {
         // Update subscription tier
         const tierEl = document.getElementById('navUserTier');
         if (tierEl) {
-            const tier = user.subscription_tier || 'free';
+            const tier = String(user.subscription_tier || 'free');
             tierEl.textContent = tier.charAt(0).toUpperCase() + tier.slice(1);
 
             // Update tier badge color based on tier
@@ -420,7 +398,7 @@ const CVisionNavbar = (function () {
 
     // Start polling
     function startPolling() {
-        pollingInterval = setInterval(loadNotifications, 30000); // Poll every 30 seconds
+        pollingInterval = setInterval(loadNotifications, 30000);
     }
 
     // Stop polling
@@ -435,10 +413,13 @@ const CVisionNavbar = (function () {
     function logout() {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem('token');
+        localStorage.removeItem('refresh_token');
         localStorage.removeItem('cvision_user');
         localStorage.removeItem('user');
         stopPolling();
-        window.location.href = '/login.html';
+        if (!window.location.pathname.endsWith('login.html')) {
+            window.location.replace('/login.html');
+        }
     }
 
     // Initialize event listeners immediately (delegation doesn't require elements to exist)

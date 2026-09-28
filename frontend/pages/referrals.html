@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Referrals & Rewards - CVision AI</title>
-    <script src="/assets/js/auth-guard.js"></script>
+    <script src="/assets/js/auth-guard.js?v=1.2"></script>
     <link rel="stylesheet" href="/assets/css/global.css">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -30,7 +30,7 @@
                                     d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
                                     clip-rule="evenodd" />
                             </svg>
-                            <span>Get 5 manual + 5 auto applications per 5 paid referrals</span>
+                            <span>Get 5 automated applications for every 5 friends on Basic or Premium</span>
                         </li>
                         <li class="flex items-start">
                             <svg class="w-6 h-6 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -38,7 +38,7 @@
                                     d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
                                     clip-rule="evenodd" />
                             </svg>
-                            <span>Your friends get exclusive signup bonuses</span>
+                            <span>Friends count after they subscribe to Basic or Premium</span>
                         </li>
                         <li class="flex items-start">
                             <svg class="w-6 h-6 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -124,7 +124,7 @@
                     </div>
                 </div>
                 <p id="bonusApplications" class="text-3xl font-bold text-gray-900">0</p>
-                <p class="text-sm text-gray-500 mt-1">Applications earned</p>
+                <p class="text-sm text-gray-500 mt-1">Automated applications left</p>
             </div>
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -138,7 +138,7 @@
                     </div>
                 </div>
                 <p id="pendingRewards" class="text-3xl font-bold text-gray-900">0</p>
-                <p class="text-sm text-gray-500 mt-1">Awaiting activation</p>
+                <p class="text-sm text-gray-500 mt-1">Paid friends until the next 5</p>
             </div>
         </div>
 
@@ -272,10 +272,10 @@
                             </div>
                             <div>
                                 <p class="text-sm font-medium text-gray-600">Next Reward</p>
-                                <p class="text-2xl font-bold text-gray-900">10 Apps</p>
+                                <p class="text-2xl font-bold text-gray-900">5 Apps</p>
                             </div>
                         </div>
-                        <p class="text-xs text-gray-500">5 manual + 5 auto applications</p>
+                        <p class="text-xs text-gray-500">5 automated applications</p>
                     </div>
 
                     <!-- Total Earned Card -->
@@ -294,7 +294,7 @@
                                 <p id="totalEarnedApps" class="text-2xl font-bold text-gray-900">0</p>
                             </div>
                         </div>
-                        <p class="text-xs text-gray-500">Applications from referrals</p>
+                        <p class="text-xs text-gray-500">Automated applications earned</p>
                     </div>
                 </div>
 
@@ -472,8 +472,8 @@
 
     <script src="/assets/js/inline-messages.js"></script>
     <script src="/assets/js/main.js"></script>
-    <script src="/assets/js/pages/referrals.js"></script>
-    <script src="/assets/js/components/navbar.js" defer></script>
+    <script src="/assets/js/pages/referrals.js?v=1.5"></script>
+    <script src="/assets/js/components/navbar.js?v=1.2" defer></script>
 
     <script defer>
         // Load navbar component with proper initialization

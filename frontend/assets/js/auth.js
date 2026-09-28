@@ -261,9 +261,11 @@ async function handleRegister() {
         }
 
         // Make register request
+        const referralCode = new URLSearchParams(window.location.search).get('ref');
         const response = await CVision.API.register({
             email: email,
-            password: password
+            password: password,
+            ...(referralCode ? { referral_code: referralCode } : {})
         });
 
         if (response.success) {

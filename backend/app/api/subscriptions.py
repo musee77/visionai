@@ -8,6 +8,7 @@ import logging
 import io
 import csv
 import secrets
+from bson import ObjectId
 
 from app.database import get_database
 from app.api.deps import get_current_user, get_current_active_user
@@ -117,10 +118,11 @@ async def create_subscription(
     user_id = get_user_id(current_user)
     service = SubscriptionService(db)
     
+    referral_service = ReferralService(db)
     if request.referral_code:
-        referral_service = ReferralService(db)
         is_valid = await referral_service.validate_referral_code(request.referral_code)
-        if not is_valid:
+        own_code = (current_user.get("referral_code") or "").upper()
+        if not is_valid or request.referral_code.strip().upper() == own_code:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid referral code")
     
     try:
@@ -129,13 +131,19 @@ async def create_subscription(
             plan_id=request.plan_id,
             reference=request.reference
         )
-        
-        if request.referral_code:
-            referral_service = ReferralService(db)
-            await referral_service.complete_referral(
-                referral_code=request.referral_code,
-                referee_user_id=user_id
-            )
+
+        plan = await service.get_plan(request.plan_id)
+        if plan and str(getattr(plan.tier, "value", plan.tier)) in ("basic", "premium"):
+            try:
+                if request.referral_code:
+                    await referral_service.record_signup(
+                        referee_user_id=str(user_id),
+                        referee_email=current_user.get("email") or "",
+                        code=request.referral_code
+                    )
+                await referral_service.reward_for_paid_plan(str(user_id))
+            except Exception as referral_error:
+                logger.warning(f"Referral reward was not applied for {user_id}: {referral_error}")
         
         return subscription
     except ValueError as e:
@@ -221,11 +229,36 @@ async def get_usage_stats(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No subscription found")
         
         plan = await service.get_plan(subscription.plan_id)
-        
+        limits = {}
+        price_cents = 0
+        currency = "USD"
+        billing_interval = subscription.billing_interval
+        if plan:
+            billing_interval = plan.billing_interval or billing_interval
+            if plan.price:
+                price_cents = int(plan.price.amount or 0)
+                currency = getattr(plan.price.currency, "value", plan.price.currency) or "USD"
+            if plan.limits:
+                manual = plan.limits.monthly_manual_applications
+                auto = plan.limits.monthly_auto_applications
+                account = await service._find_account(user_id)
+                auto_bonus = int((account or {}).get("referral_bonus_auto_applications") or 0)
+                limits = {
+                    "manual_applications": manual.max_value if manual else 0,
+                    "auto_applications": auto.max_value if auto else 0,
+                    "referral_bonus_auto_applications": auto_bonus,
+                }
+
         return {
             "subscription_id": subscription.id,
-            "plan": plan.name if plan else "Unknown",
+            "plan": plan.name if plan else subscription.plan_id,
+            "plan_id": subscription.plan_id,
             "tier": subscription.plan_id,
+            "status": subscription.status,
+            "billing_interval": billing_interval,
+            "price_cents": price_cents,
+            "currency": currency,
+            "limits": limits,
             "current_usage": subscription.current_usage,
             "usage_reset_date": subscription.usage_reset_date,
             "current_period_end": subscription.current_period_end
@@ -248,7 +281,8 @@ async def get_referral_code(
 ):
     """Get user's referral code"""
     user_id = get_user_id(current_user)
-    user = await db.users.find_one({"_id": user_id})
+    user_oid = user_id if isinstance(user_id, ObjectId) else ObjectId(str(user_id))
+    user = await db.users.find_one({"_id": user_oid})
     
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -256,8 +290,8 @@ async def get_referral_code(
     referral_code = user.get("referral_code")
     
     if not referral_code:
-        referral_code = f"{user_id[:4].upper()}{secrets.token_urlsafe(6).upper().replace('-', '').replace('_', '')[:6]}"
-        await db.users.update_one({"_id": user_id}, {"$set": {"referral_code": referral_code}})
+        referral_code = f"{str(user_oid)[:4].upper()}{secrets.token_urlsafe(6).upper().replace('-', '').replace('_', '')[:6]}"
+        await db.users.update_one({"_id": user_oid}, {"$set": {"referral_code": referral_code}})
     
     return {"code": referral_code}
 
@@ -267,7 +301,7 @@ async def get_referral_stats_detailed(
     db = Depends(get_database)
 ):
     """Get detailed referral statistics"""
-    user_id = get_user_id(current_user)
+    user_id = str(get_user_id(current_user))
     service = ReferralService(db)
     
     stats = await service.get_referral_stats(user_id)
@@ -282,14 +316,14 @@ async def get_referral_stats_detailed(
         "status": "pending"
     })
     
-    user = await db.users.find_one({"_id": user_id})
+    user = await service._find_user(user_id) or {}
     
     return {
         **stats,
         "active_referrals": active_referrals,
         "pending_referrals": pending_referrals,
-        "total_rewards_earned": user.get("referral_bonus_searches", 0),
-        "pending_rewards": 0
+        "total_rewards_earned": int(user.get("referral_auto_earned") or 0),
+        "pending_rewards": stats.get("next_reward_in", 5)
     }
 
 @router.get("/referral/list")
@@ -301,7 +335,7 @@ async def get_referral_list(
     db = Depends(get_database)
 ):
     """Get paginated referral list"""
-    user_id = get_user_id(current_user)
+    user_id = str(get_user_id(current_user))
     
     query = {"referrer_user_id": user_id}
     if status and status != "all":
@@ -315,13 +349,26 @@ async def get_referral_list(
     referrals = await referrals_cursor.to_list(length=page_size)
     
     for ref in referrals:
+        ref["_id"] = str(ref.get("_id"))
         if ref.get("referee_user_id"):
-            referee = await db.users.find_one({"_id": ref["referee_user_id"]})
+            referee_id = ref["referee_user_id"]
+            referee_query = {"_id": ObjectId(referee_id)} if ObjectId.is_valid(str(referee_id)) else {"_id": referee_id}
+            referee = await db.users.find_one(referee_query)
+            ref["referee_user_id"] = str(referee_id)
             if referee:
                 ref["subscription_tier"] = referee.get("subscription_tier", "free")
+        referred_at = ref.get("referred_at")
+        if hasattr(referred_at, "isoformat"):
+            ref["referred_at"] = referred_at.isoformat()
+        completed_at = ref.get("completed_at")
+        if hasattr(completed_at, "isoformat"):
+            ref["completed_at"] = completed_at.isoformat()
+        ref.pop("referrer_reward_amount", None)
+        ref.pop("referee_reward_amount", None)
         
-        ref["reward_granted"] = ref.get("referrer_reward_paid", False)
-        ref["reward_amount"] = 1
+        ref["created_at"] = ref.get("referred_at")
+        ref["reward_granted"] = bool(ref.get("referrer_reward_paid"))
+        ref["reward_amount"] = 0
     
     return {
         "referrals": referrals,
@@ -338,7 +385,7 @@ async def get_referral_activity(
     db = Depends(get_database)
 ):
     """Get recent referral activity"""
-    user_id = get_user_id(current_user)
+    user_id = str(get_user_id(current_user))
     
     referrals_cursor = db.referrals.find({
         "referrer_user_id": user_id
@@ -349,15 +396,16 @@ async def get_referral_activity(
     activities = []
     for ref in referrals:
         activity_type = "signup"
-        description = f"New referral: {ref['referee_email']}"
+        email = ref.get("referee_email") or "A friend"
+        description = f"New referral: {email}"
         
         if ref.get("status") == "completed":
             activity_type = "subscription"
-            description = f"{ref['referee_email']} subscribed"
+            description = f"{email} subscribed"
         
         if ref.get("referrer_reward_paid"):
             activity_type = "reward"
-            description = f"Reward earned for {ref['referee_email']} subscription"
+            description = f"Reward earned from {email}"
         
         activities.append({
             "type": activity_type,
@@ -373,7 +421,7 @@ async def export_referrals(
     db = Depends(get_database)
 ):
     """Export referrals to CSV"""
-    user_id = get_user_id(current_user)
+    user_id = str(get_user_id(current_user))
     
     referrals_cursor = db.referrals.find({
         "referrer_user_id": user_id
@@ -451,18 +499,27 @@ async def complete_referral(
     current_user: dict = Depends(get_current_active_user),
     db = Depends(get_database)
 ):
-    """Complete a referral"""
-    user_id = get_user_id(current_user)
+    """Attach this account to a referrer. Paid plans grant the referrer automated applications."""
+    user_id = str(get_user_id(current_user))
     service = ReferralService(db)
-    
-    try:
-        referral = await service.complete_referral(
-            referral_code=request.referral_code,
-            referee_user_id=user_id
+    own_code = (current_user.get("referral_code") or "").upper()
+    if request.referral_code and request.referral_code.strip().upper() == own_code:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid referral code")
+
+    recorded = None
+    if request.referral_code:
+        recorded = await service.record_signup(
+            referee_user_id=user_id,
+            referee_email=current_user.get("email") or "",
+            code=request.referral_code
         )
-        return {"message": "Referral completed successfully", "referral": referral}
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        if not recorded:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid referral code")
+
+    if current_user.get("subscription_tier") in ("basic", "premium"):
+        await service.reward_for_paid_plan(user_id)
+
+    return {"message": "Referral recorded", "referral_id": (recorded or {}).get("_id")}
 
 # ==================== PAYSTACK WEBHOOKS ====================
 

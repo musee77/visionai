@@ -87,7 +87,7 @@ function displayTierCards(plans) {
             rewardText = 'Referrals only count when they subscribe to a paid plan';
             rewardIcon = '❌';
         } else {
-            rewardText = '<strong>5 manual + 5 auto applications</strong> per 5 paid referrals';
+            rewardText = '<strong>5 automated applications</strong> for every 5 paid referrals';
             rewardIcon = '🎁';
         }
 
@@ -174,7 +174,7 @@ async function loadReferralCode() {
             codeElements.forEach(el => el.textContent = userReferralCode);
 
             // Update referral link
-            const referralLink = `${window.location.origin}/signup.html?ref=${userReferralCode}`;
+            const referralLink = `${window.location.origin}/register?ref=${userReferralCode}`;
             const linkInput = document.getElementById('referralLinkInput');
             if (linkInput) {
                 linkInput.value = referralLink;
@@ -220,9 +220,7 @@ function updateStatsDisplay() {
     document.getElementById('totalReferrals').textContent = referralStats.total_referrals || 0;
     document.getElementById('activeReferrals').textContent = referralStats.paid_referrals || 0;
 
-    // Show total bonus applications (manual + auto)
-    const bonusApps = (referralStats.bonus_manual_applications || 0) + (referralStats.bonus_auto_applications || 0);
-    document.getElementById('bonusApplications').textContent = bonusApps;
+    document.getElementById('bonusApplications').textContent = referralStats.bonus_auto_applications || 0;
 
     document.getElementById('pendingRewards').textContent = referralStats.next_reward_in || 0;
 
@@ -238,7 +236,7 @@ function updateMilestoneProgress() {
 
     const paidReferrals = referralStats.paid_referrals || 0;
     const totalReferrals = referralStats.total_referrals || 0;
-    const bonusApps = (referralStats.bonus_manual_applications || 0) + (referralStats.bonus_auto_applications || 0);
+    const bonusApps = referralStats.referral_auto_earned || 0;
 
     // Calculate progress within current milestone cycle (every 5 referrals = 1 milestone)
     const currentCycleProgress = paidReferrals % 5;
@@ -412,11 +410,10 @@ function displayReferralList(referrals, total, totalPages) {
                 </div>
                 
                 <div class="text-right">
-                    ${ref.reward_amount ? `
-                        <p class="text-2xl font-bold text-green-600">+${ref.reward_amount}</p>
-                        <p class="text-xs text-gray-500">applications</p>
+                    ${['basic', 'premium'].includes((ref.subscription_tier || '').toLowerCase()) && ref.status === 'completed' ? `
+                        <p class="text-sm font-semibold text-green-600">Counts toward reward</p>
                     ` : `
-                        <p class="text-sm text-gray-500">No reward yet</p>
+                        <p class="text-sm text-gray-500">Waiting for Basic or Premium</p>
                     `}
                 </div>
             </div>
@@ -433,6 +430,7 @@ function displayReferralList(referrals, total, totalPages) {
 function getStatusBadge(status) {
     const badges = {
         pending: '<span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-700">Pending</span>',
+        completed: '<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">Subscribed</span>',
         active: '<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">Active</span>',
         expired: '<span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">Expired</span>',
         cancelled: '<span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700">Cancelled</span>'
@@ -597,7 +595,7 @@ function shareViaEmail() {
     const body = encodeURIComponent(
         `Hey! I've been using CVision AI for my job search and it's amazing. It uses AI to automatically find and apply to jobs that match my profile.\n\n` +
         `Use my referral code ${userReferralCode} when you sign up and we both get bonus applications!\n\n` +
-        `Sign up here: ${window.location.origin}/signup.html?ref=${userReferralCode}`
+        `Sign up here: ${window.location.origin}/register?ref=${userReferralCode}`
     );
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
 }
@@ -609,7 +607,7 @@ function shareViaTwitter() {
     const text = encodeURIComponent(
         `I'm using CVision AI for automated job applications. Join me with code ${userReferralCode} and get bonus applications!`
     );
-    const url = encodeURIComponent(`${window.location.origin}/signup.html?ref=${userReferralCode}`);
+    const url = encodeURIComponent(`${window.location.origin}/register?ref=${userReferralCode}`);
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
 }
 
@@ -617,7 +615,7 @@ function shareViaTwitter() {
  * Share via LinkedIn
  */
 function shareViaLinkedIn() {
-    const url = encodeURIComponent(`${window.location.origin}/signup.html?ref=${userReferralCode}`);
+    const url = encodeURIComponent(`${window.location.origin}/register?ref=${userReferralCode}`);
     window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank');
 }
 
@@ -626,7 +624,7 @@ function shareViaLinkedIn() {
  */
 function shareViaWhatsApp() {
     const text = encodeURIComponent(
-        `Hey! Check out CVision AI - it uses AI to automate job applications. Use my code ${userReferralCode} when signing up: ${window.location.origin}/signup.html?ref=${userReferralCode}`
+        `Hey! Check out CVision AI - it uses AI to automate job applications. Use my code ${userReferralCode} when signing up: ${window.location.origin}/register?ref=${userReferralCode}`
     );
     window.open(`https://wa.me/?text=${text}`, '_blank');
 }

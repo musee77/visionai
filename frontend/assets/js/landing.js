@@ -45,43 +45,42 @@ const LandingConfig = {
             name: 'Free',
             priceInCents: 0,
             features: [
-                { text: '1 manual application per day', included: true },
+                { text: '3 manual applications per month', included: true },
                 { text: 'Basic job search', included: true },
                 { text: 'CV upload & analysis', included: true },
-                { text: 'Watermarked documents', included: false }
+                { text: 'Auto-apply is on Premium', included: false }
             ],
             buttonText: 'Get Started Free',
             buttonLink: '/register',
-            highlight: false
+            highlight: false,
+            period: ''
         },
         {
             name: 'Basic',
-            priceInCents: 1999,
+            priceInCents: 299,
             features: [
-                { text: '10 automated applications daily', included: true },
-                { text: 'Up to 20 manual applications daily', included: true },
-                { text: 'Premium CV templates', included: true },
-                { text: 'No watermarks', included: true },
-                { text: 'Basic auto-fill', included: true }
+                { text: 'Manual applications with no monthly cap', included: true },
+                { text: 'Billed monthly', included: true },
+                { text: 'Auto-apply is on Premium', included: false }
             ],
-            buttonText: 'Start Free Trial',
+            buttonText: 'Get Basic',
             buttonLink: '/register',
-            highlight: true,
-            highlightText: 'Most Popular'
+            highlight: false,
+            period: '/month'
         },
         {
             name: 'Premium',
-            priceInCents: 3999,
+            priceInCents: 2999,
             features: [
-                { text: '30 automated applications daily', included: true },
-                { text: 'Up to 50 manual applications daily', included: true },
-                { text: 'Priority support', included: true },
-                { text: 'Advanced analytics', included: true },
-                { text: 'Full automation', included: true }
+                { text: 'Auto-apply included', included: true },
+                { text: 'Manual applications with no monthly cap', included: true },
+                { text: 'Billed monthly', included: true }
             ],
-            buttonText: 'Go Premium',
+            buttonText: 'Get Premium',
             buttonLink: '/register',
-            highlight: false
+            highlight: true,
+            highlightText: 'Monthly',
+            period: '/month'
         }
     ]
 };
@@ -90,7 +89,7 @@ const Landing = {
     // Format price based on user's currency
     formatPrice(amountInCents) {
         if (window.CVision && window.CVision.Currency) {
-            return CVision.Currency.format(amountInCents);
+            return CVision.Currency.format(amountInCents, 'USD');
         }
         // Fallback to USD
         return `$${(amountInCents / 100).toFixed(2)}`;
@@ -125,12 +124,11 @@ const Landing = {
     getDisplayLimit() {
         const width = window.innerWidth;
         let cols = 1;
-        if (width >= 1536) cols = 5;      // 2xl
-        else if (width >= 1280) cols = 4; // xl
-        else if (width >= 1024) cols = 3; // lg
-        else if (width >= 768) cols = 2; // md
+        if (width >= 1280) cols = 4;
+        else if (width >= 1024) cols = 3;
+        else if (width >= 768) cols = 2;
 
-        return cols * 5;
+        return cols * 4;
     },
 
     initSmoothScroll() {
@@ -173,12 +171,16 @@ const Landing = {
             if (modal) modal.classList.add('hidden');
         };
 
-        // Delegate click for Navbar Upload Button (injected dynamically)
+        // Navbar Upload CV scrolls to the form, or opens the modal when one exists.
         document.addEventListener('click', (e) => {
             const btn = e.target.closest('#nav-upload-btn');
-            if (btn) {
+            if (!btn) return;
+            if (modal) {
                 openModal();
+                return;
             }
+            const zone = document.getElementById('cv-upload-zone');
+            if (zone) zone.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
 
         // Close handlers
@@ -239,7 +241,7 @@ const Landing = {
             uploadZone.innerHTML = `
                 <div class="text-4xl mb-4">✅</div>
                 <div class="text-gray-900 font-bold mb-2">${file.name}</div>
-                <div class="text-gray-500 text-sm">Ready to analyze • Click to change</div>
+                <div class="text-gray-500 text-sm">Matching jobs below • Click to change</div>
             `;
 
             // Reveal preferences with animation
@@ -250,14 +252,14 @@ const Landing = {
             }, 10);
 
             getStartedBtn.disabled = false;
-            getStartedBtn.innerHTML = '<span class="button-text">Analyze CV & Find Jobs</span>';
+            getStartedBtn.innerHTML = '<span class="button-text">Update job matches</span>';
+            Landing.matchJobsFromCv(file);
         }
 
         // Get started button handler
         if (getStartedBtn) {
             getStartedBtn.addEventListener('click', function () {
                 if (uploadedFile) {
-                    // Store form data temporarily (with null checks)
                     const jobTitleEl = document.getElementById('job-title');
                     const locationEl = document.getElementById('location');
                     const salaryRangeEl = document.getElementById('salary-range');
@@ -269,12 +271,76 @@ const Landing = {
                         fileName: uploadedFile.name
                     }));
 
-                    // Redirect to login with file upload intent
-                    window.location.href = '/login';
+                    Landing.matchJobsFromCv(uploadedFile);
                 } else {
                     CVision.Utils.showAlert('Please upload your CV first', 'warning');
                 }
             });
+        }
+    },
+
+    async matchJobsFromCv(file) {
+        const grid = document.getElementById('jobs-grid');
+        const heading = document.getElementById('jobs-heading');
+        const note = document.getElementById('jobs-source-note');
+        if (!grid || !file) return;
+
+        const form = new FormData();
+        form.append('file', file);
+        const jobTitle = document.getElementById('job-title')?.value?.trim();
+        const location = document.getElementById('location')?.value?.trim();
+        if (jobTitle) form.append('job_title', jobTitle);
+        if (location) form.append('location', location);
+
+        if (heading) heading.textContent = 'Finding jobs from your CV';
+        if (note) note.textContent = 'Reading the file and matching open roles.';
+        grid.style.opacity = '0.5';
+        document.getElementById('jobs-wrapper')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        try {
+            const response = await fetch(`${window.CONFIG.API_BASE_URL}${window.CONFIG.API_PREFIX}/jobs/match-cv`, {
+                method: 'POST',
+                body: form
+            });
+            if (!response.ok) {
+                let message = 'Could not match jobs to that CV.';
+                try {
+                    const error = await response.json();
+                    if (error.detail) message = error.detail;
+                } catch (parseError) {
+                    /* keep the fallback message */
+                }
+                throw new Error(message);
+            }
+
+            const data = await response.json();
+            const jobs = data.jobs || [];
+            if (heading) heading.textContent = 'Jobs for your CV';
+            if (note) {
+                if (!jobs.length) {
+                    note.textContent = 'No open roles matched this CV yet.';
+                } else if (!data.matched) {
+                    note.textContent = 'No role stood out in this CV, so these are the latest openings.';
+                } else if (data.relaxed) {
+                    note.textContent = data.query
+                        ? `Closest open roles for ${data.query}. Location was widened so results are not empty.`
+                        : 'Closest open roles from your CV. Location was widened so results are not empty.';
+                } else {
+                    note.textContent = data.query
+                        ? `Open roles matched to ${data.query}.`
+                        : 'Open roles matched to your CV.';
+                }
+            }
+            await this.displayJobsGrid(jobs);
+            grid.style.opacity = '1';
+        } catch (error) {
+            console.error('CV job match failed:', error);
+            grid.style.opacity = '1';
+            if (heading) heading.textContent = 'Jobs';
+            if (note) note.textContent = 'Could not match this CV. Showing the latest openings instead.';
+            if (window.CVision && CVision.Utils) {
+                CVision.Utils.showAlert(error.message || 'Could not match jobs to that CV.', 'error');
+            }
         }
     },
 
@@ -283,9 +349,9 @@ const Landing = {
         if (!container) return;
 
         container.innerHTML = LandingConfig.stats.map(stat => `
-            <div class="text-center rounded-lg bg-emerald-950/80 px-3 py-2 border border-emerald-700/60">
-                <div class="text-3xl font-bold mb-1 whitespace-nowrap" style="color: #ffffff;">${stat.value}</div>
-                <div class="text-sm uppercase tracking-wide font-medium whitespace-nowrap" style="color: #ffffff;">${stat.label}</div>
+            <div class="stat-tile">
+                <div class="stat-value whitespace-nowrap">${stat.value}</div>
+                <div class="stat-label whitespace-nowrap">${stat.label}</div>
             </div>
         `).join('');
     },
@@ -295,13 +361,11 @@ const Landing = {
         if (!container) return;
 
         container.innerHTML = LandingConfig.features.map(feature => `
-            <div class="feature-card bg-gray-50 p-8 rounded-2xl border border-gray-100 hover:shadow-lg transition-all hover:bg-white group">
-                <div class="w-14 h-14 bg-white rounded-xl shadow-sm flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform duration-300">
-                    ${feature.icon}
-                </div>
-                <h3 class="text-xl font-bold text-gray-900 mb-3">${feature.title}</h3>
-                <p class="text-gray-600 leading-relaxed">${feature.description}</p>
-            </div>
+            <article class="feature-card p-7">
+                <div class="feature-icon" aria-hidden="true">${feature.icon}</div>
+                <h3 class="text-xl font-semibold text-stone-900 mb-2">${feature.title}</h3>
+                <p class="text-stone-600 leading-7">${feature.description}</p>
+            </article>
         `).join('');
     },
 
@@ -324,7 +388,7 @@ const Landing = {
                     <h3 class="text-2xl font-bold text-gray-900 mb-4">${plan.name}</h3>
                     <div class="flex justify-center items-baseline mb-2">
                         <span class="text-4xl font-extrabold text-gray-900">${formattedPrice}</span>
-                        <span class="text-gray-500 ml-1">/month</span>
+                        <span class="text-gray-500 ml-1">${plan.period || ''}</span>
                     </div>
                 </div>
                 
@@ -515,8 +579,8 @@ const Landing = {
                         </div>
                         <h3 class="job-title-teaser font-bold text-gray-900 mb-1 line-clamp-1">${job.title}</h3>
                         <p class="company-teaser text-primary-600 text-sm font-medium mb-3">${job.company_name}</p>
-                        <a href="/login.html?job_id=${id}" class="block text-center py-2 px-4 rounded-lg bg-gray-50 text-gray-700 font-medium hover:bg-primary-50 hover:text-primary-600 transition-colors text-sm">
-                            View Details
+                        <a href="/login.html?job_id=${id}" class="block text-center py-2 px-4 rounded-lg bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-colors text-sm">
+                            Apply
                         </a>
                     </div>
                 `;

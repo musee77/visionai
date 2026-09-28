@@ -31,6 +31,63 @@ from bson import ObjectId
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+
+def _json_safe(value):
+    """Make nested Mongo values safe to return as JSON."""
+    if isinstance(value, ObjectId):
+        return str(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
+def _text(value, default=""):
+    return value if isinstance(value, str) else default
+
+
+def build_user_response(current_user: Dict[str, Any]) -> UserResponse:
+    first_name = _text(current_user.get("first_name"))
+    last_name = _text(current_user.get("last_name"))
+    full_name = _text(current_user.get("full_name")) or f"{first_name} {last_name}".strip() or "User"
+
+    tier = _text(current_user.get("subscription_tier"), "free").lower() or "free"
+    if tier not in {item.value for item in SubscriptionTier}:
+        tier = SubscriptionTier.FREE.value
+
+    usage = current_user.get("usage_stats")
+    if not isinstance(usage, dict):
+        usage = {}
+
+    cv_data = current_user.get("cv_data")
+    if isinstance(cv_data, dict):
+        cv_data = _json_safe(cv_data)
+    else:
+        cv_data = None
+
+    return UserResponse(
+        id=str(current_user["_id"]),
+        email=_text(current_user.get("email")),
+        first_name=first_name,
+        last_name=last_name,
+        full_name=full_name,
+        is_active=bool(current_user.get("is_active", True)),
+        is_verified=bool(current_user.get("is_verified", False)),
+        subscription_tier=tier,
+        usage_stats=usage,
+        referral_code=_text(current_user.get("referral_code")),
+        created_at=current_user.get("created_at") or datetime.utcnow(),
+        last_login=current_user.get("last_login"),
+        gmail_connected=bool(current_user.get("gmail_auth")),
+        cv_data=cv_data,
+        referral_bonus_auto_applications=int(current_user.get("referral_bonus_auto_applications") or 0)
+    )
+
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_profile(
     current_user: Dict[str, Any] = Depends(get_current_active_user)
@@ -44,32 +101,8 @@ async def get_current_user_profile(
             await track_api_usage("get_profile", current_user)
         except Exception as e:
             logger.warning(f"Failed to track API usage: {str(e)}")
-        
-        # Helper to generate full_name if not present
-        def get_full_name(user):
-            if user.get("full_name"):
-                return user["full_name"]
-            first = user.get("first_name", "")
-            last = user.get("last_name", "")
-            return f"{first} {last}".strip() or "User"
-        
-        # Build and return response with safe defaults
-        return UserResponse(
-            id=str(current_user["_id"]),
-            email=current_user["email"],
-            first_name=current_user.get("first_name", ""),
-            last_name=current_user.get("last_name", ""),
-            full_name=get_full_name(current_user),
-            is_active=current_user.get("is_active", True),
-            is_verified=current_user.get("is_verified", False),
-            subscription_tier=current_user.get("subscription_tier", "free"),
-            usage_stats=current_user.get("usage_stats", {}),
-            referral_code=current_user.get("referral_code", ""),
-            created_at=current_user.get("created_at"),
-            last_login=current_user.get("last_login"),
-            gmail_connected=bool(current_user.get("gmail_auth")),
-            cv_data=current_user.get("cv_data")
-        )
+
+        return build_user_response(current_user)
         
     except KeyError as ke:
         logger.error(f"Missing required field in user object: {ke}")

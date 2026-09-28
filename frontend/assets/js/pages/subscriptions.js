@@ -142,25 +142,64 @@ async function loadCurrentSubscription() {
             displayCurrentPlan(currentSubscription);
             await loadUsageStats();
         } else if (response.status === 404) {
-            document.getElementById('currentTierName').textContent = 'Free Plan';
-            document.getElementById('currentTierStatus').textContent = 'Status: Active';
-            document.getElementById('currentUsage').textContent = '0 searches used';
+            showFreePlanStats();
         }
     } catch (error) {
         if (error.message.includes('No subscription found') || error.message.includes('404')) {
-            // User has no subscription yet, treat as Free Plan
-            document.getElementById('currentTierName').textContent = 'Free Plan';
-            document.getElementById('currentTierStatus').textContent = 'Status: Active';
-            document.getElementById('currentUsage').textContent = '0 searches used';
+            showFreePlanStats();
             return;
         }
         CVision.Utils.showAlert('Failed to load subscription information', 'warning');
     }
 }
 
+function showFreePlanStats() {
+    document.getElementById('currentTierName').textContent = 'Free';
+    document.getElementById('currentTierStatus').textContent = 'Status: Active · $0';
+    renderUsageStats({ manual_applications: 0, auto_applications: 0 }, {
+        manual_applications: 3,
+        auto_applications: 0
+    });
+}
+
+function formatQuota(used, limit) {
+    const count = Number(used) || 0;
+    if (limit === undefined || limit === null) return String(count);
+    if (Number(limit) === 0) return 'Not included';
+    if (Number(limit) >= 9999) return `${count} · unlimited`;
+    return `${count} of ${limit}`;
+}
+
+function renderUsageStats(usage, limits) {
+    const box = document.getElementById('currentUsage');
+    if (!box) return;
+    const source = usage || {};
+    const allowance = limits || {};
+    const manual = formatQuota(source.manual_applications, allowance.manual_applications);
+    const bonusLeft = Number(allowance.referral_bonus_auto_applications) || 0;
+    let automated = formatQuota(source.auto_applications, allowance.auto_applications);
+    if (bonusLeft > 0 && Number(allowance.auto_applications) < 9999) {
+        automated = Number(allowance.auto_applications) > 0
+            ? `${automated} · ${bonusLeft} referral left`
+            : `${bonusLeft} referral application${bonusLeft === 1 ? '' : 's'} left`;
+    }
+    box.innerHTML = `
+        <div class="text-base font-semibold text-gray-900">${manual} manual</div>
+        <div class="text-sm font-medium text-gray-500">${automated} automated</div>
+    `;
+}
+
+function billingSummary(priceCents, interval) {
+    const price = formatPrice(priceCents || 0);
+    if (!priceCents) return `${price}`;
+    if (interval === 'one_time') return `${price} one time`;
+    if (interval === 'yearly') return `${price}/year`;
+    return `${price}/month`;
+}
+
 function displayCurrentPlan(subscription) {
-    const tierName = subscription.plan_id.replace('plan_', '').replace(/_/g, ' ').toUpperCase();
-    document.getElementById('currentTierName').textContent = `${tierName} Plan`;
+    const tierName = (subscription.plan_id || 'plan_free').replace('plan_', '').replace(/_/g, ' ');
+    document.getElementById('currentTierName').textContent = tierName.charAt(0).toUpperCase() + tierName.slice(1);
 
     let statusText = `Status: ${subscription.status}`;
     if (subscription.cancel_at_period_end) {
@@ -233,13 +272,17 @@ async function loadUsageStats() {
         if (!response || !response.ok) return;
 
         const data = await response.json();
-        const usage = data.current_usage || {};
+        if (data.plan) {
+            document.getElementById('currentTierName').textContent = data.plan;
+        }
 
-        const manualApps = usage.manual_applications || 0;
-        const autoApps = usage.auto_applications || 0;
+        const statusEl = document.getElementById('currentTierStatus');
+        if (statusEl && currentSubscription && !currentSubscription.cancel_at_period_end) {
+            const status = data.status || currentSubscription.status || 'active';
+            statusEl.textContent = `Status: ${status} · ${billingSummary(data.price_cents, data.billing_interval)}`;
+        }
 
-        document.getElementById('currentUsage').innerHTML =
-            `<div class="text-lg">${manualApps} Manual</div><div class="text-sm text-gray-500">${autoApps} Auto</div>`;
+        renderUsageStats(data.current_usage, data.limits);
 
     } catch (error) {
         console.error('Failed to load usage:', error);
@@ -654,8 +697,8 @@ function displayReferralStats(stats) {
             <div class="text-gray-600 mt-1">Successful</div>
         </div>
         <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
-            <div class="text-3xl font-bold text-purple-600">${stats.bonus_searches_earned || 0}</div>
-            <div class="text-gray-600 mt-1">Bonus Searches</div>
+            <div class="text-3xl font-bold text-purple-600">${stats.bonus_auto_applications || stats.bonus_searches_earned || 0}</div>
+            <div class="text-gray-600 mt-1">Automated applications left</div>
         </div>
         <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
             <div class="text-3xl font-bold text-orange-600">${stats.next_reward_in || 0}</div>

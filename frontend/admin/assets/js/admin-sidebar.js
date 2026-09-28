@@ -29,8 +29,7 @@
         links.forEach(link => {
             const page = link.getAttribute('data-page');
             if (page === currentPage) {
-                link.classList.remove('hover:bg-gray-800');
-                link.classList.add('bg-gray-800', 'border-l-4', 'border-blue-500');
+                link.classList.add('is-active');
             }
         });
     }

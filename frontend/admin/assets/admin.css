@@ -1,25 +1,230 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,680&family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-    --admin-ink: #10211b;
-    --admin-muted: #66756f;
-    --admin-line: #dce8e1;
-    --admin-green: #166534;
-    --admin-mint: #dff5e8;
-    --admin-bg: #f3f8f4;
+    --ink: #1c1917;
+    --muted: #78716c;
+    --line: #e6dfd2;
+    --paper: #f4f0e8;
+    --card: #fffdf9;
+    --indigo: #5a67d8;
+    --indigo-deep: #4c51bf;
+    --sidebar: #1c1917;
 }
 
 body {
-    background: var(--admin-bg) !important;
-    color: var(--admin-ink);
-    font-family: 'DM Sans', sans-serif;
+    background:
+        radial-gradient(900px 420px at 100% -10%, rgba(102, 126, 234, 0.12), transparent 55%),
+        var(--paper) !important;
+    color: var(--ink);
+    font-family: Inter, system-ui, sans-serif;
 }
 
+h1, h2, h3, h4 {
+    font-family: Fraunces, Georgia, serif;
+    letter-spacing: -0.03em;
+}
+
+/* Sidebar */
+#admin-sidebar {
+    width: 16.5rem;
+    min-width: 16.5rem;
+    background: var(--sidebar);
+}
+
+.admin-nav {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--sidebar);
+    color: #f5f0e8;
+    padding: 1.35rem 0.85rem 1rem;
+}
+
+.admin-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.35rem 0.55rem 1.15rem;
+}
+
+.admin-mark {
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 0.75rem;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    font-family: Fraunces, Georgia, serif;
+    font-size: 1.15rem;
+    flex-shrink: 0;
+}
+
+.admin-brand-kicker {
+    font-family: Inter, sans-serif;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #a8a29e;
+}
+
+.admin-nav h1 {
+    color: #fffdf9;
+    font-size: 1.35rem;
+    line-height: 1;
+    background: none;
+    -webkit-text-fill-color: currentColor;
+}
+
+.admin-nav nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.admin-nav nav a {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-height: 2.6rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: 0.75rem;
+    color: #d6d3d1;
+    font-size: 0.92rem;
+    font-weight: 500;
+    font-family: Inter, sans-serif;
+    letter-spacing: 0;
+}
+
+.admin-nav nav a svg {
+    width: 1.15rem;
+    height: 1.15rem;
+    flex-shrink: 0;
+}
+
+.admin-nav nav a:hover {
+    background: rgba(255, 253, 249, 0.06);
+    color: #fff;
+}
+
+.admin-nav nav a.is-active {
+    background: #5a67d8;
+    color: #fff;
+}
+
+.admin-back {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.85rem 0.75rem 0.35rem;
+    border-top: 1px solid rgba(255, 253, 249, 0.08);
+    color: #a8a29e;
+    font-size: 0.88rem;
+    font-weight: 500;
+}
+
+.admin-back:hover {
+    color: #fffdf9;
+}
+
+/* Page canvas */
+main {
+    background: transparent;
+}
+
+main > header {
+    background: rgba(255, 253, 249, 0.88) !important;
+    border-bottom: 1px solid var(--line) !important;
+    box-shadow: none !important;
+    backdrop-filter: blur(16px);
+}
+
+main > header h2 {
+    color: var(--ink);
+}
+
+main > header button,
+main > header a {
+    color: var(--indigo-deep);
+    font-weight: 600;
+}
+
+main > div {
+    max-width: 1440px;
+}
+
+main .bg-white {
+    background: var(--card) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 1rem !important;
+    box-shadow: 0 12px 32px rgba(48, 36, 18, 0.05) !important;
+}
+
+main .text-3xl {
+    font-family: Fraunces, Georgia, serif;
+    letter-spacing: -0.03em;
+}
+
+main table thead,
+main thead.bg-gray-50 {
+    background: #f7f4ee !important;
+}
+
+main th {
+    color: #78716c !important;
+    font-family: Inter, sans-serif;
+    letter-spacing: 0.08em;
+}
+
+main tbody tr:hover {
+    background: #fbf8f2;
+}
+
+main input,
+main select,
+main textarea {
+    background: #fffdf9;
+    border-color: #e6dfd2 !important;
+    border-radius: 0.75rem;
+}
+
+main input:focus,
+main select:focus,
+main textarea:focus {
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15) !important;
+    outline: none;
+}
+
+main button.bg-blue-600,
+main a.bg-blue-600,
+main button.bg-emerald-700,
+main button.bg-emerald-800 {
+    background: linear-gradient(135deg, #667eea, #5a67d8) !important;
+    border-radius: 0.75rem;
+    font-weight: 600;
+}
+
+main button.bg-blue-600:hover,
+main a.bg-blue-600:hover,
+main button.bg-emerald-700:hover {
+    background: #4c51bf !important;
+}
+
+.peer:checked + div {
+    background: #5a67d8 !important;
+}
+
+/* Login */
 .admin-login {
     background:
-        radial-gradient(circle at 15% 15%, rgba(105, 211, 151, 0.2), transparent 28%),
-        radial-gradient(circle at 85% 85%, rgba(34, 101, 67, 0.3), transparent 32%),
-        #0b2118 !important;
+        radial-gradient(circle at 12% 18%, rgba(102, 126, 234, 0.35), transparent 32%),
+        radial-gradient(circle at 88% 80%, rgba(118, 75, 162, 0.28), transparent 34%),
+        #1c1917 !important;
+    font-family: Inter, system-ui, sans-serif;
 }
 
 .admin-login::before {
@@ -27,159 +232,67 @@ body {
     position: fixed;
     inset: 0;
     pointer-events: none;
-    opacity: 0.16;
-    background-image: linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px);
-    background-size: 42px 42px;
-    mask-image: linear-gradient(to bottom right, black, transparent 70%);
+    opacity: 0.18;
+    background-image:
+        linear-gradient(rgba(255, 253, 249, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 253, 249, 0.08) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(to bottom, black, transparent 80%);
+}
+
+.admin-login h1 {
+    font-family: Fraunces, Georgia, serif;
+    letter-spacing: -0.04em;
 }
 
 .admin-login-card {
-    border: 1px solid #dce8e1;
-    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32) !important;
+    background: #fffdf9 !important;
+    border: 1px solid #e6dfd2;
+    border-radius: 1.25rem !important;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35) !important;
 }
 
-h1, h2, h3, h4 {
-    font-family: 'Space Grotesk', sans-serif;
+.admin-login input {
+    background: #f7f4ee;
+    border-color: transparent !important;
+    border-radius: 0.8rem;
 }
 
-body > .flex.h-screen > #admin-sidebar,
-#admin-sidebar {
-    width: 17rem;
-    min-width: 17rem;
+.admin-login input:focus {
+    background: #fff;
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.16) !important;
 }
 
-#admin-sidebar aside {
-    width: 100%;
-    background: #102b20;
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
+.admin-login #loginButton {
+    background: linear-gradient(135deg, #667eea, #5a67d8) !important;
+    border-radius: 0.85rem;
 }
 
-#admin-sidebar aside > div:first-child {
-    padding: 1.75rem 1.5rem 1.25rem;
-}
-
-#admin-sidebar h1 {
-    color: #f2fff7;
-    background: none;
-    -webkit-text-fill-color: currentColor;
-    font-size: 1.35rem;
-    letter-spacing: -0.03em;
-}
-
-#admin-sidebar nav {
-    margin-top: 1.25rem;
-    padding: 0 0.75rem;
-}
-
-#admin-sidebar nav a {
-    display: flex;
-    align-items: center;
-    min-height: 2.75rem;
-    border-radius: 0.65rem;
-    color: #b9d1c3;
-    font-size: 0.9rem;
-    font-weight: 500;
-    padding: 0.65rem 0.9rem;
-    margin: 0.2rem 0;
-}
-
-#admin-sidebar nav a:hover,
-#admin-sidebar nav a.bg-gray-800 {
-    background: #1c4935 !important;
-    color: #ffffff;
-}
-
-#admin-sidebar nav a.border-l-4 {
-    border-left: 0 !important;
-    box-shadow: inset 3px 0 0 #74d69a;
-}
-
-main {
-    background: var(--admin-bg);
-}
-
-main > header {
-    background: rgba(255, 255, 255, 0.9) !important;
-    border-bottom-color: var(--admin-line) !important;
-    backdrop-filter: blur(14px);
-}
-
-main > header h2 {
-    color: var(--admin-ink);
-    letter-spacing: -0.035em;
-}
-
-main > header button,
-main > header a {
-    color: var(--admin-green);
-}
-
-main > div.p-6,
-main > div.p-4 {
-    max-width: 1500px;
-    margin: 0 auto;
-}
-
-main .bg-white {
-    border-color: var(--admin-line) !important;
-    box-shadow: 0 10px 28px rgba(16, 43, 32, 0.055) !important;
-}
-
-main input:focus,
-main select:focus,
-main textarea:focus {
-    border-color: #43a86c !important;
-    box-shadow: 0 0 0 3px rgba(67, 168, 108, 0.16) !important;
-    outline: none;
-}
-
-main button.bg-blue-600,
-main a.bg-blue-600 {
-    background: var(--admin-green) !important;
-}
-
-main button.bg-blue-600:hover,
-main a.bg-blue-600:hover {
-    background: #0f4d27 !important;
+.admin-login #loginButton:hover {
+    background: #4c51bf !important;
 }
 
 @media (max-width: 768px) {
-    body > .flex.h-screen,
-    body > .flex.h-screen > main {
-        min-width: 0;
-    }
-
-    body > .flex.h-screen > #admin-sidebar,
     #admin-sidebar {
-        width: 4.25rem;
-        min-width: 4.25rem;
+        width: 4.5rem;
+        min-width: 4.5rem;
     }
 
-    #admin-sidebar aside > div:first-child {
-        padding: 1.25rem 0.5rem;
-        text-align: center;
+    .admin-brand-copy,
+    .admin-nav nav a span,
+    .admin-back span {
+        display: none;
     }
 
-    #admin-sidebar h1 {
-        font-size: 0;
-    }
-
-    #admin-sidebar h1::after {
-        content: 'C';
-        font-size: 1.5rem;
-    }
-
-    #admin-sidebar nav {
-        padding: 0 0.4rem;
-    }
-
-    #admin-sidebar nav a {
+    .admin-brand,
+    .admin-nav nav a,
+    .admin-back {
         justify-content: center;
-        padding: 0.7rem 0.4rem;
-        font-size: 0;
     }
 
-    #admin-sidebar nav a::first-letter {
-        font-size: 1rem;
+    .admin-nav {
+        padding-left: 0.45rem;
+        padding-right: 0.45rem;
     }
 }

@@ -6,7 +6,7 @@
 const PremiumGuard = {
     // Feature Definitions and their minimum required tiers
     FEATURES: {
-        AUTO_APPLY: 'basic',        // Basic or Premium
+        AUTO_APPLY: 'premium',      // Premium only
         UNLIMITED_MSGS: 'premium',  // Premium only
         CV_CUSTOMIZATION: 'basic',  // Basic or Premium
         ADVANCED_ANALYTICS: 'premium',
@@ -29,6 +29,10 @@ const PremiumGuard = {
             'basic': 1,
             'premium': 2
         };
+
+        if (feature === 'AUTO_APPLY' && Number(user?.referral_bonus_auto_applications || 0) > 0) {
+            return true;
+        }
 
         const requiredTier = this.FEATURES[feature] || 'premium'; // Default to highest if unknown
 
@@ -74,9 +78,14 @@ const PremiumGuard = {
                 }
             } else if (feature === 'AUTO_APPLY') {
                 current = usage.auto_applications || 0;
-                if (data.limits && data.limits.auto_applications) {
-                    limit = data.limits.auto_applications;
-                }
+                const planLimit = Number(data.limits && data.limits.auto_applications) || 0;
+                const bonus = Number(data.limits && data.limits.referral_bonus_auto_applications) || 0;
+                const remaining = Math.max(0, planLimit - current) + bonus;
+                return {
+                    allowed: remaining > 0,
+                    current: current,
+                    limit: planLimit + bonus
+                };
             }
 
             return {
