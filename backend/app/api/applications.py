@@ -10,6 +10,7 @@ from datetime import datetime
 import logging
 from bson import ObjectId
 from pydantic import BaseModel
+import re
 
 from app.api.deps import (
     CurrentActiveUser, CurrentVerifiedUser, get_database, get_current_verified_user, get_current_active_user
@@ -192,10 +193,46 @@ async def list_applications(
         logger.info(f"list_applications called: has_response={has_response} (type={type(has_response).__name__})")
         
         filters = {}
+        status_groups = {
+            "screening": ["under_review"],
+            "interview": [
+                "interview_scheduled",
+                "interview_completed",
+                "second_round",
+                "final_round",
+                "interviewed",
+            ],
+            "offer": ["offer_received", "offer_declined"],
+            "accepted": ["offer_accepted"],
+        }
         if status:
-            filters["status"] = status
-        if company:
-            filters["company_name"] = {"$regex": company, "$options": "i"}
+            grouped = status_groups.get(status)
+            filters["status"] = {"$in": grouped} if grouped else status
+        if company and company.strip():
+            pattern = re.escape(company.strip())
+            matched_jobs = await db.jobs.find(
+                {
+                    "$or": [
+                        {"company_name": {"$regex": pattern, "$options": "i"}},
+                        {"company": {"$regex": pattern, "$options": "i"}},
+                    ]
+                },
+                {"_id": 1},
+            ).to_list(length=200)
+            job_ids = [str(job["_id"]) for job in matched_jobs]
+            object_ids = []
+            for job_id in job_ids:
+                try:
+                    object_ids.append(ObjectId(job_id))
+                except Exception:
+                    pass
+            company_match = {
+                "$or": [
+                    {"company_name": {"$regex": pattern, "$options": "i"}},
+                    {"job_id": {"$in": job_ids + object_ids}},
+                ]
+            }
+            filters.setdefault("$and", []).append(company_match)
         if priority:
             filters["priority"] = priority
         

@@ -3,7 +3,7 @@
 Job Application-related Pydantic models
 """
 
-from pydantic import BaseModel, Field, validator, HttpUrl
+from pydantic import BaseModel, Field, field_validator, HttpUrl
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime, date
 from enum import Enum
@@ -32,6 +32,7 @@ class ApplicationStatus(str, Enum):
     MANUAL_ACTION_REQUIRED = "manual_action_required"
     PENDING_VERIFICATION = "pending_verification"
     PROCESSING = "processing"
+    FAILED = "failed"
 
 
 class ApplicationSource(str, Enum):
@@ -362,7 +363,64 @@ class ApplicationResponse(BaseModel):
     last_activity: Optional[datetime]
     created_at: datetime
     updated_at: datetime
-    
+
+    @field_validator("id", "job_id", "user_id", mode="before")
+    @classmethod
+    def stringify_id(cls, value):
+        return "" if value is None else str(value)
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_status(cls, value):
+        raw = getattr(value, "value", value)
+        raw = str(raw or "draft")
+        aliases = {
+            "interviewed": "interview_completed",
+            "accepted": "offer_accepted",
+            "declined": "offer_declined",
+            "screening": "under_review",
+        }
+        raw = aliases.get(raw, raw)
+        try:
+            return ApplicationStatus(raw).value
+        except ValueError:
+            return ApplicationStatus.PENDING.value
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def normalize_source(cls, value):
+        raw = getattr(value, "value", value)
+        raw = str(raw or "manual")
+        try:
+            return ApplicationSource(raw).value
+        except ValueError:
+            return ApplicationSource.MANUAL.value
+
+    @field_validator("priority", mode="before")
+    @classmethod
+    def normalize_priority(cls, value):
+        raw = getattr(value, "value", value)
+        raw = str(raw or "medium")
+        try:
+            return Priority(raw).value
+        except ValueError:
+            return Priority.MEDIUM.value
+
+    @field_validator("location", mode="before")
+    @classmethod
+    def normalize_location(cls, value):
+        if value is None or isinstance(value, str):
+            return value or None
+        if isinstance(value, dict):
+            parts = [
+                value.get("city"),
+                value.get("region") or value.get("state"),
+                value.get("country"),
+            ]
+            text = ", ".join(part for part in parts if part)
+            return text or None
+        return str(value)
+
     class Config:
         json_encoders = {
             datetime: lambda v: v.isoformat() if v else None

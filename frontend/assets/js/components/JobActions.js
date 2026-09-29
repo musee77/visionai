@@ -27,6 +27,14 @@ class JobActionComponent {
         this.initialized = true;
     }
 
+    escapeAttr(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
+            .replace(/</g, '&lt;');
+    }
+
     attachGlobalListeners() {
         // Expose global functions for backward compatibility or inline onclicks if needed
         window.JobActions = this;
@@ -186,7 +194,7 @@ class JobActionComponent {
         // 1. Check Tier Access using PremiumGuard
         if (typeof PremiumGuard !== 'undefined') {
             // "CV_CUSTOMIZATION" requires at least 'basic'
-            if (!PremiumGuard.enforce('CV_CUSTOMIZATION', 'Unlock Customization', 'Tailoring your CV for every job is a Pro feature. Upgrade to create unlimited custom versions!')) {
+            if (!PremiumGuard.enforce('CV_CUSTOMIZATION', 'Included on Basic', 'Customizing a CV and choosing a cover letter are included on Basic and Premium.')) {
                 return;
             }
         }
@@ -419,6 +427,8 @@ class JobActionComponent {
         const isApplied = this.appliedJobIds.has(jobId);
         const hasCV = !!job.generated_cv_path;
         const hasCL = !!job.generated_cover_letter_path;
+        const needsUpgrade = window.PremiumGuard && !PremiumGuard.hasAccess('CV_CUSTOMIZATION');
+        const customizeLabel = needsUpgrade ? 'Upgrade to Customize' : 'Customize';
 
 
 
@@ -442,7 +452,7 @@ class JobActionComponent {
                 <button onclick="JobActions.openCustomizeModal('${jobId}')" 
                     class="flex-1 bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 rounded-lg px-4 py-2 text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-2">
                     <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                    ${hasCV || hasCL ? 'Customize' : 'Customize'}
+                    ${customizeLabel}
                 </button>
                 ` : ''}
                 ${isApplied ? `
@@ -452,9 +462,9 @@ class JobActionComponent {
                          Applied
                     </button>
                 ` : `
-                    <button onclick="window.JobApply.openApplyModal('${jobId}')" 
+                    <button type="button" data-apply-url="${this.escapeAttr(job.application_url || job.external_url || job.apply_url || '')}" onclick="event.stopPropagation(); window.JobApply.openCompanyPage(this.dataset.applyUrl)"
                         class="flex-1 btn-gradient text-white rounded-lg px-4 py-2 text-sm font-semibold hover:shadow-lg transition-all shadow-md flex items-center justify-center gap-2">
-                         ${(job.application_email || job.contact_email || job.application_url || job.external_url || job.apply_url) ? 'Apply' : 'Apply'}
+                         Apply
                     </button>
                 `}
             </div>`;

@@ -8,9 +8,8 @@ window.InterviewsTab = {
                 headers: { 'Authorization': `Bearer ${CVision.Utils.getToken()}` }
             });
 
-            if (res.status === 400 || !res.ok) {
-                console.log('No interviews found or endpoint returned error:', res.status);
-                container.innerHTML = '<div class="bg-white rounded-lg border p-12 text-center"><p class="text-gray-600">No upcoming interviews</p></div>';
+            if (!res.ok) {
+                container.innerHTML = '<div class="bg-white rounded-lg border p-12 text-center"><p class="text-red-600">Failed to load interviews</p></div>';
                 return;
             }
 

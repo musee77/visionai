@@ -200,18 +200,18 @@
     <script src="/assets/js/components/ui/DocumentViewer.js" defer></script>
     <div id="upgrade-modal-container"></div>
     <script src="/assets/js/components/upgrade-modal.js" defer></script>
-    <script src="/assets/js/components/premium-guard.js?v=1.1" defer></script>
-    <script src="/assets/js/components/JobActions.js" defer></script>
-    <script src="/assets/js/components/JobApply.js" defer></script>
+    <script src="/assets/js/components/premium-guard.js?v=1.2" defer></script>
+    <script src="/assets/js/components/JobActions.js?v=1.3" defer></script>
+    <script src="/assets/js/components/JobApply.js?v=1.3" defer></script>
     <script src="/assets/js/components/EmailAnalysis.js" defer></script>
-    <script src="/assets/js/components/JobModal.js" defer></script>
-    <script src="/assets/js/components/JobCard.js" defer></script>
-    <script src="/assets/js/pages/applications.js?v=7" defer></script>
-    <script src="/assets/js/components/navbar.js?v=1.2" defer></script>
+    <script src="/assets/js/components/JobModal.js?v=1.4" defer></script>
+    <script src="/assets/js/components/JobCard.js?v=1.3" defer></script>
+    <script src="/assets/js/pages/applications.js?v=8" defer></script>
+    <script src="/assets/js/components/navbar.js?v=1.4" defer></script>
 
     <script defer>
         // Load navbar component with proper initialization
-        fetch('/components/navbar.html')
+        fetch('/components/navbar.html?v=1.4')
             .then(response => response.text())
             .then(html => {
                 const container = document.getElementById('navbar-container');

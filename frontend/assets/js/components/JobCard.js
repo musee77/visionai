@@ -33,6 +33,33 @@ class JobCardComponent {
         this.currentJobs = jobs;
     }
 
+    escapeHtml(value) {
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    previewDescription(raw) {
+        if (!raw) return '';
+        const utils = window.CVision?.Utils || {};
+        const decode = utils.decodeHtmlEntities || (value => value);
+        let text = decode(String(raw));
+        text = text
+            .replace(/<\s*br\s*\/?>/gi, ' ')
+            .replace(/<\/(p|div|li|h[1-6]|tr|section)>/gi, ' ')
+            .replace(/<li[^>]*>/gi, ' ')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&nbsp;/gi, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        if (!text) return '';
+        if (text.length <= 220) return text;
+        const cut = text.slice(0, 220).replace(/\s+\S*$/, '').trim();
+        return `${cut || text.slice(0, 220).trim()}…`;
+    }
+
     formatRelativeTime(date) {
         if (!date) return 'Some time ago';
         const now = new Date();
@@ -116,6 +143,14 @@ class JobCardComponent {
                </span>`;
 
         const timeString = this.formatRelativeTime(job.posted_date || job.created_at);
+        const description = this.previewDescription(job.description);
+        const descriptionHtml = description
+            ? `<p class="text-sm text-gray-600 leading-6 line-clamp-3 mb-4 ${(!isPublic && this.batchModeActive) ? 'ml-10' : ''}">${this.escapeHtml(description)}</p>`
+            : '';
+        const applyUrl = job.application_url || job.external_url || job.apply_url || '';
+        const publicApply = applyUrl
+            ? `<button type="button" class="w-full px-6 py-4 bg-primary-600 text-white text-sm font-bold text-center border-t border-primary-700 transition-all group-hover:bg-primary-700" onclick="event.stopPropagation(); window.open(this.dataset.applyUrl, '_blank', 'noopener,noreferrer')" data-apply-url="${this.escapeHtml(applyUrl)}">Apply</button>`
+            : `<div class="px-6 py-4 bg-primary-600 text-white text-sm font-bold text-center border-t border-primary-700 transition-all group-hover:bg-primary-700">Apply</div>`;
         const clickHandler = isPublic ? `window.location.href='/login.html?job_id=${jobId}'` : `showJobDetails('${jobId}')`;
 
         if (isPublic) {
@@ -146,12 +181,12 @@ class JobCardComponent {
                     ${job.employment_type ? `<span class="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-blue-100 shadow-sm">${formatEnum(job.employment_type)}</span>` : ''}
                     ${job.work_arrangement ? `<span class="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-indigo-100 shadow-sm">${formatEnum(job.work_arrangement)}</span>` : ''}
                 </div>
-                <p class="text-gray-600 text-sm line-clamp-2 mb-4 leading-relaxed ${this.batchModeActive ? 'ml-10' : ''}">${job.description ? decode(job.description).replace(/<[^>]*>?/gm, '').trim() : 'No description available'}</p>
                 ` : ''}
+                ${descriptionHtml}
             </div>
             ${!isPublic ? `
             <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 mt-auto">${window.JobActions ? window.JobActions.getButtonsHTML(job) : ''}</div>`
-                : `<div class="px-6 py-4 bg-primary-600 text-white text-sm font-bold text-center border-t border-primary-700 transition-all group-hover:bg-primary-700">Apply</div>`}
+                : publicApply}
         `;
         return card;
     }

@@ -164,7 +164,7 @@
         <!-- Upgrade Modal Component Container -->
         <div id="upgrade-modal-container"></div>
         <script src="assets/js/components/upgrade-modal.js"></script>
-        <script src="assets/js/components/premium-guard.js?v=1.1"></script>
+        <script src="assets/js/components/premium-guard.js?v=1.2"></script>
 
         <style>
             @keyframes fadeIn {
@@ -300,7 +300,7 @@
                         <div id="coverLetterDropZone"
                             class="border-2 border-dashed border-gray-300 rounded-lg p-4 sm:p-6 text-center hover:border-primary-500 hover:bg-primary-50 transition-all cursor-pointer">
                             <div class="text-3xl sm:text-4xl mb-2 sm:mb-3">📝</div>
-                            <p class="text-sm sm:text-base text-gray-600 font-medium mb-1">Drop cover letter or click</p>
+                            <p id="coverLetterDropLabel" class="text-sm sm:text-base text-gray-600 font-medium mb-1">Drop cover letter or click</p>
                             <p class="text-xs sm:text-sm text-gray-500">PDF, DOCX, TXT (max 10MB)</p>
                         </div>
                     </div>
@@ -315,15 +315,16 @@
             <!-- Documents List -->
             <div class="lg:col-span-2 min-w-0">
                 <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 overflow-hidden">
-                    <div class="flex justify-between items-center mb-4">
+                    <div class="flex justify-between items-center mb-4 gap-3">
                         <h2 class="text-base sm:text-lg font-semibold text-gray-900">Your Documents</h2>
-                        <span class="text-xs sm:text-sm text-gray-500 flex-shrink-0" id="documentsCountText">0
-                            documents</span>
+                        <div class="flex items-center gap-3 flex-shrink-0">
+                            <span class="text-xs sm:text-sm text-gray-500" id="documentsCountText">0 documents</span>
+                            <a id="documentsViewMore" href="/pages/documents.html"
+                                class="hidden text-xs sm:text-sm font-semibold text-primary-600 hover:text-primary-700">View more</a>
+                        </div>
                     </div>
 
-                    <!-- Fixed height with scroll -->
-                    <div id="documentsList" class="space-y-3 sm:space-y-4 overflow-y-auto overflow-x-hidden"
-                        style="max-height: 400px;">
+                    <div id="documentsList" class="space-y-3 sm:space-y-4 overflow-x-hidden">
                         <!-- Documents Skeleton -->
                         <div class="border border-gray-100 rounded-lg p-3 sm:p-4 animate-pulse">
                             <div class="flex items-start justify-between gap-3">
@@ -400,13 +401,13 @@
                     <span>Upgrade</span>
                 </button>
 
-                <button onclick="window.location.href='/pages/auto-apply.html'"
+                <button id="dashboardAutoApplyBtn" type="button" onclick="openAutoApply()"
                     class="bg-blue-100 hover:bg-blue-200 text-blue-800 px-4 py-2.5 sm:px-6 sm:py-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 text-sm sm:text-base">
                     <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                     </svg>
-                    <span>Auto-Apply</span>
+                    <span id="dashboardAutoApplyLabel">Auto-Apply</span>
                 </button>
             </div>
         </div>
@@ -456,16 +457,16 @@
     <script src="/assets/js/components/ui/modal.js?v=1"></script>
     <script src="/assets/js/main.js?v=1"></script>
     <script src="/assets/js/utils/pending-cv.js"></script>
-    <script src="/assets/js/components/cv-uploader.js?v=2"></script>
-    <script src="/assets/js/pages/dashboard.js?v=1.1"></script>
-    <script src="/assets/js/components/auto-apply-button.js"></script>
+    <script src="/assets/js/components/cv-uploader.js?v=2.3"></script>
+    <script src="/assets/js/pages/dashboard.js?v=1.4"></script>
+    <script src="/assets/js/components/auto-apply-button.js?v=1.8"></script>
     <script src="/assets/js/components/run-test-button.js"></script>
-    <script src="/assets/js/components/gmail-connect.js"></script>
+    <script src="/assets/js/components/gmail-connect.js?v=1.1"></script>
     <script src="/assets/js/components/ui/DocumentViewer.js"></script>
-    <script src="/assets/js/components/navbar.js?v=1.2" defer></script>
+    <script src="/assets/js/components/navbar.js?v=1.4" defer></script>
     <script defer>
         // Load navbar component with proper initialization
-        fetch('/components/navbar.html')
+        fetch('/components/navbar.html?v=1.4')
             .then(response => response.text())
             .then(html => {
                 const container = document.getElementById('navbar-container');

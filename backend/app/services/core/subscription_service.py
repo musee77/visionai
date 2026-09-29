@@ -64,7 +64,7 @@ class SubscriptionService:
         manual_plus_limits = SubscriptionLimits(
             monthly_manual_applications=create_limit("monthly_manual_applications", 999999),
             monthly_auto_applications=create_limit("monthly_auto_applications", 0),
-            monthly_cv_generations=create_limit("monthly_cv_generations", 0),
+            monthly_cv_generations=create_limit("monthly_cv_generations", 9999),
             monthly_cover_letters=create_limit("monthly_cover_letters", 999999),
             concurrent_applications=create_limit("concurrent_applications", 1, "instant", False),
             max_jobs_per_search=50,
@@ -182,7 +182,8 @@ class SubscriptionService:
                 limits=manual_plus_limits,
                 features=[
                     "Manual applications with no monthly cap",
-                    "Upload and reuse cover letters",
+                    "Customize a CV for each job",
+                    "Select a cover letter when you apply",
                     "Billed monthly"
                 ],
                 is_popular=False,

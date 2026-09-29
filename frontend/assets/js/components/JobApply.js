@@ -30,7 +30,21 @@ class JobApplyComponent {
         // Global aliases for HTML onclick handlers
         window.openApplyModal = (jobId) => this.openApplyModal(jobId);
         window.closeApplyModal = this.closeApplyModal;
-        window.handleApplyNextStep = this.handleNextStep; // For the "Next" button
+        window.handleApplyNextStep = this.handleNextStep;
+    }
+
+    companyApplyUrl(job) {
+        if (!job) return '';
+        return job.application_url || job.external_url || job.apply_url || '';
+    }
+
+    openCompanyPage(url) {
+        const target = typeof url === 'string' ? url : this.companyApplyUrl(url);
+        if (!target) {
+            alert('This job has no company application page.');
+            return;
+        }
+        window.open(target, '_blank', 'noopener,noreferrer');
     }
 
     /**
@@ -290,7 +304,30 @@ class JobApplyComponent {
             });
 
             const clSelect = document.getElementById('applyModalCoverLetterSelect');
-            if (clResponse.ok && clSelect) {
+            const canSelectCoverLetter = !window.PremiumGuard || PremiumGuard.hasAccess('COVER_LETTER');
+            if (clSelect && !canSelectCoverLetter) {
+                clSelect.classList.add('hidden');
+                clSelect.disabled = true;
+                clSelect.innerHTML = '<option value=""></option>';
+                let upgradeBtn = document.getElementById('applyModalCoverLetterUpgrade');
+                if (!upgradeBtn) {
+                    upgradeBtn = document.createElement('button');
+                    upgradeBtn.type = 'button';
+                    upgradeBtn.id = 'applyModalCoverLetterUpgrade';
+                    upgradeBtn.className = 'w-full border border-primary-200 bg-primary-50 text-primary-700 rounded-lg px-3 py-2 font-semibold';
+                    upgradeBtn.textContent = 'Upgrade to select a cover letter';
+                    upgradeBtn.addEventListener('click', () => {
+                        if (window.PremiumGuard) {
+                            PremiumGuard.enforce('COVER_LETTER', 'Upgrade', 'Selecting a cover letter is included on Basic and Premium.');
+                        }
+                    });
+                    clSelect.insertAdjacentElement('afterend', upgradeBtn);
+                }
+                upgradeBtn.classList.remove('hidden');
+            } else if (clResponse.ok && clSelect) {
+                document.getElementById('applyModalCoverLetterUpgrade')?.classList.add('hidden');
+                clSelect.classList.remove('hidden');
+                clSelect.disabled = false;
                 const data = await clResponse.json();
                 const docs = data.documents || [];
 

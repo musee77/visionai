@@ -53,8 +53,8 @@ class PageClassifier {
             // Heuristic: Password field + Keywords
             const hasPasswordField = !!document.querySelector('input[type="password"]');
 
-            const loginKeywords = ['login', 'sign in', 'signin', 'log in', 'access'];
-            const registerKeywords = ['register', 'sign up', 'signup', 'create account', 'join', 'start now', 'get started'];
+            const loginKeywords = ['login', 'sign in', 'signin', 'sign-in', 'log in', 'access'];
+            const registerKeywords = ['register', 'sign up', 'signup', 'sign-up', 'create account', 'join', 'start now', 'get started'];
 
             const isLoginUrl = loginKeywords.some(k => url.includes(k));
             const isLoginTitle = loginKeywords.some(k => title.includes(k));

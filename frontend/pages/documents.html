@@ -82,6 +82,7 @@
                         <p class="text-gray-500">Loading documents...</p>
                     </div>
                 </div>
+                <div id="documentsPagination" class="hidden mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"></div>
             </div>
         </div>
     </main>
@@ -255,12 +256,12 @@
     </div>
 
     <script src="/assets/js/main.js"></script>
-    <script src="/assets/js/documents.js"></script>
-    <script src="/assets/js/components/navbar.js?v=1.2" defer></script>
+    <script src="/assets/js/documents.js?v=1.5"></script>
+    <script src="/assets/js/components/navbar.js?v=1.4" defer></script>
     <script defer>
         // Load navbar component with proper initialization
         function initNavbar() {
-            fetch('/components/navbar.html')
+            fetch('/components/navbar.html?v=1.4')
                 .then(response => response.text())
                 .then(html => {
                     const container = document.getElementById('navbar-container');

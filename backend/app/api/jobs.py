@@ -17,7 +17,7 @@ from app.models.job import (
 from app.models.user import User
 from app.services.jobs.job_service import get_job_service
 from app.services.intelligence.matching_service import matching_service
-from app.api.deps import get_current_user, get_current_active_user, get_db_session as get_db
+from app.api.deps import get_current_user, get_current_active_user, require_admin, get_db_session as get_db
 from app.workers.job_scraper import scrape_jobs_task
 import logging
 import re
@@ -45,6 +45,7 @@ router = APIRouter()
 @router.post("/search")
 async def search_jobs(
     search_request: JobSearch,
+    background_tasks: BackgroundTasks,
     db = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user)
 ):
@@ -53,14 +54,32 @@ async def search_jobs(
     job_service = get_job_service(db)
     
     try:
-        result = await job_service.search_jobs(
-            query=search_request.query,
-            location=search_request.location,
-            filters=search_request.filters,
-            page=search_request.page,
-            size=search_request.size,
-            user_id=str(current_user["_id"]) if current_user else None
-        )
+        async def run_search():
+            return await job_service.search_jobs(
+                query=search_request.query,
+                location=search_request.location,
+                filters=search_request.filters,
+                page=search_request.page,
+                size=search_request.size,
+                user_id=str(current_user["_id"]) if current_user else None,
+                sort_by=search_request.sort_by,
+                sort_order=search_request.sort_order,
+            )
+
+        result = await run_search()
+        if result.get("total", 0) == 0:
+            inserted = await job_service._scrape_and_populate(
+                search_request.query or "jobs",
+                search_request.location or "remote",
+            )
+            if inserted:
+                result = await run_search()
+        elif search_request.query or search_request.location:
+            background_tasks.add_task(
+                job_service._scrape_and_populate,
+                search_request.query or "jobs",
+                search_request.location or "remote",
+            )
         
         # If user is authenticated, add match scores
         if current_user:
@@ -112,6 +131,29 @@ def _profile_from_cv_text(text: str, job_title: Optional[str]) -> tuple:
     return title, skills[:12]
 
 
+def _location_from_cv_text(text: str) -> str:
+    """Find a city, country, or Remote from the top of a CV. Nothing is stored."""
+    labeled = re.search(
+        r"(?:location|address|based in|city|residence)\s*[:\-]\s*([^\n|]{2,60})",
+        text[:8000],
+        flags=re.IGNORECASE,
+    )
+    if labeled:
+        place = re.sub(r"\s+", " ", labeled.group(1)).strip(" .-–—")
+        if 2 < len(place) < 60 and "@" not in place:
+            return place
+
+    lines = [re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if line.strip()]
+    for line in lines[:15]:
+        if "@" in line or "http" in line.lower() or any(char.isdigit() for char in line):
+            continue
+        if re.fullmatch(r"remote", line, flags=re.IGNORECASE):
+            return "Remote"
+        if re.fullmatch(r"[A-Za-z][A-Za-z .'\-]{1,40},\s*[A-Za-z][A-Za-z .'\-]{1,40}", line):
+            return line
+    return ""
+
+
 @router.post("/match-cv")
 async def match_jobs_from_cv(
     file: UploadFile = File(...),
@@ -142,6 +184,7 @@ async def match_jobs_from_cv(
         raise HTTPException(status_code=400, detail="Could not read that CV. Try a text-based PDF, DOCX, or TXT file.")
 
     title, skills = _profile_from_cv_text(text[:20000], job_title)
+    detected_location = (location or "").strip() or _location_from_cv_text(text[:8000])
     search_terms = []
     if title:
         search_terms.append(title)
@@ -170,7 +213,7 @@ async def match_jobs_from_cv(
             if job_id:
                 found[job_id] = payload
 
-    place = (location or "").strip() or None
+    place = detected_location or None
     for term in search_terms or [None]:
         await collect(term, place)
 
@@ -200,6 +243,7 @@ async def match_jobs_from_cv(
     return JSONResponse(content=jsonable_encoder({
         "jobs": ranked[:40],
         "query": title or (skills[0] if skills else ""),
+        "location": detected_location,
         "matched": bool(title or skills),
         "relaxed": relaxed and bool(search_terms),
     }))
@@ -232,13 +276,20 @@ async def get_my_matched_jobs(
     """Get personalized matched jobs for current user"""
     
     try:
-        jobs = await matching_service.get_matched_jobs(
-            user=current_user,
-            db=db,
-            limit=limit
+        matching_service.db = db
+        cv_data = current_user.get("cv_data") or {}
+        jobs = await matching_service.find_matching_jobs(
+            user_id=str(current_user["_id"]),
+            cv_data=cv_data,
+            limit=limit,
+            days_lookback=30,
         )
-        
-        return JSONResponse(content={"jobs": jobs})
+        for job in jobs:
+            if job.get("_id") is not None:
+                job["id"] = str(job["_id"])
+                job["_id"] = str(job["_id"])
+
+        return JSONResponse(content=jsonable_encoder({"jobs": jobs}))
     except Exception as e:
         logger.error(f"Failed to get matched jobs: {e}", exc_info=True)
         return JSONResponse(content={"jobs": []})
@@ -351,7 +402,7 @@ async def trigger_manual_scrape(
     query: str,
     location: str,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_active_user)
+    current_user: dict = Depends(require_admin)
 ):
     """Trigger manual job scraping (authenticated users only)"""
     
@@ -368,7 +419,7 @@ async def trigger_manual_scrape(
 @router.post("/")
 async def create_job(
     job_data: JobCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: dict = Depends(require_admin),
     db = Depends(get_db)
 ):
     """Create a new job posting (admin/employer only)"""
@@ -386,7 +437,7 @@ async def create_job(
 async def update_job(
     job_id: str,
     updates: JobUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: dict = Depends(require_admin),
     db = Depends(get_db)
 ):
     """Update job details"""

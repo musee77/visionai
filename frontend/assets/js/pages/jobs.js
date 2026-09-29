@@ -11,6 +11,7 @@ let selectedJobs = new Set();
 let batchModeActive = false;
 let currentJobIdForCustomize = null;
 let appliedJobIds = new Set();
+let skipIpLocationRetry = false;
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!CVision.Utils.isAuthenticated()) {
@@ -26,8 +27,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Fetch applied jobs first to ensure filtering is immediate
     await fetchAppliedStatus();
 
-    // Load existing jobs from database on page load
-    await loadJobsFromDB();
+    const filteredFromUrl = new URLSearchParams(window.location.search).get('location');
+    if (!currentLocation && !filteredFromUrl) {
+        const usedIpLocation = await applyDetectedLocationFilter();
+        if (usedIpLocation) {
+            await performSearch();
+        } else {
+            await loadJobsFromDB();
+        }
+    } else {
+        await loadJobsFromDB();
+    }
 
     // Check for job ID in URL after jobs are loaded
     const urlParams = new URLSearchParams(window.location.search);
@@ -62,6 +72,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
 });
+
+async function applyDetectedLocationFilter() {
+    const input = document.getElementById('searchLocation');
+    if ((input && input.value.trim()) || currentLocation) return false;
+    if (!window.CVision || !window.CVision.Geolocation) return false;
+
+    try {
+        const data = await CVision.Geolocation.detect();
+        if (!data || !data.detected) return false;
+        const loc = data.city || data.countryName;
+        if (!loc) return false;
+        if (input) {
+            input.value = loc;
+            input.dataset.ipFilled = loc;
+        }
+        currentLocation = loc;
+        return true;
+    } catch (error) {
+        console.warn('Location filter unavailable:', error);
+        return false;
+    }
+}
 
 /**
  * Populate search and filters from URL parameters
@@ -183,7 +215,11 @@ function initializeJobSearch() {
 
     // Sort change
     document.getElementById('sortBy').addEventListener('change', (e) => {
-        performSearch(1, e.target.value);
+        if (currentQuery || currentLocation) {
+            performSearch(1, e.target.value);
+        } else {
+            loadJobsFromDB(1);
+        }
     });
 
     // Modal controls
@@ -212,12 +248,12 @@ async function fetchJobsData(page = 1) {
             'Authorization': `Bearer ${CVision.Utils.getToken()}`
         },
         body: JSON.stringify({
-            query: null,
-            location: null,
-            filters: null,
+            query: currentQuery || null,
+            location: currentLocation || null,
+            filters: buildFilters(),
             page: page,
             size: 20,
-            sort_by: 'created_at',
+            sort_by: document.getElementById('sortBy')?.value || 'date',
             sort_order: 'desc'
         })
     });
@@ -258,6 +294,8 @@ async function handleJobsResponse(data, isCached = false) {
         updateResultsCount(data.total || currentJobs.length, currentJobs.length);
         if (data.pages > 1) {
             updatePagination(data.page || 1, data.pages);
+        } else {
+            document.getElementById('pagination')?.classList.add('hidden');
         }
         await syncSavedJobStatus();
     } else {
@@ -315,7 +353,8 @@ async function syncSavedJobStatus() {
  */
 async function loadJobsFromDB(page = 1) {
     try {
-        const cacheKey = `jobs_p${page}`;
+        const sortBy = document.getElementById('sortBy')?.value || 'date';
+        const cacheKey = `jobs_${currentQuery || ''}_${currentLocation || ''}_${JSON.stringify(buildFilters())}_${sortBy}_p${page}`;
 
         if (!CVision.Cache?.get(cacheKey)) {
             showLoading();
@@ -353,46 +392,6 @@ function showEmptyStateWithSearchPrompt() {
         <p class="mt-1 text-sm text-gray-400">Your saved jobs will appear here</p>
     `;
     emptyState.classList.remove('hidden');
-}
-
-/**
- * ALTERNATIVE: If you want to show recent job searches instead of saved jobs,
- * you can use this endpoint (requires backend support):
- */
-async function loadUserJobHistory() {
-    try {
-        showLoading();
-
-        // This would load jobs from user's search history
-        const response = await fetch(`${API_BASE_URL}/api/v1/jobs/history/me?page=1&size=20`, {
-            headers: {
-                'Authorization': `Bearer ${CVision.Utils.getToken()}`
-            }
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-            currentJobs = data.jobs || [];
-
-            document.getElementById('loadingState').classList.add('hidden');
-
-            if (currentJobs.length === 0) {
-                showEmptyStateWithSearchPrompt();
-            } else {
-                displayJobs(currentJobs);
-                updateResultsCount(data.total || currentJobs.length, currentJobs.length);
-                if (data.pages > 1) {
-                    updatePagination(data.page || 1, data.pages);
-                }
-            }
-        } else {
-            throw new Error('Failed to load job history');
-        }
-    } catch (error) {
-        console.error('Error loading job history:', error);
-        document.getElementById('loadingState').classList.add('hidden');
-        showEmptyStateWithSearchPrompt();
-    }
 }
 
 /**
@@ -450,6 +449,15 @@ async function handleSearchResponse(data, sortBy, isCached = false) {
     } else {
         // Only show empty state if we are NOT using a cached result
         if (!isCached) {
+            const locationInput = document.getElementById('searchLocation');
+            if (!skipIpLocationRetry && locationInput && locationInput.dataset.ipFilled && locationInput.value.trim() === locationInput.dataset.ipFilled) {
+                skipIpLocationRetry = true;
+                locationInput.value = '';
+                delete locationInput.dataset.ipFilled;
+                currentLocation = '';
+                await loadJobsFromDB(1);
+                return;
+            }
             document.getElementById('loadingState').classList.add('hidden');
             showEmptyState();
             if (fetchedJobs.length > 0) {
@@ -697,7 +705,10 @@ function updatePagination(currentPage, totalPages) {
 function createPageButton(text, page, isActive = false) {
     const btn = document.createElement('button');
     btn.textContent = text;
-    btn.onclick = () => performSearch(page);
+    btn.onclick = () => {
+        if (currentQuery || currentLocation) performSearch(page);
+        else loadJobsFromDB(page);
+    };
     btn.className = isActive
         ? 'px-4 py-2 bg-primary-600 text-white rounded-lg'
         : 'px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50';
@@ -814,9 +825,9 @@ async function batchCustomize() {
 
 async function loadUserCVsForBatch() {
     try {
-        const response = await fetch(`${API_BASE_URL} /api/v1 / documents /? document_type = cv`, {
+        const response = await fetch(`${API_BASE_URL}/api/v1/documents/?document_type=cv`, {
             headers: {
-                'Authorization': `Bearer ${CVision.Utils.getToken()} `
+                'Authorization': `Bearer ${CVision.Utils.getToken()}`
             }
         });
 
@@ -839,51 +850,29 @@ async function loadUserCVsForBatch() {
 // ============================================================================
 
 async function checkApplicationLimit() {
-    const user = CVision.Utils.getUser();
-    const userTier = user?.subscription_tier?.toLowerCase() || 'free';
-
-    // Limits definition
-    const LIMITS = {
-        'free': 5,
-        'basic': 30,
-        'premium': Infinity
-    };
-
-    const limit = LIMITS[userTier] || 5;
-
-    // Skip check for premium
-    if (limit === Infinity) return true;
-
     try {
-        // Fetch stats from backend
-        const response = await fetch(`${API_BASE_URL} /api/v1 / applications / stats / overview`, {
+        const response = await fetch(`${API_BASE_URL}/api/v1/subscriptions/usage`, {
             headers: {
-                'Authorization': `Bearer ${CVision.Utils.getToken()} `
+                'Authorization': `Bearer ${CVision.Utils.getToken()}`
             }
         });
 
-        if (!response.ok) throw new Error('Failed to fetch application stats');
+        if (!response.ok) throw new Error('Failed to fetch plan usage');
 
         const stats = await response.json();
-        const count = stats.applications_today || 0;
+        const used = Number(stats.current_usage?.manual_applications) || 0;
+        const limit = Number(stats.limits?.manual_applications);
 
-        // Debug logging
-        console.log('[DEBUG-LIMITS-BACKEND]', {
-            tier: userTier,
-            limit: limit,
-            currentCount: count,
-            userId: user?.id,
-            isLimitReached: count >= limit
-        });
+        if (!Number.isFinite(limit) || limit >= 9999) return true;
 
-        if (count >= limit) {
+        if (used >= limit) {
+            const message = limit === 0
+                ? 'Manual applications are not included on this plan.'
+                : `You have used ${used} of ${limit} manual applications this period.`;
             if (typeof UpgradeModal !== 'undefined') {
-                UpgradeModal.show(
-                    'Daily Application Limit Reached',
-                    `You have reached your daily limit of ${limit} applications.Upgrade your plan to apply to more jobs today.`
-                );
+                UpgradeModal.show('Application limit reached', message);
             } else {
-                alert(`Daily Limit Reached: You have used your ${limit} free applications.`);
+                alert(message);
             }
             return false;
         }
@@ -891,8 +880,10 @@ async function checkApplicationLimit() {
         return true;
     } catch (error) {
         console.error('Error checking limits:', error);
-        console.warn('Falling back to simple allow on error');
-        return true;
+        if (typeof CVision !== 'undefined') {
+            CVision.Utils.showAlert('Could not confirm your application allowance. Try again.', 'error');
+        }
+        return false;
     }
 }
 

@@ -739,13 +739,13 @@
     </main>
     <div id="upgrade-modal-container"></div>
     <script src="/assets/js/components/upgrade-modal.js?v=1.1"></script>
-    <script src="/assets/js/components/premium-guard.js?v=1.1"></script>
+    <script src="/assets/js/components/premium-guard.js?v=1.2"></script>
 
     <script src="/assets/js/auth-guard.js?v=1.2"></script>
     <script src="/assets/js/main.js?v=1.1"></script>
     <script src="/assets/js/utils/cv-loader.js?v=1.0"></script>
-    <script src="/assets/js/components/cv-uploader.js?v=1.7"></script>
-    <script src="/assets/js/components/auto-apply-button.js?v=1.7"></script>
+    <script src="/assets/js/components/cv-uploader.js?v=2.3"></script>
+    <script src="/assets/js/components/auto-apply-button.js?v=1.8"></script>
     <script src="/assets/js/components/run-test-button.js?v=1.7"></script>
 
     <!-- Page Logic -->
@@ -766,10 +766,10 @@
     <link rel="stylesheet" href="/assets/css/chatbot.css">
     <script src="/assets/js/chatbot.js"></script>
 
-    <script src="/assets/js/components/navbar.js?v=1.2" defer></script>
+    <script src="/assets/js/components/navbar.js?v=1.4" defer></script>
     <script>
         // Load navbar component with proper initialization
-        fetch('/components/navbar.html')
+        fetch('/components/navbar.html?v=1.4')
             .then(response => response.text())
             .then(html => {
                 const container = document.getElementById('navbar-container');

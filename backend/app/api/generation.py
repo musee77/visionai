@@ -79,8 +79,13 @@ async def customize_cv_for_job(
         user_id = str(current_user["_id"])
         db = await get_database()
         
-        # Check subscription limits
+        # Customize and cover letters start on Basic
         subscription_tier = current_user.get("subscription_tier", "free")
+        if str(subscription_tier).lower() not in {"basic", "premium"}:
+            raise HTTPException(
+                status_code=403,
+                detail="Customizing a CV and selecting a cover letter are included on Basic and Premium."
+            )
         if not await _check_generation_limit(user_id, subscription_tier, db):
             raise HTTPException(
                 status_code=403,

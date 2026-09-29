@@ -115,9 +115,9 @@ async def apply_via_email(
             source=ApplicationSource.DIRECT,
             application_method="email",
             applied_date=datetime.utcnow(),
-            job_title=job_title,
-            company_name=job.get("company"),
-            location=job.get("location")
+            job_title=job.get("title") or job_title,
+            company_name=job.get("company_name") or job.get("company"),
+            location=job.get("location") if isinstance(job.get("location"), str) else None
         )
         
         result = await applications_collection.insert_one(application_doc.dict(by_alias=True, exclude={"id"}))
@@ -261,8 +261,8 @@ async def track_external_application(
             application_url=request.application_url or job.get("application_url"),
             applied_date=datetime.utcnow(),
             job_title=job.get("title", "Job"),
-            company_name=job.get("company"),
-            location=job.get("location"),
+            company_name=job.get("company_name") or job.get("company"),
+            location=job.get("location") if isinstance(job.get("location"), str) else None,
             additional_notes=request.notes
         )
         

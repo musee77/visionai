@@ -9,6 +9,7 @@ const PremiumGuard = {
         AUTO_APPLY: 'premium',      // Premium only
         UNLIMITED_MSGS: 'premium',  // Premium only
         CV_CUSTOMIZATION: 'basic',  // Basic or Premium
+        COVER_LETTER: 'basic',      // Select or generate a cover letter
         ADVANCED_ANALYTICS: 'premium',
         RUN_TEST: 'basic',          // Basic or Premium (with 1 free trial)
         GMAIL_CONNECT: 'premium'    // Premium only

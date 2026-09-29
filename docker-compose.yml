@@ -31,25 +31,25 @@ services:
       timeout: 5s
       retries: 5
 
-  # automation:
-  #   build:
-  #     context: ./browser-automation
-  #     dockerfile: Dockerfile
-  #   container_name: vision_ai_automation
-  #   hostname: automation
-  #   environment:
-  #     - PORT=3001
-  #     - BROWSER_AUTOMATION_TOKEN=${BROWSER_AUTOMATION_TOKEN:-dev-automation-token}
-  #     - HEADLESS=${HEADLESS:-true}
-  #   volumes:
-  #     - ./browser-automation:/app
-  #     - /app/node_modules
-  #     - /dev/shm:/dev/shm
-  #   networks:
-  #     - vision_ai_network
-  #   restart: unless-stopped
-  #   ports:
-  #     - "3001:3001"
+  automation:
+    build:
+      context: ./browser-automation
+      dockerfile: Dockerfile
+    container_name: vision_ai_automation
+    hostname: automation
+    environment:
+      - PORT=3001
+      - BROWSER_AUTOMATION_TOKEN=${BROWSER_AUTOMATION_TOKEN:-dev-automation-token}
+      - HEADLESS=true
+    volumes:
+      - ./browser-automation:/app
+      - /app/node_modules
+      - /dev/shm:/dev/shm
+    networks:
+      - vision_ai_network
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
 
   backend:
     build:
@@ -60,7 +60,7 @@ services:
       - .env
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - BROWSER_AUTOMATION_URL=${BROWSER_AUTOMATION_URL:-http://host.docker.internal:3001}
+      - BROWSER_AUTOMATION_URL=${BROWSER_AUTOMATION_URL:-http://automation:3001}
       - MONGODB_URL=${MONGODB_URL}
       - BROWSER_AUTOMATION_TOKEN=${BROWSER_AUTOMATION_TOKEN}
       - DATABASE_NAME=${DATABASE_NAME}
@@ -81,6 +81,8 @@ services:
         condition: service_started
       mongo:
         condition: service_healthy
+      automation:
+        condition: service_started
 
   celery_worker:
     build:
@@ -97,7 +99,7 @@ services:
     environment:
       - DATABASE_URL=mongodb://mongo:27017/synovae_db
       - REDIS_URL=redis://redis:6379/0
-      - BROWSER_AUTOMATION_URL=${BROWSER_AUTOMATION_URL:-http://host.docker.internal:3001}
+      - BROWSER_AUTOMATION_URL=${BROWSER_AUTOMATION_URL:-http://automation:3001}
       - BROWSER_AUTOMATION_TOKEN=${BROWSER_AUTOMATION_TOKEN}
       - MONGODB_URL=${MONGODB_URL}
       - DATABASE_NAME=${DATABASE_NAME}
@@ -107,6 +109,7 @@ services:
       - redis
       - backend
       - mongo
+      - automation
     networks:
       - vision_ai_network
 

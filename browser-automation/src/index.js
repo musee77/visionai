@@ -46,11 +46,18 @@ app.post('/api/automation/start', authenticate, async (req, res) => {
         delete process.env.PWDEBUG;
         process.env.DEBUG = '0';
 
-        const browser = await chromium.launch({
-            headless: isHeadless,
+        const launchOptions = {
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled'],
             slowMo: 50,
-        });
+        };
+        let browser;
+        try {
+            browser = await chromium.launch({ ...launchOptions, headless: isHeadless });
+        } catch (launchError) {
+            if (isHeadless) throw launchError;
+            console.error('Headed browser failed, retrying headless:', launchError.message);
+            browser = await chromium.launch({ ...launchOptions, headless: true });
+        }
 
         const context = await browser.newContext({
             viewport: { width: 1280, height: 800 },
@@ -67,7 +74,8 @@ app.post('/api/automation/start', authenticate, async (req, res) => {
 
         res.json({ browser_session_id: session_id, status: 'started' });
     } catch (error) {
-        res.status(500).json({ error: 'Failed' });
+        console.error('Failed to start browser automation:', error);
+        res.status(500).json({ error: 'Failed to start the browser' });
     }
 });
 
@@ -131,6 +139,7 @@ async function performAutofill(session_id, url, autofillData, jobSource, page) {
                 const newPage = await handler.preparePage(activePage);
                 if (newPage && newPage !== activePage) {
                     activePage = newPage;
+                    applyClickCount = 0;
                     if (session) session.page = activePage;
                     await activePage.waitForLoadState('domcontentloaded').catch(() => { });
                 }
@@ -202,7 +211,10 @@ async function performAutofill(session_id, url, autofillData, jobSource, page) {
 
     } catch (error) {
         console.error('Autofill error:', error);
-        updateSessionStatus(session_id, 'error', error.message);
+        const message = error.message === 'LOGIN_REQUIRED'
+            ? 'This job requires a RemoteOK account before you can apply.'
+            : error.message;
+        updateSessionStatus(session_id, 'error', message);
     }
 }
 

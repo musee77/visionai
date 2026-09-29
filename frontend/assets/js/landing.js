@@ -106,7 +106,7 @@ const Landing = {
         this.initSmoothScroll();
         this.initSearch();
 
-        // Detect currency from geolocation first
+        // Prices stay in USD. Detected location is only a job filter.
         if (window.CVision && window.CVision.Currency) {
             try {
                 await CVision.Currency.initFromGeolocation();
@@ -115,7 +115,32 @@ const Landing = {
             }
         }
 
-        this.loadJobs();
+        await this.loadJobsForLocation();
+    },
+
+    async loadJobsForLocation() {
+        const locationInput = document.getElementById('landing-search-location');
+        const queryInput = document.getElementById('landing-search-query');
+        let location = locationInput ? locationInput.value.trim() : '';
+
+        if (!location && window.CVision && window.CVision.Geolocation) {
+            try {
+                const data = await CVision.Geolocation.detect();
+                if (data && data.detected) {
+                    location = data.city || data.countryName || '';
+                    if (location && locationInput && !locationInput.value.trim()) {
+                        locationInput.value = location;
+                        locationInput.dataset.ipFilled = location;
+                    }
+                    const heroLoc = document.getElementById('hero-location-name');
+                    if (heroLoc && location) heroLoc.textContent = location;
+                }
+            } catch (error) {
+                console.warn('Location filter unavailable:', error);
+            }
+        }
+
+        this.loadJobs(queryInput ? queryInput.value.trim() : '', location);
     },
 
     /**
@@ -314,6 +339,7 @@ const Landing = {
             }
 
             const data = await response.json();
+            this.prefillSearchFromCv(data);
             const jobs = data.jobs || [];
             if (heading) heading.textContent = 'Jobs for your CV';
             if (note) {
@@ -342,6 +368,27 @@ const Landing = {
                 CVision.Utils.showAlert(error.message || 'Could not match jobs to that CV.', 'error');
             }
         }
+    },
+
+    prefillSearchFromCv(data) {
+        const query = (data && data.query) || '';
+        const location = (data && data.location) || '';
+        const fill = (id, value) => {
+            const field = document.getElementById(id);
+            if (!field || !value) return;
+            const previous = field.dataset.cvFilled || '';
+            const ipFilled = field.dataset.ipFilled || '';
+            const current = field.value.trim();
+            if (!current || current === previous || current === ipFilled) {
+                field.value = value;
+                field.dataset.cvFilled = value;
+                delete field.dataset.ipFilled;
+            }
+        };
+        fill('landing-search-query', query);
+        fill('landing-search-location', location);
+        fill('job-title', query);
+        fill('location', location);
     },
 
     renderStats() {
@@ -507,6 +554,13 @@ const Landing = {
                 await this.displayJobsGrid(jobs);
                 grid.style.opacity = '1';
             } else if (!isFromCache) {
+                const locationInput = document.getElementById('landing-search-location');
+                if (location && locationInput && locationInput.dataset.ipFilled === location) {
+                    locationInput.value = '';
+                    delete locationInput.dataset.ipFilled;
+                    this.loadJobs(query, '');
+                    return;
+                }
                 grid.innerHTML = `
                     <div class="col-span-full text-center py-12">
                         <div class="text-4xl mb-4">🔍</div>

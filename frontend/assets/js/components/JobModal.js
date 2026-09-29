@@ -100,7 +100,7 @@ class JobModalComponent {
                         Customize Documents
                     </button>
                     <button id="modalApply" class="flex-[1.5] w-full sm:w-auto px-8 py-3 rounded-xl bg-primary-600 text-white font-extrabold shadow-lg shadow-primary-200 hover:bg-primary-700 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2">
-                        Fast Apply Now
+                        Apply
                     </button>
                 </div>
             </div>
@@ -112,6 +112,25 @@ class JobModalComponent {
             const container = document.createElement('div');
             container.innerHTML = JobModalComponent.SHELL;
             document.body.appendChild(container.firstElementChild);
+            if (!document.getElementById('job-description-prose-style')) {
+                const style = document.createElement('style');
+                style.id = 'job-description-prose-style';
+                style.textContent = `
+                    .job-description-prose { color: #44403c; font-size: 15px; line-height: 1.7; font-weight: 400; }
+                    .job-description-prose p { margin: 0 0 0.9rem; }
+                    .job-description-prose p:last-child { margin-bottom: 0; }
+                    .job-description-prose h2, .job-description-prose h3, .job-description-prose h4 {
+                        color: #1c1917; font-size: 1.05rem; font-weight: 650; margin: 1.25rem 0 0.45rem; line-height: 1.35;
+                    }
+                    .job-description-prose ul, .job-description-prose ol { margin: 0 0 1rem 1.25rem; }
+                    .job-description-prose li { margin: 0.2rem 0; }
+                    .job-description-prose strong, .job-description-prose b { color: #1c1917; font-weight: 650; }
+                    .job-description-prose a { color: #4c51bf; text-decoration: underline; }
+                    .job-description-prose blockquote { margin: 0 0 1rem; padding-left: 0.9rem; border-left: 3px solid #e6dfd2; color: #57534e; }
+                    .job-description-empty { color: #78716c; }
+                `;
+                document.head.appendChild(style);
+            }
 
             // Wire close button immediately
             const closeBtn = document.getElementById('closeModal');
@@ -135,57 +154,70 @@ class JobModalComponent {
     }
 
     formatDescription(text) {
-        if (!text) return 'No description available';
+        if (!text) return '<p class="job-description-empty">No description available</p>';
 
         const utils = window.CVision?.Utils || {};
-        const decode = utils.decodeHtmlEntities || (t => t);
+        const decode = utils.decodeHtmlEntities || (value => value);
+        const raw = decode(String(text)).trim();
+        if (!raw) return '<p class="job-description-empty">No description available</p>';
 
-        // 1. Decode entities and normalize
-        let raw = decode(text).trim();
+        const body = /<\/?[a-z][\s\S]*>/i.test(raw)
+            ? this.sanitizeJobHtml(raw)
+            : this.plainTextToHtml(raw);
 
-        // 2. Pre-process non-standard Markdown (like bullet characters)
-        // Convert •, -, * at start of lines to standard Markdown bullets if they aren't already
-        let processed = raw.split('\n').map(line => {
-            const trimmed = line.trim();
-            if (/^[•\-\*]\s*|^\d+[\.\)]\s*/.test(trimmed)) {
-                return '* ' + trimmed.replace(/^[•\-\*]\s*|^\d+[\.\)]\s*/, '');
-            }
-            return line;
-        }).join('\n');
+        return `<div class="job-description-prose">${body}</div>`;
+    }
 
-        // 3. Use marked.js if available
-        if (window.marked && typeof window.marked.parse === 'function') {
-            try {
-                window.marked.setOptions({
-                    breaks: true,
-                    gfm: true
-                });
+    sanitizeJobHtml(html) {
+        const allowed = new Set(['p', 'br', 'ul', 'ol', 'li', 'strong', 'b', 'em', 'i', 'h2', 'h3', 'h4', 'a', 'blockquote']);
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const out = document.createElement('div');
 
-                const parsed = window.marked.parse(processed);
-                return `<div class="job-description-content text-gray-700 leading-relaxed text-[15px] space-y-4 markdown-body">
-                    ${parsed.replace(/style="[^"]*"/gi, '')}
-                </div>`;
-            } catch (e) {
-                console.warn('Marked parse failed, falling back', e);
-            }
-        }
+        const appendClean = (source, target) => {
+            source.childNodes.forEach((node) => {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    if (node.textContent) target.appendChild(document.createTextNode(node.textContent));
+                    return;
+                }
+                if (node.nodeType !== Node.ELEMENT_NODE) return;
 
-        // 4. Fallback to basic cleaning
-        let html = processed;
-        if (html.includes('<p>') || html.includes('<ul>') || html.includes('<br>')) {
-            return `<div class="job-description-content text-gray-700 leading-relaxed text-[15px] space-y-4">
-                ${html.replace(/style="[^"]*"/gi, '')
-                    .replace(/font-family:[^;]+;?/gi, '')
-                    .replace(/color:[^;]+;?/gi, '')
-                    .replace(/font-size:[^;]+;?/gi, '')}
-            </div>`;
-        }
+                const tag = node.tagName.toLowerCase();
+                if (!allowed.has(tag)) {
+                    appendClean(node, target);
+                    return;
+                }
 
-        return `<div class="job-description-content text-gray-700 space-y-4">${html.split(/\n\n+/).map(p => {
-            const trimmed = p.trim();
-            if (!trimmed) return '';
-            return `<p>${this.applyInlineFormatting(trimmed).replace(/\n/g, '<br>')}</p>`;
-        }).join('')}</div>`;
+                const element = document.createElement(tag);
+                if (tag === 'a') {
+                    const href = node.getAttribute('href') || '';
+                    if (/^https?:/i.test(href)) {
+                        element.setAttribute('href', href);
+                        element.setAttribute('target', '_blank');
+                        element.setAttribute('rel', 'noopener noreferrer');
+                    }
+                }
+                appendClean(node, element);
+                if ((tag === 'p' || tag === 'li' || tag === 'h2' || tag === 'h3' || tag === 'h4') && !element.textContent.trim()) {
+                    return;
+                }
+                target.appendChild(element);
+            });
+        };
+
+        appendClean(doc.body, out);
+        return out.innerHTML || this.plainTextToHtml(doc.body.textContent || '');
+    }
+
+    plainTextToHtml(text) {
+        const blocks = String(text).split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+        return blocks.map((block) => {
+            const safe = block
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\n/g, '<br>');
+            return `<p>${safe}</p>`;
+        }).join('');
     }
 
     applyInlineFormatting(text) {
@@ -342,7 +374,7 @@ class JobModalComponent {
                     </span>
                     Role Overview
                 </h4>
-                <div class="text-gray-700 font-medium leading-relaxed mb-10">
+                <div class="mb-10">
                     ${this.formatDescription(job.description)}
                 </div>
             </div>
@@ -439,6 +471,8 @@ class JobModalComponent {
         const customizeBtn = document.getElementById('modalCustomize');
         if (customizeBtn) {
             customizeBtn.style.display = isApplied ? 'none' : 'flex';
+            const needsUpgrade = window.PremiumGuard && !PremiumGuard.hasAccess('CV_CUSTOMIZATION');
+            customizeBtn.textContent = needsUpgrade ? 'Upgrade to Customize' : 'Customize Documents';
             customizeBtn.onclick = (e) => {
                 e.stopPropagation();
                 if (window.JobActions?.openCustomizeModal) window.JobActions.openCustomizeModal(jobId);
@@ -454,14 +488,13 @@ class JobModalComponent {
                 applyBtn.className = 'flex-[1.5] w-full sm:w-auto px-8 py-3 rounded-xl bg-emerald-100 text-emerald-700 font-extrabold border-2 border-emerald-200 opacity-80 cursor-not-allowed flex items-center justify-center gap-2';
             } else {
                 applyBtn.disabled = false;
-                applyBtn.innerHTML = canAutoApply
-                    ? `<svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Fast Apply Now`
-                    : `<svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg> Visit External Portal`;
+                applyBtn.innerHTML = `<svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg> Apply`;
                 applyBtn.className = 'flex-[1.5] w-full sm:w-auto px-8 py-3 rounded-xl bg-primary-600 text-white font-extrabold shadow-lg shadow-primary-200 hover:bg-primary-700 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2';
                 applyBtn.onclick = (e) => {
                     e.stopPropagation();
-                    if (window.JobApply?.openApplyModal) window.JobApply.openApplyModal(jobId, job);
-                    else if (originalUrl) window.open(originalUrl, '_blank');
+                    const companyUrl = job.application_url || originalUrl;
+                    if (window.JobApply?.openCompanyPage) window.JobApply.openCompanyPage(companyUrl);
+                    else if (companyUrl) window.open(companyUrl, '_blank', 'noopener,noreferrer');
                 };
             }
         }

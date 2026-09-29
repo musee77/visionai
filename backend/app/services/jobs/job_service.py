@@ -37,44 +37,90 @@ class JobService:
         filters: Optional[JobFilter] = None,
         page: int = 1,
         size: int = 20,
-        user_id: Optional[str] = None
+        user_id: Optional[str] = None,
+        sort_by: str = "date",
+        sort_order: str = "desc"
     ) -> Dict[str, Any]:
-        """Search jobs - always scrape fresh results, then query database"""
-        
-        # Build MongoDB query - use string directly for status comparison
-        mongo_query = {"status": "active"}
-        
-        # DEBUG: Log query parameters
-        logger.info(f"[DEBUG] search_jobs called with query={query}, location={location}, page={page}, size={size}")
-        
-        # Use regex instead of text search
-        if query:
-            mongo_query["$or"] = [
-                {"title": {"$regex": query, "$options": "i"}},
-                {"description": {"$regex": query, "$options": "i"}},
-                {"company_name": {"$regex": query, "$options": "i"}}
+        """Search stored jobs. Fresh scraping is started by the API and does not block this query."""
+        import re
+        from app.models.job import WorkArrangement
+
+        mongo_query = {}
+        logger.info(f"search_jobs query={query} location={location} page={page} size={size} sort={sort_by}")
+        mongo_query.setdefault("$and", []).append({
+            "$or": [
+                {"status": "active"},
+                {"status": {"$exists": False}},
             ]
-        
-        if location and (not filters or not filters.remote_only):
-            mongo_query["location"] = {"$regex": location, "$options": "i"}
-        
-        if filters and filters.remote_only:
-            from app.models.job import WorkArrangement
-            mongo_query["work_arrangement"] = WorkArrangement.REMOTE
-        
+        })
+        mongo_query.setdefault("$and", []).append({
+            "$nor": [
+                {"application_url": {"$regex": r"remoteok\.com", "$options": "i"}},
+                {"external_url": {"$regex": r"remoteok\.com", "$options": "i"}},
+            ]
+        })
+
+        if query:
+            safe_query = re.escape(query)
+            mongo_query["$or"] = [
+                {"title": {"$regex": safe_query, "$options": "i"}},
+                {"description": {"$regex": safe_query, "$options": "i"}},
+                {"company_name": {"$regex": safe_query, "$options": "i"}}
+            ]
+
+        arrangements = []
+        if filters:
+            arrangements = [
+                item.value if hasattr(item, "value") else item
+                for item in (filters.work_arrangements or [])
+            ]
+            if filters.remote_only and WorkArrangement.REMOTE.value not in arrangements:
+                arrangements.append(WorkArrangement.REMOTE.value)
+
+        if location and location.strip():
+            safe_location = re.escape(location.strip())
+            mongo_query.setdefault("$and", []).append({
+                "$or": [
+                    {"location": {"$regex": safe_location, "$options": "i"}},
+                    {"location": {"$regex": r"remote|worldwide|anywhere|global", "$options": "i"}},
+                    {"work_arrangement": {"$in": ["remote", "REMOTE"]}},
+                ]
+            })
+
+        if arrangements:
+            mongo_query["work_arrangement"] = {"$in": arrangements}
+
         if filters and filters.employment_types:
-            mongo_query["employment_type"] = {"$in": filters.employment_types}
-        
+            mongo_query["employment_type"] = {"$in": [
+                item.value if hasattr(item, "value") else item
+                for item in filters.employment_types
+            ]}
+
         if filters and filters.experience_levels:
-            mongo_query["experience_level"] = {"$in": filters.experience_levels}
-        
-        if filters and (filters.salary_min or filters.salary_max):
-            salary_query = {}
-            if filters.salary_min:
-                salary_query["$gte"] = filters.salary_min
-            if filters.salary_max:
-                salary_query["$lte"] = filters.salary_max
-            mongo_query["salary_range.min_amount"] = salary_query
+            mongo_query["experience_level"] = {"$in": [
+                item.value if hasattr(item, "value") else item
+                for item in filters.experience_levels
+            ]}
+
+        salary_clauses = []
+        if filters and filters.salary_min is not None:
+            salary_clauses.append({"$or": [
+                {"salary_range.max_amount": {"$gte": filters.salary_min}},
+                {"salary_range.min_amount": {"$gte": filters.salary_min}},
+            ]})
+        if filters and filters.salary_max is not None:
+            salary_clauses.append({"$or": [
+                {"salary_range.min_amount": {"$lte": filters.salary_max}},
+                {"salary_range.max_amount": {"$lte": filters.salary_max}},
+            ]})
+        if salary_clauses:
+            mongo_query.setdefault("$and", []).extend(salary_clauses)
+
+        if user_id:
+            applied_ids = await self.db.applications.distinct("job_id", {"user_id": str(user_id)})
+            excluded = [ObjectId(str(job_id)) for job_id in applied_ids if ObjectId.is_valid(str(job_id))]
+            if excluded:
+                mongo_query["_id"] = {"$nin": excluded}
         
         if filters and filters.posted_after:
             mongo_query["posted_date"] = {"$gte": filters.posted_after}
@@ -82,21 +128,24 @@ class JobService:
         if filters and filters.skills:
             mongo_query["skills_required"] = {"$in": filters.skills}
         
-        # Always trigger scraping for fresh results when query/location provided
-        if query or location:
-            logger.info(f"Triggering scrape for: {query} in {location}")
-            await self._scrape_and_populate(query or "jobs", location or "remote")
-        
-        # Query database for total count
         total = await self.jobs_collection.count_documents(mongo_query)
         
         # DEBUG: Log query and count
         logger.info(f"[DEBUG] mongo_query={mongo_query}, total_count={total}")
         
         # Query database
+        sort_fields = {
+            "date": "created_at",
+            "relevance": "created_at",
+            "title": "title",
+            "company": "company_name",
+            "salary": "salary_range.min_amount",
+        }
+        sort_field = sort_fields.get(sort_by or "date", "created_at")
+        sort_direction = 1 if sort_order == "asc" or sort_by == "title" else -1
         skip = (page - 1) * size
         cursor = self.jobs_collection.find(mongo_query)
-        cursor = cursor.sort("created_at", -1)
+        cursor = cursor.sort(sort_field, sort_direction)
         cursor = cursor.skip(skip).limit(size)
         
         jobs_data = await cursor.to_list(length=size)
@@ -141,6 +190,7 @@ class JobService:
             "status": doc.get("status", JobStatus.ACTIVE),
             "source": doc.get("source", JobSource.MANUAL),
             "external_url": doc.get("external_url"),
+            "application_url": doc.get("application_url") or doc.get("external_url"),
             "company_info": doc.get("company_info"),
             "posted_date": doc.get("posted_date"),
             "application_deadline": doc.get("application_deadline"),
@@ -294,9 +344,12 @@ class JobService:
                 continue
             
             job_dict = job.dict()
+            for key in ("application_url", "external_url"):
+                if job_dict.get(key) is not None:
+                    job_dict[key] = str(job_dict[key])
             job_dict["created_at"] = datetime.utcnow()
             job_dict["updated_at"] = datetime.utcnow()
-            job_dict["status"] = JobStatus.ACTIVE
+            job_dict["status"] = JobStatus.ACTIVE.value
             job_dict["view_count"] = 0
             job_dict["application_count"] = 0
             jobs_data.append(job_dict)
@@ -362,4 +415,7 @@ def get_job_service(db: AsyncIOMotorDatabase) -> JobService:
     global job_service
     if not job_service:
         job_service = JobService(db)
+    else:
+        job_service.db = db
+        job_service.jobs_collection = db.jobs
     return job_service

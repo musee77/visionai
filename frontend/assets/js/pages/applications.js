@@ -317,11 +317,11 @@ async function loadStats() {
                 </div>
                 <div class="bg-white rounded-lg shadow-sm border p-6">
                     <div class="text-sm text-gray-600 mb-1">Interviews</div>
-                    <div class="text-3xl font-bold text-purple-600">${stats.interview_count || 0}</div>
+                    <div class="text-3xl font-bold text-purple-600">${stats.pending_interviews || 0}</div>
                 </div>
                 <div class="bg-white rounded-lg shadow-sm border p-6">
-                    <div class="text-sm text-gray-600 mb-1">Success Rate</div>
-                    <div class="text-3xl font-bold text-green-600">${stats.success_rate ? Math.round(stats.success_rate * 100) : 0}%</div>
+                    <div class="text-sm text-gray-600 mb-1">Response Rate</div>
+                    <div class="text-3xl font-bold text-green-600">${Math.round(stats.response_rate || 0)}%</div>
                 </div>
             `;
         }
@@ -333,6 +333,9 @@ async function loadStats() {
 function getStatusBadge(status) {
     const colors = {
         draft: 'bg-gray-100 text-gray-700',
+        pending: 'bg-yellow-100 text-yellow-800',
+        failed: 'bg-red-100 text-red-800',
+        processing: 'bg-blue-100 text-blue-700',
         submitted: 'bg-blue-100 text-blue-700',
         applied: 'bg-blue-100 text-blue-800',
         under_review: 'bg-indigo-100 text-indigo-800',

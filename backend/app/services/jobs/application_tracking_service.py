@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from bson import ObjectId
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,71 @@ class ApplicationTrackingService:
         self.db = db
         self.applications = db.applications
         self.timeline_events = db.timeline_events
+
+    @staticmethod
+    def _location_text(value: Any) -> Optional[str]:
+        if value is None or value == "":
+            return None
+        if isinstance(value, str):
+            return value
+        if isinstance(value, dict):
+            parts = [
+                value.get("city"),
+                value.get("region") or value.get("state"),
+                value.get("country"),
+            ]
+            text = ", ".join(part for part in parts if part)
+            return text or None
+        return str(value)
+
+    @staticmethod
+    def _job_display(job: Dict[str, Any]) -> Dict[str, Optional[str]]:
+        return {
+            "job_title": job.get("title") or job.get("job_title"),
+            "company_name": job.get("company_name") or job.get("company"),
+            "location": ApplicationTrackingService._location_text(job.get("location")),
+        }
+
+    @staticmethod
+    async def _find_job(db: AsyncIOMotorDatabase, job_id: Any) -> Optional[Dict[str, Any]]:
+        if not job_id:
+            return None
+        key = str(job_id)
+        clauses = [{"_id": key}]
+        try:
+            clauses.append({"_id": ObjectId(key)})
+        except Exception:
+            pass
+        return await db.jobs.find_one({"$or": clauses})
+
+    @staticmethod
+    async def _attach_jobs(db: AsyncIOMotorDatabase, applications: List[Dict[str, Any]]) -> None:
+        """Fill title, company, and location from the jobs collection."""
+        keys = []
+        for app in applications:
+            if app.get("job_id"):
+                keys.append(str(app["job_id"]))
+        if not keys:
+            return
+
+        object_ids = []
+        for key in keys:
+            try:
+                object_ids.append(ObjectId(key))
+            except Exception:
+                pass
+
+        found = await db.jobs.find(
+            {"$or": [{"_id": {"$in": object_ids}}, {"_id": {"$in": keys}}]}
+        ).to_list(length=None)
+        by_id = {str(job["_id"]): job for job in found}
+
+        for app in applications:
+            job = by_id.get(str(app.get("job_id") or ""))
+            display = ApplicationTrackingService._job_display(job) if job else {}
+            app["job_title"] = display.get("job_title") or app.get("job_title")
+            app["company_name"] = display.get("company_name") or app.get("company_name")
+            app["location"] = display.get("location") or ApplicationTrackingService._location_text(app.get("location"))
     
     # ==================== INSTANCE METHODS ====================
     
@@ -209,13 +275,21 @@ class ApplicationTrackingService:
             
             query = {
                 "follow_up_date": {"$lte": today},
-                "status": {"$nin": ["rejected", "accepted", "declined", "withdrawn"]}
+                "deleted_at": None,
+                "status": {"$nin": ["rejected", "offer_accepted", "offer_declined", "withdrawn", "archived"]}
             }
             
             if user_id:
                 query["user_id"] = user_id
             
             applications = await self.applications.find(query).to_list(length=100)
+            await self._attach_jobs(self.db, applications)
+            for app in applications:
+                app["id"] = str(app["_id"])
+                app["_id"] = str(app["_id"])
+                app["next_follow_up"] = app.get("follow_up_date")
+                if app.get("job_id"):
+                    app["job_id"] = str(app["job_id"])
             return applications
             
         except Exception as e:
@@ -250,6 +324,12 @@ class ApplicationTrackingService:
             # Sort: Put scheduling needed (null date) first, then nearest dates
             # MongoDB sorts nulls first in ascending order
             interviews = await self.applications.find(query).sort("interview_date", 1).to_list(length=100)
+            await self._attach_jobs(self.db, interviews)
+            for interview in interviews:
+                interview["id"] = str(interview["_id"])
+                interview["_id"] = str(interview["_id"])
+                if interview.get("job_id"):
+                    interview["job_id"] = str(interview["job_id"])
             return interviews
             
         except Exception as e:
@@ -404,7 +484,10 @@ class ApplicationTrackingService:
             return {
                 "total_applications": total_count,
                 "applications_today": applications_today,
-                "active_applications": total_count - status_counts.get("archived", 0) - status_counts.get("withdrawn", 0),
+                "active_applications": total_count - sum(
+                status_counts.get(name, 0)
+                for name in ("archived", "withdrawn", "rejected", "offer_declined")
+            ),
                 "applications_this_week": applications_this_week,
                 "applications_this_month": applications_this_month,
                 "status_counts": status_counts,
@@ -476,6 +559,16 @@ class ApplicationTrackingService:
         """Create a new application (static method for API use)"""
         try:
             applications = db.applications
+
+            job = await ApplicationTrackingService._find_job(db, application_data.get("job_id"))
+            if job:
+                display = ApplicationTrackingService._job_display(job)
+                application_data["job_id"] = str(job["_id"])
+                application_data["job_title"] = display.get("job_title") or application_data.get("job_title")
+                application_data["company_name"] = display.get("company_name") or application_data.get("company_name")
+                application_data["location"] = display.get("location") or ApplicationTrackingService._location_text(
+                    application_data.get("location")
+                )
             
             # Prepare application document
             application = {
@@ -525,9 +618,11 @@ class ApplicationTrackingService:
             })
             
             if application:
+                application["id"] = str(application["_id"])
                 application["_id"] = str(application["_id"])
                 if application.get("job_id"):
                     application["job_id"] = str(application["job_id"])
+                await ApplicationTrackingService._attach_jobs(db, [application])
             
             return application
             
@@ -557,11 +652,14 @@ class ApplicationTrackingService:
             
             # Add search if provided
             if search:
-                query["$or"] = [
-                    {"job_title": {"$regex": search, "$options": "i"}},
-                    {"company_name": {"$regex": search, "$options": "i"}},
-                    {"location": {"$regex": search, "$options": "i"}}
-                ]
+                safe_search = re.escape(search)
+                query.setdefault("$and", []).append({
+                    "$or": [
+                        {"job_title": {"$regex": safe_search, "$options": "i"}},
+                        {"company_name": {"$regex": safe_search, "$options": "i"}},
+                        {"location": {"$regex": safe_search, "$options": "i"}}
+                    ]
+                })
             
             # Calculate pagination
             skip = (page - 1) * size
@@ -573,6 +671,7 @@ class ApplicationTrackingService:
             # Get paginated results
             cursor = applications.find(query).sort(sort_by, sort_direction).skip(skip).limit(size)
             apps_list = await cursor.to_list(length=size)
+            await ApplicationTrackingService._attach_jobs(db, apps_list)
             
             # Convert to response format
             formatted_apps = []
@@ -586,7 +685,7 @@ class ApplicationTrackingService:
                     "applied_date": app.get("applied_date"),
                     "job_title": app.get("job_title"),
                     "company_name": app.get("company_name"),
-                    "location": app.get("location"),
+                    "location": ApplicationTrackingService._location_text(app.get("location")),
                     "priority": app.get("priority", "medium"),
                     "documents_count": len(app.get("documents", [])),
                     "communications_count": len(app.get("communications", [])),

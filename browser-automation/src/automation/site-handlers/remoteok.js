@@ -10,14 +10,34 @@ class RemoteOKHandler extends GenericHandler {
         this.version = '2.2';
     }
 
-    // Override preparePage to click "Apply" button
+    jobIdFromUrl(url) {
+        const match = String(url || '').match(/(\d+)(?:[/?#]|$)/);
+        return match ? match[1] : null;
+    }
+
+    isAuthWall(url) {
+        return /remoteok\.com\/(?:sign-up|signup|sign-in|signin|login)\b/i.test(String(url || ''));
+    }
+
+    async waitForSettledUrl(page) {
+        const started = Date.now();
+        while (Date.now() - started < 8000) {
+            const current = page.url();
+            if (current && current !== 'about:blank' && !/remoteok\.com\/l\//.test(current)) {
+                return current;
+            }
+            await page.waitForTimeout(500);
+        }
+        return page.url();
+    }
+
+    // Open this job's apply link. RemoteOK sends logged-out visitors to sign-up.
     async preparePage(page) {
         console.log(`\n[RemoteOK V${this.version}] Handler engaged for ${page.url()}`);
 
         try {
             await page.waitForLoadState('domcontentloaded');
 
-            // Classification check
             const classifier = new PageClassifier(page);
             const pageType = await classifier.classify();
             console.log(`[RemoteOK] Current page type: ${pageType}`);
@@ -27,110 +47,53 @@ class RemoteOKHandler extends GenericHandler {
                 return page;
             }
 
-            console.log('[RemoteOK] Searching for Apply button...');
+            const jobId = this.jobIdFromUrl(page.url());
+            const applyLink = jobId
+                ? page.locator(`a.action-apply[href*="/l/${jobId}"]`).first()
+                : page.locator('a.action-apply').first();
 
-            // Scroll to ensure buttons load
-            await page.evaluate(() => window.scrollTo(0, 500));
-            await page.waitForTimeout(1000);
-
-            const strategies = [
-                async () => page.$('.apply_now'),
-                async () => page.$('.action-apply'),
-                async () => page.$('.apply_button'),
-                async () => page.$('a[href*="/apply"]'),
-                async () => page.$('a[href*="/l/"]'), // RemoteOK application redirect links
-                async () => page.getByText(/^Apply now$/i).first(),
-                async () => page.getByText(/^Apply for this job$/i).first(),
-                async () => page.getByRole('button', { name: /apply/i }).first(),
-                async () => page.getByRole('link', { name: /apply/i }).first(),
-                async () => {
-                    return await page.evaluateHandle(() => {
-                        const all = document.querySelectorAll('a, button, [role="button"]');
-                        for (const el of all) {
-                            const text = (el.innerText || el.textContent || '').toLowerCase();
-                            // Require "apply" in text and ensure it's not just a single letter (like company initials)
-                            if (text.includes('apply') && text.length > 1 && el.offsetWidth > 0 && el.offsetHeight > 0) return el;
-                        }
-                        return null;
-                    }).then(h => h.asElement());
-
-                }
-            ];
-
-            const context = page.context();
-            const pagesBefore = context.pages().length;
-
-            for (const findStrategy of strategies) {
-                try {
-                    const element = await findStrategy();
-                    if (element && await element.isVisible()) {
-                        const text = await element.evaluate(el => (el.innerText || el.textContent || '').trim());
-                        console.log(`[RemoteOK] Found button: "${text}". Clicking...`);
-
-                        const newPagePromise = new Promise((resolve) => {
-                            const timeout = setTimeout(() => resolve(null), 8000); // 8s timeout
-                            context.once('page', (newPage) => {
-                                clearTimeout(timeout);
-                                resolve(newPage);
-                            });
-                        });
-
-                        // Attempt click
-                        try {
-                            await element.click({ timeout: 5000 });
-                        } catch (clickErr) {
-                            console.log('[RemoteOK] Click failed, trying dispatchEvent.');
-                            await element.dispatchEvent('click');
-                        }
-
-                        const newPage = await newPagePromise;
-                        let pageToCheck = newPage || page;
-
-                        if (newPage) {
-                            console.log('[RemoteOK] New tab detected!');
-                            await newPage.waitForLoadState('domcontentloaded').catch(() => { });
-                        } else {
-                            // Check fallback
-                            await page.waitForTimeout(2000);
-                            const pagesNow = context.pages();
-                            if (pagesNow.length > pagesBefore) {
-                                const newest = pagesNow.find(p => p !== page && !p.isClosed());
-                                if (newest) {
-                                    console.log('[RemoteOK] Found new tab via context fallback.');
-                                    pageToCheck = newest;
-                                    await newest.waitForLoadState('domcontentloaded').catch(() => { });
-                                }
-                            }
-                        }
-
-                        // CRITICAL: Check if we landed on a login/registration wall
-                        console.log('[RemoteOK] Classifying resulting page...');
-                        const resultClassifier = new PageClassifier(pageToCheck);
-                        const resultType = await resultClassifier.classify();
-                        console.log(`[RemoteOK] Resulting page type: ${resultType}`);
-
-                        if (resultType === 'login' || resultType === 'register') {
-                            console.warn('[RemoteOK] Login wall detected. Cancellation required.');
-                            throw new Error('LOGIN_REQUIRED');
-                        }
-
-                        if (resultType === 'application') {
-                            console.log('[RemoteOK] Application form detected!');
-                            return pageToCheck;
-                        }
-
-                        console.log('[RemoteOK] Page type inconclusive, continuing search...');
-                    }
-                } catch (strategyErr) {
-                    if (strategyErr.message === 'LOGIN_REQUIRED') throw strategyErr;
-                    console.error(`[RemoteOK] Strategy failed: ${strategyErr.message}`);
-                }
+            if (await applyLink.count() === 0) {
+                console.warn('[RemoteOK] No apply link for this job.');
+                return page;
             }
 
-            console.warn('[RemoteOK] No apply button succeeded.');
-            return page;
+            const href = await applyLink.getAttribute('href');
+            const destinationUrl = new URL(href, page.url()).href;
+            console.log(`[RemoteOK] Opening apply link for job ${jobId || 'unknown'}: ${destinationUrl}`);
 
+            await applyLink.scrollIntoViewIfNeeded();
+            const context = page.context();
+            const newPagePromise = context.waitForEvent('page', { timeout: 10000 }).catch(() => null);
+            await applyLink.click({ timeout: 8000 });
+            let destinationPage = await newPagePromise;
+            if (!destinationPage) {
+                destinationPage = await context.newPage();
+                await destinationPage.goto(destinationUrl, {
+                    waitUntil: 'domcontentloaded',
+                    timeout: 60000,
+                    referer: page.url(),
+                });
+            } else {
+                await destinationPage.waitForLoadState('domcontentloaded').catch(() => { });
+            }
+
+            const destination = await this.waitForSettledUrl(destinationPage);
+            console.log(`[RemoteOK] Destination: ${destination}`);
+
+            if (this.isAuthWall(destination)) {
+                console.warn('[RemoteOK] Account wall detected.');
+                throw new Error('LOGIN_REQUIRED');
+            }
+
+            const resultType = await new PageClassifier(destinationPage).classify();
+            console.log(`[RemoteOK] Resulting page type: ${resultType}`);
+            if (resultType === 'login' || resultType === 'register' || resultType === 'captcha') {
+                throw new Error('LOGIN_REQUIRED');
+            }
+
+            return destinationPage;
         } catch (error) {
+            if (error.message === 'LOGIN_REQUIRED') throw error;
             console.error('[RemoteOK] prepPage error:', error.message);
             return page;
         }

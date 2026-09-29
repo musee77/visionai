@@ -42,7 +42,8 @@ const PricingPlans = (function () {
             isPopular: false,
             features: [
                 'Manual applications with no monthly cap',
-                'Upload and reuse cover letters',
+                'Customize a CV for each job',
+                'Select a cover letter when you apply',
                 'Billed monthly'
             ],
             limitations: [

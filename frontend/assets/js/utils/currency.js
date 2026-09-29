@@ -243,29 +243,11 @@
         },
 
         /**
-         * Initialize currency from geolocation
-         * Uses CVision.Geolocation if available
+         * Load display rates. Location from IP is only a job filter, not a currency.
          */
         async initFromGeolocation() {
-            if (global.CVision && global.CVision.Geolocation) {
-                await global.CVision.Geolocation.detect();
-                const countryCode = global.CVision.Geolocation.getCountryCode(); // e.g. 'KE'
-
-                // Default to USD base rates
-                await this.fetchRates('USD');
-
-                if (countryCode === 'KE') {
-                    // Kenya -> KES
-                    this.setUserCurrency('KES');
-                } else {
-                    // Everyone else -> USD
-                    this.setUserCurrency('USD');
-                }
-            } else {
-                // Fallback
-                this.setUserCurrency('USD');
-                await this.fetchRates('USD');
-            }
+            this.setUserCurrency('USD');
+            await this.fetchRates('USD');
         }
     };
 

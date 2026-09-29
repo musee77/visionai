@@ -153,9 +153,19 @@ class CvUploader {
             this.handleFileSelect(e);
         });
 
+        const coverLabel = document.getElementById('coverLetterDropLabel') || this.coverDropZone?.querySelector('p');
+        const coverLocked = window.PremiumGuard && !PremiumGuard.hasAccess('COVER_LETTER');
+        if (coverLabel && coverLocked) {
+            coverLabel.textContent = 'Upgrade to add a cover letter';
+        }
+
         this.coverDropZone.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
+            if (window.PremiumGuard && !PremiumGuard.hasAccess('COVER_LETTER')) {
+                PremiumGuard.enforce('COVER_LETTER', 'Upgrade', 'Selecting a cover letter is included on Basic and Premium.');
+                return;
+            }
             this.documentType = 'cover_letter';
             this.coverFileInput.click();
         });
@@ -245,6 +255,22 @@ class CvUploader {
             this.handleError(validation.error);
             this.resetInput();
             return;
+        }
+
+        if (this.getDocumentType() === 'cover_letter') {
+            const tier = (window.CVision?.Utils?.getUser()?.subscription_tier || 'free').toLowerCase();
+            const allowed = window.PremiumGuard
+                ? PremiumGuard.hasAccess('COVER_LETTER')
+                : tier === 'basic' || tier === 'premium';
+            if (!allowed) {
+                if (window.PremiumGuard) {
+                    PremiumGuard.enforce('COVER_LETTER', 'Included on Basic', 'Selecting a cover letter is included on Basic and Premium.');
+                } else {
+                    this.handleError('Selecting a cover letter is included on Basic and Premium.');
+                }
+                this.resetInput();
+                return;
+            }
         }
 
         // Only CV uploads replace an existing CV; cover letters can be uploaded repeatedly.

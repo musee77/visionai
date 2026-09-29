@@ -241,8 +241,22 @@ const CVisionNavbar = (function () {
             }
         }
 
-        // Dispatch custom event for other components
+        labelLockedActions();
+
         window.dispatchEvent(new CustomEvent('userInfoLoaded', { detail: user }));
+    }
+
+    function labelLockedActions() {
+        const autoApplyLocked = window.PremiumGuard && !PremiumGuard.hasAccess('AUTO_APPLY');
+        document.querySelectorAll('.js-auto-apply-link').forEach((link) => {
+            const label = link.querySelector('.js-auto-apply-label');
+            if (label) label.textContent = autoApplyLocked ? 'Upgrade to Auto-Apply' : 'Auto-Apply';
+            link.onclick = (event) => {
+                if (!autoApplyLocked) return;
+                event.preventDefault();
+                PremiumGuard.enforce('AUTO_APPLY', 'Upgrade', 'Automated applications are included on Premium.');
+            };
+        });
     }
 
     // Get current user info

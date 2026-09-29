@@ -125,10 +125,10 @@
 
     <script src="/assets/js/config.js"></script>
     <script src="/assets/js/utils/api.js"></script>
-    <script src="/assets/js/components/navbar.js?v=1.2"></script>
+    <script src="/assets/js/components/navbar.js?v=1.4"></script>
     <script>
         // Load Navbar
-        fetch('/components/navbar.html')
+        fetch('/components/navbar.html?v=1.4')
             .then(res => res.text())
             .then(html => {
                 document.getElementById('navbar-container').innerHTML = html;

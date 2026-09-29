@@ -106,29 +106,30 @@ class RemoteOKClient:
         skills = [tag for tag in tags if tag and len(tag) < 30][:10]
         
         # Build description
-        description = job_data.get('description', '')
-        if not description:
+        description = job_data.get('description', '') or ''
+        if len(description.strip()) < 10:
             description = f"Remote position at {job_data.get('company', 'Unknown')}."
             if skills:
                 description += f" Skills: {', '.join(skills[:5])}"
-        
-        # Parse date
-        posted_date = self._parse_epoch(job_data.get('epoch'))
+
+        url = job_data.get('url') or job_data.get('apply_url') or None
+        if isinstance(url, str):
+            url = url.strip() or None
+        external_id = job_data.get('id', job_data.get('slug', ''))
         
         return JobCreate(
-            title=job_data.get('position', 'Unknown Position'),
-            company_name=job_data.get('company', 'Unknown Company'),
-            location=location,
-            description=description[:1000],  # Limit description length
+            title=str(job_data.get('position') or 'Unknown Position')[:200],
+            company_name=str(job_data.get('company') or 'Unknown Company').strip()[:100],
+            location=str(location)[:200],
+            description=description[:5000],
             employment_type=employment_type,
             work_arrangement=work_arrangement,
             skills_required=skills,
             salary_range=salary_range,
-            application_url=job_data.get('url', ''),
+            application_url=url,
+            external_url=url,
             source=JobSource.JOB_BOARD,
-            external_id=job_data.get('id', job_data.get('slug', '')),
-            posted_date=posted_date,
-            company_logo_url=job_data.get('company_logo')
+            external_id=str(external_id) if external_id else None,
         )
     
     def _parse_epoch(self, epoch: Optional[int]) -> datetime:

@@ -1,11 +1,15 @@
 window.ApplicationsTab = {
-    async load() {
+    pageSize: 10,
+    currentPage: 1,
+
+    async load(resetPage = false) {
+        if (resetPage) this.currentPage = 1;
         const status = document.getElementById('filter-status')?.value || '';
         const priority = document.getElementById('filter-priority')?.value || '';
         const company = document.getElementById('filter-company')?.value || '';
-        let url = `${API_BASE_URL}/api/v1/applications/?page=1&size=50`;
-        if (status) url += `&status=${status}`;
-        if (priority) url += `&priority=${priority}`;
+        let url = `${API_BASE_URL}/api/v1/applications/?page=${this.currentPage}&size=${this.pageSize}`;
+        if (status) url += `&status=${encodeURIComponent(status)}`;
+        if (priority) url += `&priority=${encodeURIComponent(priority)}`;
         if (company) url += `&company=${encodeURIComponent(company)}`;
 
         try {
@@ -14,12 +18,12 @@ window.ApplicationsTab = {
             });
             if (!response.ok) throw new Error('Failed');
             const data = await response.json();
-            console.log('DEBUG loadApplications: API returned', data.applications?.length || 0, 'apps, total:', data.total);
             window.allApplications = data.applications || [];
             if (window.JobActions) {
                 window.JobActions.setAppliedJobs(data.applications || []);
             }
             displayApplications(data.applications || []);
+            this.renderPagination(data);
         } catch (error) {
             console.error('Load applications error:', error);
             const container = document.getElementById('applicationsList');
@@ -27,6 +31,38 @@ window.ApplicationsTab = {
                 container.innerHTML = '<div class="bg-white rounded-lg border p-6 text-center"><p class="text-red-600">Failed to load applications</p></div>';
             }
         }
+    },
+
+    renderPagination(data) {
+        const list = document.getElementById('applicationsList');
+        if (!list) return;
+        let bar = document.getElementById('applicationsPagination');
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.id = 'applicationsPagination';
+            bar.className = 'flex flex-wrap items-center justify-center gap-2 mt-6';
+            list.insertAdjacentElement('afterend', bar);
+        }
+        const pages = data.pages || 1;
+        const total = data.total || 0;
+        if (pages <= 1) {
+            bar.innerHTML = '';
+            return;
+        }
+        const current = this.currentPage;
+        const buttons = [];
+        buttons.push(`<button type="button" class="px-3 py-1 border rounded-lg ${current === 1 ? 'text-gray-300' : ''}" ${current === 1 ? 'disabled' : ''} onclick="ApplicationsTab.goTo(${current - 1})">Previous</button>`);
+        for (let page = 1; page <= pages; page += 1) {
+            const active = page === current ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-300 text-gray-700';
+            buttons.push(`<button type="button" class="px-3 py-1 border rounded-lg ${active}" onclick="ApplicationsTab.goTo(${page})">${page}</button>`);
+        }
+        buttons.push(`<button type="button" class="px-3 py-1 border rounded-lg ${current === pages ? 'text-gray-300' : ''}" ${current === pages ? 'disabled' : ''} onclick="ApplicationsTab.goTo(${current + 1})">Next</button>`);
+        bar.innerHTML = `<span class="text-sm text-gray-500 mr-2">${total} applied</span>` + buttons.join('');
+    },
+
+    goTo(page) {
+        this.currentPage = page;
+        this.load(false);
     },
 
     clearFilters() {
@@ -38,12 +74,12 @@ window.ApplicationsTab = {
         if (priorityFilter) priorityFilter.value = '';
         if (companyFilter) companyFilter.value = '';
 
-        this.load();
+        this.load(true);
     }
 };
 
 // Expose clearFilters globally for HTML onclick binding
-window.loadApplications = () => window.ApplicationsTab.load();
+window.loadApplications = () => window.ApplicationsTab.load(true);
 window.clearFilters = () => window.ApplicationsTab.clearFilters();
 
 // ==========================================
@@ -72,9 +108,9 @@ function displayApplications(applications, containerId = 'applicationsList') {
             <div class="bg-white rounded-lg border p-6 hover:shadow-md transition cursor-pointer" onclick="viewApplicationDetails('${app._id || app.id}')">
                 <div class="flex justify-between items-start mb-4">
                     <div class="flex-1">
-                        <h3 class="text-lg font-semibold">${app.job_title}</h3>
-                        <p class="text-gray-600 mt-1">${app.company_name}</p>
-                        <p class="text-gray-500 text-sm mt-1">${app.location || 'Remote'}</p>
+                        <h3 class="text-lg font-semibold">${app.job_title || 'Untitled role'}</h3>
+                        <p class="text-gray-600 mt-1">${app.company_name || 'Company not listed'}</p>
+                        <p class="text-gray-500 text-sm mt-1">${app.location || 'Location not listed'}</p>
                     </div>
                     <div class="flex flex-col items-end gap-2">
                         ${getStatusBadge(app.status)}
@@ -82,7 +118,7 @@ function displayApplications(applications, containerId = 'applicationsList') {
                     </div>
                 </div>
                 <div class="flex justify-between items-center text-sm text-gray-500">
-                    <span>Applied: ${formatDate(app.created_at)}</span>
+                    <span>Applied: ${formatDate(app.applied_date || app.created_at)}</span>
                         ${isResponseTab ?
                     `<span class="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs font-medium">Response Received</span>` :
                     (app.source ? getSourceBadge(app.source) : '')

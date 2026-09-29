@@ -28,6 +28,8 @@ class DocumentManager {
             'text/plain'
         ];
         this.currentDocuments = [];
+        this.pageSize = 6;
+        this.currentPage = 1;
         this.init();
     }
 
@@ -77,6 +79,17 @@ class DocumentManager {
             const target = e.target.closest('button');
             if (!target) return;
 
+            if (target.classList.contains('documents-page-btn')) {
+                const page = Number(target.dataset.page);
+                const pages = Math.ceil(this.currentDocuments.length / this.pageSize);
+                if (page >= 1 && page <= pages && page !== this.currentPage) {
+                    this.currentPage = page;
+                    this.renderDocuments(this.currentDocuments);
+                    document.getElementById('documentsContainer')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+                return;
+            }
+
             const documentId = target.dataset.documentId;
             if (!documentId) return;
 
@@ -84,10 +97,13 @@ class DocumentManager {
                 this.deleteDocument(documentId);
             } else if (target.classList.contains('reparse-document-btn')) {
                 this.reparseDocument(documentId);
-            } else if (target.classList.contains('customize-cv-btn')) {
-                this.showCustomizationModal(documentId);
-            } else if (target.classList.contains('generate-cover-letter-btn')) {
-                this.showCoverLetterModal(documentId);
+            } else if (target.classList.contains('customize-cv-btn') || target.classList.contains('generate-cover-letter-btn')) {
+                if (!this.canUseBasicDocuments()) return;
+                if (target.classList.contains('customize-cv-btn')) {
+                    this.showCustomizationModal(documentId);
+                } else {
+                    this.showCoverLetterModal(documentId);
+                }
             }
         });
 
@@ -155,7 +171,7 @@ class DocumentManager {
 
             this.hideLoading();
             this.showAlert(documentType === 'cover_letter' ? 'Cover letter uploaded successfully!' : 'CV uploaded and processed successfully!', 'success');
-            await this.loadDocuments();
+            await this.loadDocuments(true);
 
             // Clear file input
             const fileInput = document.getElementById('cvFileInput');
@@ -212,7 +228,7 @@ class DocumentManager {
         }
     }
 
-    async loadDocuments() {
+    async loadDocuments(resetPage = false) {
         try {
             const url = `${this.apiBaseUrl}/`;
             console.log('📥 Fetching documents from:', url);
@@ -229,6 +245,9 @@ class DocumentManager {
 
             const data = await response.json();
             this.currentDocuments = data.documents || [];
+            if (resetPage) this.currentPage = 1;
+            const pages = Math.max(1, Math.ceil(this.currentDocuments.length / this.pageSize));
+            if (this.currentPage > pages) this.currentPage = pages;
             this.renderDocuments(this.currentDocuments);
             this.updateDocumentCount(this.currentDocuments.length);
 
@@ -259,10 +278,55 @@ class DocumentManager {
                     <p class="text-sm">Upload your CV to get started with AI-powered customization</p>
                 </div>
             `;
+            this.renderPagination(0);
             return;
         }
 
-        container.innerHTML = documents.map(doc => this.renderDocumentCard(doc)).join('');
+        const start = (this.currentPage - 1) * this.pageSize;
+        const pageItems = documents.slice(start, start + this.pageSize);
+        container.innerHTML = pageItems.map(doc => this.renderDocumentCard(doc)).join('');
+        this.renderPagination(documents.length);
+    }
+
+    renderPagination(total) {
+        const nav = document.getElementById('documentsPagination');
+        if (!nav) return;
+
+        const pages = Math.ceil(total / this.pageSize);
+        if (pages <= 1) {
+            nav.innerHTML = '';
+            nav.classList.add('hidden');
+            return;
+        }
+
+        const start = (this.currentPage - 1) * this.pageSize + 1;
+        const end = Math.min(this.currentPage * this.pageSize, total);
+        const pageButton = (page) => {
+            const current = page === this.currentPage;
+            return `<button type="button" class="documents-page-btn min-w-9 px-3 py-2 text-sm font-semibold rounded-lg border ${current ? 'bg-primary-600 text-white border-primary-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}" data-page="${page}" ${current ? 'aria-current="page"' : ''}>${page}</button>`;
+        };
+        const numbers = [];
+        const pushPage = (page) => numbers.push(pageButton(page));
+        if (pages <= 7) {
+            for (let page = 1; page <= pages; page += 1) pushPage(page);
+        } else {
+            pushPage(1);
+            const windowStart = Math.max(2, this.currentPage - 1);
+            const windowEnd = Math.min(pages - 1, this.currentPage + 1);
+            if (windowStart > 2) numbers.push('<span class="px-1 text-gray-400">…</span>');
+            for (let page = windowStart; page <= windowEnd; page += 1) pushPage(page);
+            if (windowEnd < pages - 1) numbers.push('<span class="px-1 text-gray-400">…</span>');
+            pushPage(pages);
+        }
+        nav.classList.remove('hidden');
+        nav.innerHTML = `
+            <p class="text-sm text-gray-500">${start}–${end} of ${total}</p>
+            <nav class="flex flex-wrap items-center gap-2" aria-label="Documents pages">
+                <button type="button" class="documents-page-btn px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed" data-page="${this.currentPage - 1}" ${this.currentPage === 1 ? 'disabled' : ''}>Previous</button>
+                ${numbers.join('')}
+                <button type="button" class="documents-page-btn px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed" data-page="${this.currentPage + 1}" ${this.currentPage === pages ? 'disabled' : ''}>Next</button>
+            </nav>
+        `;
     }
 
     renderDocumentCard(document) {
@@ -299,11 +363,11 @@ class DocumentManager {
                         ${hasValidData ? `
                             <button class="customize-cv-btn bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap" 
                                     data-document-id="${document.id}">
-                                ✨ Customize CV
+                                ${this.hasBasicDocuments() ? '✨ Customize CV' : 'Upgrade to Customize CV'}
                             </button>
                             <button class="generate-cover-letter-btn bg-green-600 hover:bg-green-700 text-white px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap" 
                                     data-document-id="${document.id}">
-                                📝 Cover Letter
+                                ${this.hasBasicDocuments() ? '📝 Cover Letter' : 'Upgrade to Cover Letter'}
                             </button>
                         ` : ''}
                         <button class="reparse-document-btn bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap" 
@@ -445,6 +509,17 @@ class DocumentManager {
             modal.classList.remove('hidden');
             modal.classList.add('flex');
         }
+    }
+
+    hasBasicDocuments() {
+        const tier = (window.CVision?.Utils?.getUser()?.subscription_tier || 'free').toLowerCase();
+        return tier === 'basic' || tier === 'premium';
+    }
+
+    canUseBasicDocuments() {
+        if (this.hasBasicDocuments()) return true;
+        this.showAlert('Upgrade to Basic to customize a CV and select a cover letter.', 'warning');
+        return false;
     }
 
     async handleCustomizeCv(e) {

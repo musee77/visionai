@@ -73,7 +73,7 @@ async def upload_cv(
             if not has_cover_letter_access:
                 raise HTTPException(
                     status_code=402,
-                    detail="Upload a cover letter requires the Manual Apply + Cover Letter offer"
+                    detail="Selecting a cover letter is included on Basic and Premium."
                 )
             result = await document_service.process_cover_letter_upload(file, user_id)
         else:

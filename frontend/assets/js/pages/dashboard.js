@@ -15,6 +15,7 @@ let automationEnabled = false;
 
 async function initializeDashboard() {
     CVision.initUserInfo();
+    labelLockedDashboardActions();
 
     // Check if Gmail was just connected
     const urlParams = new URLSearchParams(window.location.search);
@@ -29,6 +30,7 @@ async function initializeDashboard() {
     }
 
     await loadUserProfile();
+    labelLockedDashboardActions();
     await loadDashboardStats(); // Load detailed stats
     await loadDocuments();
     await uploadPendingLandingCv();
@@ -240,6 +242,8 @@ async function uploadPendingLandingCv() {
             document.getElementById('documentsCount').textContent = documents.length;
             document.getElementById('documentsCountText').textContent =
                 `${documents.length} doc${documents.length !== 1 ? 's' : ''}`;
+            const viewMore = document.getElementById('documentsViewMore');
+            if (viewMore) viewMore.classList.toggle('hidden', documents.length <= 2);
 
         } catch (error) {
             CVision.Utils.showAlert('Failed to load documents', 'error');
@@ -250,6 +254,7 @@ async function uploadPendingLandingCv() {
                     <button onclick="loadDocuments()" class="text-xs text-blue-600 hover:underline mt-2">Retry</button>
                 </div>
             `;
+            document.getElementById('documentsViewMore')?.classList.add('hidden');
         }
     }
 
@@ -269,7 +274,7 @@ async function uploadPendingLandingCv() {
             return;
         }
 
-        documentsList.innerHTML = documents.map(doc => {
+        documentsList.innerHTML = documents.slice(0, 2).map(doc => {
             const filename = doc.filename || (doc.file_info && doc.file_info.original_filename) || 'Unknown file';
             const fileSize = doc.file_size || (doc.file_info && doc.file_info.file_size) || 0;
             const uploadDate = doc.upload_date || doc.created_at || new Date().toISOString();
@@ -382,6 +387,25 @@ async function uploadPendingLandingCv() {
 
     function upgradeAccount() {
         window.location.href = 'pages/subscription.html';
+    }
+
+    function openAutoApply() {
+        if (window.PremiumGuard && !PremiumGuard.hasAccess('AUTO_APPLY')) {
+            PremiumGuard.enforce('AUTO_APPLY', 'Upgrade', 'Automated applications are included on Premium.');
+            return;
+        }
+        window.location.href = '/pages/auto-apply.html';
+    }
+
+    function labelLockedDashboardActions() {
+        const autoApplyLocked = window.PremiumGuard && !PremiumGuard.hasAccess('AUTO_APPLY');
+        const autoApplyLabel = document.getElementById('dashboardAutoApplyLabel');
+        if (autoApplyLabel && autoApplyLocked) autoApplyLabel.textContent = 'Upgrade to Auto-Apply';
+
+        const coverLabel = document.getElementById('coverLetterDropLabel');
+        if (coverLabel && window.PremiumGuard && !PremiumGuard.hasAccess('COVER_LETTER')) {
+            coverLabel.textContent = 'Upgrade to add a cover letter';
+        }
     }
 
     function viewProfile() {
@@ -634,6 +658,7 @@ async function uploadPendingLandingCv() {
     window.searchJobs = searchJobs;
     window.viewApplications = viewApplications;
     window.upgradeAccount = upgradeAccount;
+    window.openAutoApply = openAutoApply;
     window.viewJobDetails = viewJobDetails;
     window.unsaveJob = unsaveJob;
     window.closeAutomationPanel = closeAutomationPanel;

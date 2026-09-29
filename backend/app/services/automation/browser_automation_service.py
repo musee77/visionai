@@ -67,7 +67,7 @@ class BrowserAutomationService:
             if not job:
                 raise ValueError(f"Job {job_id} not found")
             
-            application_url = job.get("external_url") or job.get("apply_url")
+            application_url = job.get("application_url") or job.get("external_url") or job.get("apply_url")
             if not application_url:
                 raise ValueError("Job has no application URL")
             

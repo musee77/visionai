@@ -178,11 +178,18 @@
                 };
 
                 const detectedCode = tzCountryMap[timezone];
+                const countryNames = {
+                    KE: 'Kenya', NG: 'Nigeria', ZA: 'South Africa', EG: 'Egypt', GH: 'Ghana', UG: 'Uganda',
+                    US: 'United States', CA: 'Canada', MX: 'Mexico', GB: 'United Kingdom', FR: 'France',
+                    DE: 'Germany', NL: 'Netherlands', IT: 'Italy', ES: 'Spain', AE: 'United Arab Emirates',
+                    IN: 'India', JP: 'Japan', SG: 'Singapore', CN: 'China', KR: 'South Korea',
+                    AU: 'Australia', NZ: 'New Zealand'
+                };
                 if (detectedCode && COUNTRY_CURRENCY_MAP[detectedCode]) {
                     locationData = {
                         detected: true,
                         countryCode: detectedCode,
-                        countryName: detectedCode,
+                        countryName: countryNames[detectedCode] || detectedCode,
                         city: null,
                         region: null,
                         currency: COUNTRY_CURRENCY_MAP[detectedCode],

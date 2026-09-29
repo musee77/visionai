@@ -66,11 +66,32 @@ class GenericApiConnector(JobConnector):
         )
 
 
-def build_job_connectors() -> List[JobConnector]:
-    """Build enabled connectors from the current application configuration."""
-    from app.core.config import settings
+class RemoteOKConnector(JobConnector):
+    """Public RemoteOK JSON API. No key required."""
 
+    name = "remoteok"
+
+    async def search(self, query: str, location: str, limit: int) -> List[JobCreate]:
+        from app.integrations.job_boards.remoteok_client import RemoteOKClient
+
+        client = RemoteOKClient()
+        broad = not query or query.strip().lower() in {"jobs", "job", "remote"}
+        raw_jobs = await client.search_jobs(query=None if broad else query, limit=limit)
+        jobs: List[JobCreate] = []
+        for raw_job in raw_jobs:
+            try:
+                jobs.append(client.normalize_job(raw_job))
+            except Exception as exc:
+                logger.warning("Skipping RemoteOK job: %s", exc)
+        return jobs
+
+
+def build_job_connectors() -> List[JobConnector]:
+    """Company career pages first, then RemoteOK and any JOB_API_URLS."""
+    from app.core.config import settings
+    from app.integrations.job_boards.company_apply import CompanyApplyConnector
+
+    connectors: List[JobConnector] = [CompanyApplyConnector(), RemoteOKConnector()]
     configured_urls = [url.strip() for url in settings.JOB_API_URLS.split(",") if url.strip()]
-    if not configured_urls:
-        logger.warning("No job APIs configured: set JOB_API_URLS in .env")
-    return [GenericApiConnector(url) for url in configured_urls]
+    connectors.extend(GenericApiConnector(url) for url in configured_urls)
+    return connectors
