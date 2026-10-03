@@ -520,6 +520,24 @@ if (document.readyState === 'loading') {
 }
 
 // Expose globals
+const APPLY_JOB_KEY = 'cvision_apply_job';
+
+function rememberApplyJob() {
+    const jobId = new URLSearchParams(window.location.search).get('apply_job');
+    if (jobId && /^[a-f0-9]{24}$/i.test(jobId)) {
+        sessionStorage.setItem(APPLY_JOB_KEY, jobId);
+    }
+}
+
+async function openPendingApplication() {
+    rememberApplyJob();
+    const jobId = sessionStorage.getItem(APPLY_JOB_KEY);
+    if (!jobId) return false;
+    sessionStorage.removeItem(APPLY_JOB_KEY);
+    window.location.href = `/pages/jobs.html?job=${encodeURIComponent(jobId)}`;
+    return true;
+}
+
 window.CVision = window.CVision || {};
 Object.assign(window.CVision, {
     Utils,
@@ -535,5 +553,7 @@ Object.assign(window.CVision, {
     showAlert: (message, type) => Utils.showAlert(message, type),
     showMessage: (message, type) => Utils.showAlert(message, type), // Alias for showAlert
     formatDate: (date) => Utils.formatDate(date),
-    formatFileSize: (size) => Utils.formatFileSize(size)
+    formatFileSize: (size) => Utils.formatFileSize(size),
+    rememberApplyJob,
+    openPendingApplication
 });

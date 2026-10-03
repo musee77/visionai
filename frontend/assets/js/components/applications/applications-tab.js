@@ -52,10 +52,17 @@ window.ApplicationsTab = {
         const current = this.currentPage;
         const buttons = [];
         buttons.push(`<button type="button" class="px-3 py-1 border rounded-lg ${current === 1 ? 'text-gray-300' : ''}" ${current === 1 ? 'disabled' : ''} onclick="ApplicationsTab.goTo(${current - 1})">Previous</button>`);
-        for (let page = 1; page <= pages; page += 1) {
+        const visible = new Set([1, pages, current - 2, current - 1, current, current + 1, current + 2]);
+        const pageNumbers = [...visible].filter((page) => page >= 1 && page <= pages).sort((a, b) => a - b);
+        let previous = 0;
+        pageNumbers.forEach((page) => {
+            if (page - previous > 1) {
+                buttons.push('<span class="px-2 text-gray-400">…</span>');
+            }
             const active = page === current ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-300 text-gray-700';
             buttons.push(`<button type="button" class="px-3 py-1 border rounded-lg ${active}" onclick="ApplicationsTab.goTo(${page})">${page}</button>`);
-        }
+            previous = page;
+        });
         buttons.push(`<button type="button" class="px-3 py-1 border rounded-lg ${current === pages ? 'text-gray-300' : ''}" ${current === pages ? 'disabled' : ''} onclick="ApplicationsTab.goTo(${current + 1})">Next</button>`);
         bar.innerHTML = `<span class="text-sm text-gray-500 mr-2">${total} applied</span>` + buttons.join('');
     },
@@ -86,13 +93,28 @@ window.clearFilters = () => window.ApplicationsTab.clearFilters();
 // MOVED LOGIC FROM applications.js
 // ==========================================
 
+function applicationsFiltersActive() {
+    return Boolean(
+        document.getElementById('filter-status')?.value
+        || document.getElementById('filter-priority')?.value
+        || document.getElementById('filter-company')?.value
+    );
+}
+
 function displayApplications(applications, containerId = 'applicationsList') {
     const container = document.getElementById(containerId);
     if (!container) return;
 
     if (!applications || applications.length === 0) {
-        container.innerHTML = `
-            <div class="bg-white rounded-lg border p-12 text-center">
+        const filtered = containerId === 'applicationsList' && applicationsFiltersActive();
+        container.innerHTML = filtered ? `
+            <div class="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+                <h3 class="text-lg font-medium mb-2">No matching applications</h3>
+                <p class="text-gray-600 mb-6">Nothing matches these filters.</p>
+                <button type="button" onclick="clearFilters()" class="px-6 py-2 rounded-lg border border-gray-300 text-gray-700">Clear filters</button>
+            </div>
+        ` : `
+            <div class="bg-white rounded-2xl border border-gray-100 p-12 text-center">
                 <h3 class="text-lg font-medium mb-2">No Applications Yet</h3>
                 <p class="text-gray-600 mb-6">Start applying to jobs to track them here</p>
                 <a href="jobs.html" class="btn-gradient text-white px-6 py-2 rounded-lg inline-block">Search Jobs</a>
@@ -102,36 +124,50 @@ function displayApplications(applications, containerId = 'applicationsList') {
     }
 
     try {
-        const htmlParts = applications.map((app, index) => {
+        const htmlParts = applications.map((app) => {
             const isResponseTab = containerId === 'responsesList';
+            const appId = escapeHtml(app._id || app.id || '');
+            const jobId = escapeHtml(app.job_id || '');
+            const title = escapeHtml(app.job_title || 'Untitled role');
+            const company = escapeHtml(app.company_name || 'Company not listed');
+            const location = escapeHtml(app.location || 'Location not listed');
+            const preview = app.description_preview
+                ? `<p class="text-sm text-gray-600 leading-6 line-clamp-3 mb-4">${escapeHtml(app.description_preview)}</p>`
+                : '';
+            const seeJob = jobId ? `
+                <button type="button" onclick="openApplicationJob(event, '${jobId}')" class="px-4 py-2 text-sm font-medium text-primary-700 bg-primary-50 rounded-lg hover:bg-primary-100">See job</button>
+            ` : '';
             return `
-            <div class="bg-white rounded-lg border p-6 hover:shadow-md transition cursor-pointer" onclick="viewApplicationDetails('${app._id || app.id}')">
-                <div class="flex justify-between items-start mb-4">
-                    <div class="flex-1">
-                        <h3 class="text-lg font-semibold">${app.job_title || 'Untitled role'}</h3>
-                        <p class="text-gray-600 mt-1">${app.company_name || 'Company not listed'}</p>
-                        <p class="text-gray-500 text-sm mt-1">${app.location || 'Location not listed'}</p>
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-xl transition-all duration-300 cursor-pointer" onclick="viewApplicationDetails('${appId}')">
+                <div class="flex justify-between items-start gap-4 mb-3">
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-lg font-bold text-gray-900 leading-tight line-clamp-2">${title}</h3>
+                        <p class="text-gray-700 font-medium mt-1">${company}</p>
+                        <p class="text-gray-500 text-sm mt-1">${location}</p>
                     </div>
-                    <div class="flex flex-col items-end gap-2">
+                    <div class="flex flex-col items-end gap-2 shrink-0">
                         ${getStatusBadge(app.status)}
                         ${app.priority ? getPriorityBadge(app.priority) : ''}
                     </div>
                 </div>
-                <div class="flex justify-between items-center text-sm text-gray-500">
-                    <span>Applied: ${formatDate(app.applied_date || app.created_at)}</span>
-                        ${isResponseTab ?
-                    `<span class="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs font-medium">Response Received</span>` :
-                    (app.source ? getSourceBadge(app.source) : '')
-                }
+                ${preview}
+                <div class="flex flex-wrap justify-between items-center gap-3 text-sm text-gray-500 border-t border-gray-100 pt-4">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <span>Applied: ${formatDate(app.applied_date || app.created_at)}</span>
+                        ${isResponseTab
+                            ? '<span class="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs font-medium">Response Received</span>'
+                            : (app.source ? getSourceBadge(app.source) : '')}
+                    </div>
+                    <div class="flex items-center gap-3">
+                        ${seeJob}
+                        ${isResponseTab ? `
+                        <button type="button" onclick="viewResponseDetails(event, '${appId}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center">
+                            View Response
+                            <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                        </button>
+                        ` : ''}
+                    </div>
                 </div>
-                ${isResponseTab ? `
-                <div class="mt-4 pt-4 border-t border-gray-100 flex justify-end">
-                    <button onclick="viewResponseDetails(event, '${app._id || app.id}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center">
-                        View Response
-                        <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                    </button>
-                </div>
-                ` : ''}
             </div>
             `;
         });
@@ -141,6 +177,12 @@ function displayApplications(applications, containerId = 'applicationsList') {
     } catch (e) {
         console.error('Error displaying applications:', e);
     }
+}
+
+function openApplicationJob(event, jobId) {
+    if (event) event.stopPropagation();
+    if (!jobId) return;
+    window.location.href = `/pages/jobs.html?job=${encodeURIComponent(jobId)}`;
 }
 
 async function viewApplicationDetails(appId) {
@@ -181,18 +223,14 @@ function displayApplicationModal(app, timeline, job = null) {
     const isEmailApp = app.source === 'auto_apply';
     const monitoringEnabled = app.email_monitoring_enabled || false;
 
-    // Helper to format large text blocks (preserves newlines if plain text, or trusts HTML)
     const formatRichText = (text) => {
         if (!text) return '<p class="text-gray-500 italic">No information provided.</p>';
-        // Simple heuristic: if it contains HTML tags, treat as HTML
-        if (/<[a-z][\s\S]*>/i.test(text)) {
-            return `<div class="prose max-w-none text-gray-700 space-y-2">${text}</div>`;
+        if (window.JobModal && typeof window.JobModal.formatDescription === 'function') {
+            return window.JobModal.formatDescription(text);
         }
-        // Otherwise treat as plain text and maintain paragraphs
-        return text.split('\n').map(para =>
-            para.trim() ? `<p class="mb-4 text-gray-700 leading-relaxed">${para}</p>` : ''
-        ).join('');
+        return `<p class="mb-4 text-gray-700 leading-relaxed">${escapeHtml(text)}</p>`;
     };
+    const safeLink = (url) => /^https?:\/\//i.test(String(url || '')) ? escapeHtml(url) : '';
 
     const overviewContent = `
         <div class="grid grid-cols-2 gap-4 mb-6">
@@ -245,7 +283,7 @@ function displayApplicationModal(app, timeline, job = null) {
             <div class="space-y-3 max-h-64 overflow-y-auto">
                 ${timeline && timeline.length > 0 ? timeline.map(e => `
                     <div class="border-l-2 border-gray-200 pl-4 py-2">
-                        <p class="text-sm font-medium">${e.description}</p>
+                        <p class="text-sm font-medium">${escapeHtml(e.description || '')}</p>
                         <p class="text-xs text-gray-500">${formatDateTime(e.timestamp)}</p>
                     </div>
                 `).join('') : '<p class="text-gray-500 text-sm">No timeline events</p>'}
@@ -255,15 +293,19 @@ function displayApplicationModal(app, timeline, job = null) {
 
     const jobDescriptionContent = job ? formatRichText(job.description) : formatRichText(null);
 
-    // Build Company Tab Content
     const companyInfo = job?.company_info || {};
+    const website = safeLink(companyInfo.website);
+    const jobPageId = escapeHtml(app.job_id || '');
     const companyContent = `
         <div class="flex flex-col md:flex-row gap-6">
             <div class="flex-1">
-                <h4 class="text-md font-bold text-gray-900 mb-2">About Us</h4>
+                <h4 class="text-md font-bold text-gray-900 mb-2">${escapeHtml(app.company_name || 'Company')}</h4>
                 <div class="text-gray-700 leading-relaxed mb-6">
-                    ${formatRichText(companyInfo.description || 'No company description available.')}
+                    ${companyInfo.description
+                        ? formatRichText(companyInfo.description)
+                        : '<p class="text-gray-500 italic">Company details are not listed for this role.</p>'}
                 </div>
+                ${jobPageId ? `<a href="/pages/jobs.html?job=${encodeURIComponent(app.job_id)}" class="inline-flex text-sm font-medium text-primary-700">See job</a>` : ''}
             </div>
             
             <div class="w-full md:w-1/3 space-y-4">
@@ -273,24 +315,24 @@ function displayApplicationModal(app, timeline, job = null) {
                     ${companyInfo.industry ? `
                     <div class="mb-3">
                         <span class="text-xs text-gray-500 block mb-1">Industry</span>
-                        <span class="text-sm font-medium text-gray-800">${companyInfo.industry}</span>
+                        <span class="text-sm font-medium text-gray-800">${escapeHtml(companyInfo.industry)}</span>
                     </div>` : ''}
                     
                     ${companyInfo.size ? `
                     <div class="mb-3">
                         <span class="text-xs text-gray-500 block mb-1">Size</span>
-                        <span class="text-sm font-medium text-gray-800">${formatEnumValue(companyInfo.size)} Employees</span>
+                        <span class="text-sm font-medium text-gray-800">${escapeHtml(formatEnumValue(companyInfo.size))} Employees</span>
                     </div>` : ''}
                     
                     ${companyInfo.location ? `
                     <div class="mb-3">
                         <span class="text-xs text-gray-500 block mb-1">Headquarters</span>
-                        <span class="text-sm font-medium text-gray-800">${companyInfo.location}</span>
+                        <span class="text-sm font-medium text-gray-800">${escapeHtml(companyInfo.location)}</span>
                     </div>` : ''}
                     
-                    ${companyInfo.website ? `
+                    ${website ? `
                     <div class="mt-4 pt-3 border-t border-gray-200">
-                        <a href="${companyInfo.website}" target="_blank" class="text-blue-600 hover:underline text-sm flex items-center gap-1">
+                        <a href="${website}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline text-sm flex items-center gap-1">
                             Visit Website
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                         </a>
@@ -303,8 +345,8 @@ function displayApplicationModal(app, timeline, job = null) {
     modalContent.innerHTML = `
         <div class="flex justify-between mb-6">
             <div>
-                <h2 class="text-2xl font-bold">${app.job_title}</h2>
-                <p class="text-gray-600 mt-1">${app.company_name} ${app.location ? `<span class="mx-2">•</span> ${app.location}` : ''}</p>
+                <h2 class="text-2xl font-bold">${escapeHtml(app.job_title || 'Untitled role')}</h2>
+                <p class="text-gray-600 mt-1">${escapeHtml(app.company_name || 'Company not listed')}${app.location ? ` <span class="mx-2">•</span> ${escapeHtml(app.location)}` : ''}</p>
             </div>
             <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -697,6 +739,7 @@ function getMonitoringBadge(app) {
 
 // Expose functions globally
 window.displayApplications = displayApplications;
+window.openApplicationJob = openApplicationJob;
 window.viewApplicationDetails = viewApplicationDetails;
 window.displayApplicationModal = displayApplicationModal;
 window.closeModal = closeModal;

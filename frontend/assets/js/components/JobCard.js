@@ -147,10 +147,7 @@ class JobCardComponent {
         const descriptionHtml = description
             ? `<p class="text-sm text-gray-600 leading-6 line-clamp-3 mb-4 ${(!isPublic && this.batchModeActive) ? 'ml-10' : ''}">${this.escapeHtml(description)}</p>`
             : '';
-        const applyUrl = job.application_url || job.external_url || job.apply_url || '';
-        const publicApply = applyUrl
-            ? `<button type="button" class="w-full px-6 py-4 bg-primary-600 text-white text-sm font-bold text-center border-t border-primary-700 transition-all group-hover:bg-primary-700" onclick="event.stopPropagation(); window.open(this.dataset.applyUrl, '_blank', 'noopener,noreferrer')" data-apply-url="${this.escapeHtml(applyUrl)}">Apply</button>`
-            : `<div class="px-6 py-4 bg-primary-600 text-white text-sm font-bold text-center border-t border-primary-700 transition-all group-hover:bg-primary-700">Apply</div>`;
+        const publicApply = `<button type="button" class="w-full px-6 py-4 bg-primary-600 text-white text-sm font-bold text-center border-t border-primary-700 transition-all group-hover:bg-primary-700" onclick="event.stopPropagation(); window.location.href='/login.html?apply_job=${encodeURIComponent(jobId)}'">See job</button>`;
         const clickHandler = isPublic ? `window.location.href='/login.html?job_id=${jobId}'` : `showJobDetails('${jobId}')`;
 
         if (isPublic) {

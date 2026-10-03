@@ -633,8 +633,8 @@ const Landing = {
                         </div>
                         <h3 class="job-title-teaser font-bold text-gray-900 mb-1 line-clamp-1">${job.title}</h3>
                         <p class="company-teaser text-primary-600 text-sm font-medium mb-3">${job.company_name}</p>
-                        <a href="/login.html?job_id=${id}" class="block text-center py-2 px-4 rounded-lg bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-colors text-sm">
-                            Apply
+                        <a href="/login.html?apply_job=${encodeURIComponent(id)}" class="block text-center py-2 px-4 rounded-lg bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-colors text-sm">
+                            See job
                         </a>
                     </div>
                 `;

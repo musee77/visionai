@@ -15,8 +15,8 @@ window.FollowupsTab = {
             }
             container.innerHTML = data.applications.map(a => `
                 <div class="bg-white rounded-lg border border-yellow-200 border-l-4 p-6">
-                    <h3 class="text-lg font-semibold">${a.job_title || 'Untitled role'}</h3>
-                    <p class="text-gray-600">${a.company_name || 'Company not listed'}</p>
+                    <h3 class="text-lg font-semibold">${escapeHtml(a.job_title || 'Untitled role')}</h3>
+                    <p class="text-gray-600">${escapeHtml(a.company_name || 'Company not listed')}</p>
                     <p class="text-sm text-yellow-600 mt-2">Follow-up due: ${formatDate(a.next_follow_up || a.follow_up_date)}</p>
                     <button onclick="viewApplicationDetails('${a.id || a._id}')" class="mt-4 px-4 py-2 text-sm bg-primary-600 text-white rounded-lg">View Details</button>
                 </div>

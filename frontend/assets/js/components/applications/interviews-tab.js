@@ -41,10 +41,10 @@ window.InterviewsTab = {
                 <div class="flex justify-between items-start mb-4">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-2">
-                            <h3 class="text-xl font-bold text-gray-900">${i.job_title}</h3>
+                            <h3 class="text-xl font-bold text-gray-900">${escapeHtml(i.job_title || 'Untitled role')}</h3>
                             <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 animate-pulse">Action Required</span>
                         </div>
-                        <p class="text-gray-700 font-medium text-lg">${i.company_name}</p>
+                        <p class="text-gray-700 font-medium text-lg">${escapeHtml(i.company_name || 'Company not listed')}</p>
                     </div>
                     <div class="flex flex-col items-end gap-2">
                         <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-red-50 text-red-700">
@@ -117,10 +117,10 @@ window.InterviewsTab = {
                 <div class="flex justify-between items-start mb-4">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-2">
-                            <h3 class="text-xl font-bold text-gray-900">${i.job_title}</h3>
+                            <h3 class="text-xl font-bold text-gray-900">${escapeHtml(i.job_title || 'Untitled role')}</h3>
                             ${isUrgent ? '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 animate-pulse">Urgent</span>' : ''}
                         </div>
-                        <p class="text-gray-700 font-medium text-lg">${i.company_name}</p>
+                        <p class="text-gray-700 font-medium text-lg">${escapeHtml(i.company_name || 'Company not listed')}</p>
                     </div>
                     <div class="flex flex-col items-end gap-2">
                         <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${typeColor}">
@@ -156,7 +156,7 @@ window.InterviewsTab = {
                         <svg class="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                         <div class="flex-1">
                             <p class="text-xs text-gray-500 font-medium uppercase mb-1">Location</p>
-                            <p class="text-sm text-gray-900">${i.location}</p>
+                            <p class="text-sm text-gray-900">${escapeHtml(i.location)}</p>
                         </div>
                     </div>
                 ` : ''}
@@ -164,7 +164,7 @@ window.InterviewsTab = {
                 ${i.notes ? `
                     <div class="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
                         <p class="text-xs text-blue-600 font-medium uppercase mb-1">Notes</p>
-                        <p class="text-sm text-gray-700">${i.notes}</p>
+                        <p class="text-sm text-gray-700">${escapeHtml(i.notes)}</p>
                     </div>
                 ` : ''}
                 
@@ -173,7 +173,7 @@ window.InterviewsTab = {
                             class="flex-1 min-w-[140px] px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium text-sm shadow-sm flex items-center justify-center gap-2">
                         View Details
                     </button>
-                    <button onclick="addToCalendar('${i.job_title}', '${i.company_name}', '${i.interview_date}', '${i.location || ''}')" 
+                    <button type="button" data-title="${escapeHtml(i.job_title || '')}" data-company="${escapeHtml(i.company_name || '')}" data-date="${escapeHtml(i.interview_date || '')}" data-location="${escapeHtml(i.location || '')}" onclick="addToCalendarFromButton(this)" 
                             class="flex-1 min-w-[140px] px-4 py-2.5 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-all duration-200 font-medium text-sm flex items-center justify-center gap-2">
                         Add to Calendar
                     </button>
@@ -234,6 +234,12 @@ window.InterviewsTab = {
 
 window.loadUpcomingInterviews = () => window.InterviewsTab.load();
 window.addToCalendar = (t, c, d, l) => window.InterviewsTab.addToCalendar(t, c, d, l);
+window.addToCalendarFromButton = (button) => window.InterviewsTab.addToCalendar(
+    button.dataset.title || '',
+    button.dataset.company || '',
+    button.dataset.date || '',
+    button.dataset.location || ''
+);
 
 // ==================== MOVED LOGIC ====================
 
@@ -268,7 +274,8 @@ function displayInterviewModal(app) {
     const isScheduled = !!interviewDate;
 
     // Helper for meeting link
-    const meetingLink = app.meeting_link || (app.location && app.location.match(/https?:\/\/[^\s]+/) ? app.location.match(/https?:\/\/[^\s]+/)[0] : null);
+    const rawMeeting = app.meeting_link || (app.location && app.location.match(/https?:\/\/[^\s]+/) ? app.location.match(/https?:\/\/[^\s]+/)[0] : null);
+    const meetingLink = rawMeeting && /^https?:\/\//i.test(rawMeeting) ? escapeHtml(rawMeeting) : '';
 
     modalContent.innerHTML = `
         <!-- Gradient Header -->
@@ -280,9 +287,9 @@ function displayInterviewModal(app) {
                 <div>
                      <div class="flex items-center gap-2 mb-2 text-blue-100">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2-2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                        <span class="font-medium text-lg">${app.company_name}</span>
+                        <span class="font-medium text-lg">${escapeHtml(app.company_name || 'Company not listed')}</span>
                     </div>
-                    <h2 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-100 font-display mb-1">${app.job_title}</h2>
+                    <h2 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-100 font-display mb-1">${escapeHtml(app.job_title || 'Untitled role')}</h2>
                     <div class="flex items-center gap-3 mt-4">
                         <span class="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-sm font-medium border border-white/20">
                             ${formatEnumValue(app.interview_type)}
@@ -322,7 +329,7 @@ function displayInterviewModal(app) {
                                 Join Meeting
                             </a>
                         ` : ''}
-                        <button onclick="addToCalendar('${app.job_title}', '${app.company_name}', '${app.interview_date}', '${app.location || ''}')" class="w-full px-6 py-3 bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-gray-700 rounded-xl font-medium shadow-sm transition-all flex items-center justify-center gap-2">
+                        <button type="button" data-title="${escapeHtml(app.job_title || '')}" data-company="${escapeHtml(app.company_name || '')}" data-date="${escapeHtml(app.interview_date || '')}" data-location="${escapeHtml(app.location || '')}" onclick="addToCalendarFromButton(this)" class="w-full px-6 py-3 bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-gray-700 rounded-xl font-medium shadow-sm transition-all flex items-center justify-center gap-2">
                             <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                             Add to Calendar
                         </button>
@@ -355,8 +362,8 @@ function displayInterviewModal(app) {
                                 </div>
                                 <div>
                                     <p class="text-sm font-medium text-gray-900">Interviewer</p>
-                                    <p class="text-gray-600">${app.interviewer_name || 'Not specified'}</p>
-                                    ${app.interviewer_title ? `<p class="text-xs text-gray-500">${app.interviewer_title}</p>` : ''}
+                                    <p class="text-gray-600">${escapeHtml(app.interviewer_name || 'Not specified')}</p>
+                                    ${app.interviewer_title ? `<p class="text-xs text-gray-500">${escapeHtml(app.interviewer_title)}</p>` : ''}
                                 </div>
                             </div>
 
@@ -367,7 +374,7 @@ function displayInterviewModal(app) {
                                 </div>
                                 <div>
                                     <p class="text-sm font-medium text-gray-900">Location</p>
-                                    <p class="text-gray-600 break-all">${app.location || 'Remote / Online'}</p>
+                                    <p class="text-gray-600 break-all">${escapeHtml(app.location || 'Remote / Online')}</p>
                                 </div>
                             </div>
                             
@@ -397,12 +404,12 @@ function displayInterviewModal(app) {
                     
                     <div class="bg-gray-50 rounded-xl border border-gray-200 p-5 min-h-[160px]">
                         <p class="text-gray-700 whitespace-pre-line leading-relaxed text-sm">
-                            ${app.notes || '<span class="text-gray-400 italic">No notes added. Use "Update Status" to add notes.</span>'}
+                            ${app.notes ? escapeHtml(app.notes) : '<span class="text-gray-400 italic">No notes added. Use "Update Status" to add notes.</span>'}
                         </p>
                     </div>
                     
                     ${isScheduled ? `
-                    <button onclick="showConfirmationCompose('${app._id || app.id}', '${app.job_title}', '${app.company_name}', '${app.interviewer_name || ''}', '${app.interview_date}')" class="w-full mt-4 py-2 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                    <button type="button" data-id="${escapeHtml(app._id || app.id || '')}" data-title="${escapeHtml(app.job_title || '')}" data-company="${escapeHtml(app.company_name || '')}" data-interviewer="${escapeHtml(app.interviewer_name || '')}" data-date="${escapeHtml(app.interview_date || '')}" onclick="showConfirmationCompose(this.dataset.id, this.dataset.title, this.dataset.company, this.dataset.interviewer, this.dataset.date)" class="w-full mt-4 py-2 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                         Confirm Availability
                     </button>

@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="/assets/css/global.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load api.js in the HEAD so it's available immediately -->
-    <script src="/assets/js/main.js"></script>
+    <script src="/assets/js/main.js?v=1.2"></script>
 </head>
 
 <body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center justify-center">
@@ -63,12 +63,13 @@
                     headers: { 'Authorization': `Bearer ${token}` }
                 })
                     .then(response => response.json())
-                    .then(data => {
+                    .then(async (data) => {
                         if (data.success && data.data && data.data.user) {
                             CVision.setUser(data.data.user);
-
-                            // Redirect to dashboard immediately
-                            window.location.href = '/dashboard.html';
+                            const opened = window.CVision.openPendingApplication
+                                ? await CVision.openPendingApplication()
+                                : false;
+                            if (!opened) window.location.href = '/dashboard.html';
                         } else {
                             throw new Error('Failed to get user info');
                         }

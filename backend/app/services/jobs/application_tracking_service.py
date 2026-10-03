@@ -6,6 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from bson import ObjectId
+import html
 import logging
 import re
 
@@ -37,11 +38,28 @@ class ApplicationTrackingService:
         return str(value)
 
     @staticmethod
+    def _description_preview(raw: Any, limit: int = 220) -> Optional[str]:
+        if not isinstance(raw, str) or not raw.strip():
+            return None
+        text = re.sub(r"<\s*br\s*/?>", " ", raw, flags=re.I)
+        text = re.sub(r"</(p|div|li|h[1-6]|tr|section)>", " ", text, flags=re.I)
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = html.unescape(text)
+        text = re.sub(r"\s+", " ", text).strip()
+        if not text:
+            return None
+        if len(text) <= limit:
+            return text
+        cut = text[:limit].rsplit(" ", 1)[0].strip()
+        return f"{cut or text[:limit].strip()}…"
+
+    @staticmethod
     def _job_display(job: Dict[str, Any]) -> Dict[str, Optional[str]]:
         return {
             "job_title": job.get("title") or job.get("job_title"),
             "company_name": job.get("company_name") or job.get("company"),
             "location": ApplicationTrackingService._location_text(job.get("location")),
+            "description_preview": ApplicationTrackingService._description_preview(job.get("description")),
         }
 
     @staticmethod
@@ -84,6 +102,8 @@ class ApplicationTrackingService:
             app["job_title"] = display.get("job_title") or app.get("job_title")
             app["company_name"] = display.get("company_name") or app.get("company_name")
             app["location"] = display.get("location") or ApplicationTrackingService._location_text(app.get("location"))
+            if display.get("description_preview"):
+                app["description_preview"] = display["description_preview"]
     
     # ==================== INSTANCE METHODS ====================
     
@@ -686,6 +706,7 @@ class ApplicationTrackingService:
                     "job_title": app.get("job_title"),
                     "company_name": app.get("company_name"),
                     "location": ApplicationTrackingService._location_text(app.get("location")),
+                    "description_preview": app.get("description_preview"),
                     "priority": app.get("priority", "medium"),
                     "documents_count": len(app.get("documents", [])),
                     "communications_count": len(app.get("communications", [])),

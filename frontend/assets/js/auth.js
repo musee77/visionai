@@ -1,9 +1,14 @@
 // CVision Authentication JavaScript
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
+    if (window.CVision?.rememberApplyJob) CVision.rememberApplyJob();
+
     // Check if user is already authenticated
     if (CVision && CVision.Utils && CVision.Utils.isAuthenticated()) {
-        window.location.href = '/dashboard';
+        const opened = window.CVision.openPendingApplication
+            ? await CVision.openPendingApplication()
+            : false;
+        if (!opened) window.location.href = '/dashboard';
         return;
     }
 
@@ -198,12 +203,17 @@ async function handleLogin() {
                 CVision.startTokenRefreshTimer();
             }
 
-            InlineMessage.success('Logged In successfully! Redirecting to Dashboard...');
+            const openingJob = !!sessionStorage.getItem('cvision_apply_job');
+            InlineMessage.success(openingJob
+                ? 'Logged in successfully! Opening the job...'
+                : 'Logged in successfully! Redirecting...');
 
-            // Redirect to dashboard
-            setTimeout(() => {
-                window.location.href = '/dashboard';
-            }, 1000);
+            setTimeout(async () => {
+                const opened = window.CVision?.openPendingApplication
+                    ? await CVision.openPendingApplication()
+                    : false;
+                if (!opened) window.location.href = '/dashboard';
+            }, 600);
         } else {
             throw new Error(response.message || 'Login failed');
         }

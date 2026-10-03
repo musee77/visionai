@@ -353,6 +353,7 @@ class ApplicationResponse(BaseModel):
     job_title: Optional[str]
     company_name: Optional[str]
     location: Optional[str]
+    description_preview: Optional[str] = None
     priority: Priority
     documents_count: int
     communications_count: int
