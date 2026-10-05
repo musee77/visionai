@@ -84,11 +84,11 @@ function displayTierCards(plans) {
         let rewardText = '';
         let rewardIcon = '';
         if (tier === 'free') {
-            rewardText = 'Referrals only count when they subscribe to a paid plan';
-            rewardIcon = '❌';
+            rewardText = 'Signed up. They count after they subscribe to Basic or Premium.';
+            rewardIcon = '👋';
         } else {
-            rewardText = '<strong>5 automated applications</strong> for every 5 paid referrals';
-            rewardIcon = '🎁';
+            rewardText = 'Counts as 1 paid referral toward your next set of 5.';
+            rewardIcon = '✓';
         }
 
         // Get tier display name (capitalize first letter)
@@ -173,12 +173,11 @@ async function loadReferralCode() {
             const codeElements = document.querySelectorAll('#referralCodeMain, #referralCodeDisplay');
             codeElements.forEach(el => el.textContent = userReferralCode);
 
-            // Update referral link
-            const referralLink = `${window.location.origin}/register?ref=${userReferralCode}`;
-            const linkInput = document.getElementById('referralLinkInput');
-            if (linkInput) {
-                linkInput.value = referralLink;
-            }
+            const referralLink = referralShareLink();
+            ['referralLinkInput', 'referralLinkMain'].forEach((id) => {
+                const field = document.getElementById(id);
+                if (field) field.value = referralLink;
+            });
         } else {
             throw new Error('Failed to load referral code');
         }
@@ -235,16 +234,16 @@ function updateMilestoneProgress() {
     if (!referralStats) return;
 
     const paidReferrals = referralStats.paid_referrals || 0;
-    const totalReferrals = referralStats.total_referrals || 0;
     const bonusApps = referralStats.referral_auto_earned || 0;
-
-    // Calculate progress within current milestone cycle (every 5 referrals = 1 milestone)
-    const currentCycleProgress = paidReferrals % 5;
-    const completedMilestones = Math.floor(paidReferrals / 5);
-    const referralsToNextReward = currentCycleProgress === 0 && paidReferrals === 0 ? 5 : (5 - currentCycleProgress);
-
-    // Update progress bar (0-100%)
-    const progressPercent = (currentCycleProgress / 5) * 100;
+    const milestoneSize = 5;
+    const completedMilestones = Math.floor(paidReferrals / milestoneSize);
+    const remainder = paidReferrals % milestoneSize;
+    const cycleComplete = paidReferrals > 0 && remainder === 0;
+    const currentCycleProgress = cycleComplete ? milestoneSize : remainder;
+    const referralsToNextReward = cycleComplete || paidReferrals === 0
+        ? milestoneSize
+        : milestoneSize - remainder;
+    const progressPercent = (currentCycleProgress / milestoneSize) * 100;
     const progressBar = document.getElementById('progressBar');
     if (progressBar) {
         // Animate the progress bar
@@ -256,7 +255,7 @@ function updateMilestoneProgress() {
     // Update progress text
     const progressText = document.getElementById('progressText');
     if (progressText) {
-        progressText.textContent = `${currentCycleProgress} / 5 referrals`;
+        progressText.textContent = `${currentCycleProgress} / ${milestoneSize} paid referrals`;
     }
 
     // Update referrals needed
@@ -276,6 +275,12 @@ function updateMilestoneProgress() {
     if (milestonesCompleted) {
         milestonesCompleted.textContent = completedMilestones;
     }
+    const milestonesLabel = document.getElementById('milestonesCompletedLabel');
+    if (milestonesLabel) {
+        milestonesLabel.textContent = completedMilestones === 1 ? 'Milestone Completed' : 'Milestones Completed';
+    }
+    const cycleNote = document.getElementById('cycleNote');
+    if (cycleNote) cycleNote.classList.toggle('hidden', !cycleComplete);
 
     // Update milestone markers
     for (let i = 1; i <= 5; i++) {
@@ -285,21 +290,14 @@ function updateMilestoneProgress() {
                 // Milestone reached - show completed state
                 marker.classList.remove('bg-gray-300');
                 marker.classList.add('bg-gradient-to-r', 'from-purple-500', 'to-blue-500');
-
-                // Add check icon for completed milestones
-                if (i === 5 && currentCycleProgress >= 5) {
-                    const checkIcon = document.getElementById('milestone5Check');
-                    if (checkIcon) {
-                        checkIcon.classList.remove('hidden');
-                    }
-                }
             } else {
-                // Milestone not reached
                 marker.classList.add('bg-gray-300');
                 marker.classList.remove('bg-gradient-to-r', 'from-purple-500', 'to-blue-500');
             }
         }
     }
+    const checkIcon = document.getElementById('milestone5Check');
+    if (checkIcon) checkIcon.classList.toggle('hidden', currentCycleProgress < milestoneSize);
 }
 
 /**
@@ -387,12 +385,12 @@ function displayReferralList(referrals, total, totalPages) {
                         </div>
                         <div>
                             <p class="font-semibold text-gray-900">${ref.referee_email || 'User'}</p>
-                            <p class="text-sm text-gray-500">Referred on ${formatDate(ref.created_at)}</p>
+                            <p class="text-sm text-gray-500">${referredWhen(ref.created_at)}</p>
                         </div>
                     </div>
                     
                     <div class="flex flex-wrap gap-2 mt-3">
-                        ${getStatusBadge(ref.status)}
+                        ${getStatusBadge(paidPlan(ref) ? 'completed' : ref.status)}
                         ${ref.subscription_tier ? `
                             <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">
                                 ${ref.subscription_tier.charAt(0).toUpperCase() + ref.subscription_tier.slice(1)} Plan
@@ -410,8 +408,8 @@ function displayReferralList(referrals, total, totalPages) {
                 </div>
                 
                 <div class="text-right">
-                    ${['basic', 'premium'].includes((ref.subscription_tier || '').toLowerCase()) && ref.status === 'completed' ? `
-                        <p class="text-sm font-semibold text-green-600">Counts toward reward</p>
+                    ${paidPlan(ref) ? `
+                        <p class="text-sm font-semibold text-green-600">Counts toward your reward</p>
                     ` : `
                         <p class="text-sm text-gray-500">Waiting for Basic or Premium</p>
                     `}
@@ -427,6 +425,16 @@ function displayReferralList(referrals, total, totalPages) {
 /**
  * Get status badge HTML
  */
+function paidPlan(ref) {
+    return ['basic', 'premium'].includes((ref.subscription_tier || '').toLowerCase());
+}
+
+function referredWhen(dateString) {
+    const label = formatDate(dateString);
+    if (label === 'Today' || label === 'Yesterday') return `Referred ${label.toLowerCase()}`;
+    return `Referred on ${label}`;
+}
+
 function getStatusBadge(status) {
     const badges = {
         pending: '<span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-700">Pending</span>',
@@ -563,10 +571,43 @@ function filterReferrals() {
 /**
  * Copy referral code
  */
-async function copyReferralCode() {
+function referralShareLink() {
+    if (!userReferralCode) return '';
+    return `${window.location.origin}/register?ref=${encodeURIComponent(userReferralCode)}`;
+}
+
+async function writeClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return;
+    }
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.left = '-9999px';
+    document.body.appendChild(area);
+    area.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(area);
+    if (!copied) throw new Error('Copy failed');
+}
+
+function markCopied(button, label) {
+    if (!button) return;
+    if (!button.dataset.labelHtml) button.dataset.labelHtml = button.innerHTML;
+    button.textContent = label;
+    setTimeout(() => {
+        button.innerHTML = button.dataset.labelHtml;
+    }, 2000);
+}
+
+async function copyReferralCode(button) {
     try {
-        await navigator.clipboard.writeText(userReferralCode);
-        CVision.showMessage('Referral code copied to clipboard!', 'success');
+        if (!userReferralCode) throw new Error('Code not ready');
+        await writeClipboard(userReferralCode);
+        markCopied(button, 'Copied');
+        CVision.showMessage('Referral code copied.', 'success');
     } catch (error) {
         console.error('Failed to copy:', error);
         CVision.showMessage('Failed to copy referral code', 'error');
@@ -576,11 +617,13 @@ async function copyReferralCode() {
 /**
  * Copy referral link
  */
-async function copyReferralLink() {
-    const linkInput = document.getElementById('referralLinkInput');
+async function copyReferralLink(button) {
+    const link = referralShareLink();
     try {
-        await navigator.clipboard.writeText(linkInput.value);
-        CVision.showMessage('Referral link copied to clipboard!', 'success');
+        if (!link) throw new Error('Link not ready');
+        await writeClipboard(link);
+        markCopied(button, 'Copied');
+        CVision.showMessage('Referral link copied.', 'success');
     } catch (error) {
         console.error('Failed to copy:', error);
         CVision.showMessage('Failed to copy referral link', 'error');

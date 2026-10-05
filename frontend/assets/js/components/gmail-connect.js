@@ -167,7 +167,7 @@ class GmailConnect {
             const autoApplyBtn = new AutoApplyButton({
                 containerId: 'dashboardAutoApplyContainer',
                 textColor: 'text-gray-800',
-                label: 'Auto-Apply',
+                label: '',
                 onToggle: (isEnabled) => {
                     // Could bubble this up if needed
                 }

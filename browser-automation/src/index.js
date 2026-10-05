@@ -8,6 +8,7 @@ const { AutofillEngine } = require('./automation/autofill');
 const { FormDetector } = require('./automation/form-detector');
 const { SiteHandlerFactory } = require('./automation/site-handlers/factory');
 const { AuthHandler } = require('./automation/auth-handler');
+const { PageClassifier } = require('./automation/page-classifier');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -36,8 +37,13 @@ app.get('/health', (req, res) => {
 });
 
 app.post('/api/automation/start', authenticate, async (req, res) => {
-    const { session_id, url, autofill_data, job_source } = req.body;
+    const { session_id, url, autofill_data, job_source, credentials, auto_create_account } = req.body;
     if (!session_id || !url || !autofill_data) return res.status(400).json({ error: 'Missing fields' });
+    autofill_data.auto_create_account = Boolean(auto_create_account || autofill_data.auto_create_account);
+    autofill_data.portal_credentials = credentials || autofill_data.portal_credentials || null;
+    if (autofill_data.connected_email && autofill_data.personal_info) {
+        autofill_data.personal_info.email = autofill_data.connected_email;
+    }
 
     try {
         const headlessEnv = process.env.HEADLESS ? process.env.HEADLESS.toLowerCase().trim() : 'true';
@@ -103,13 +109,39 @@ app.post('/api/automation/close/:session_id', authenticate, async (req, res) => 
     res.json({ success: true });
 });
 
+async function inspectTabs(context) {
+    const reports = [];
+    for (const tab of context.pages()) {
+        const url = tab.url();
+        if (!url || url === 'about:blank') continue;
+        let type = 'unknown';
+        try {
+            type = await new PageClassifier(tab).classify();
+        } catch (error) {
+            type = 'unknown';
+        }
+        console.log(`[Tabs] ${type} | ${url}`);
+        reports.push({ tab, type, url });
+    }
+    return reports;
+}
+
+function pickTab(reports) {
+    const order = ['captcha', 'register', 'login', 'application', 'job_description', 'unknown'];
+    for (const type of order) {
+        const found = reports.find((report) => report.type === type);
+        if (found) return found;
+    }
+    return reports[reports.length - 1] || null;
+}
+
 async function performAutofill(session_id, url, autofillData, jobSource, page) {
     const session = activeSessions.get(session_id);
     const handler = SiteHandlerFactory.getHandler(url, jobSource);
     let activePage = page;
     let applyClickCount = 0;
     let attempts = 0;
-    const maxAttempts = 6;
+    const maxAttempts = 8;
     const filledFields = [];
 
     try {
@@ -120,12 +152,18 @@ async function performAutofill(session_id, url, autofillData, jobSource, page) {
         // --- DYNAMIC MULTI-STAGE LOOP ---
         while (attempts < maxAttempts) {
             attempts++;
-            console.log(`[Autofill] Stage ${attempts} | URL: ${activePage.url()}`);
+            const reports = await inspectTabs(session.context);
+            const chosen = pickTab(reports);
+            if (chosen) {
+                activePage = chosen.tab;
+                session.page = activePage;
+                await activePage.bringToFront().catch(() => { });
+            }
+            const pageType = chosen ? chosen.type : 'unknown';
+            console.log(`[Autofill] Stage ${attempts} | acting on ${pageType} | ${activePage.url()}`);
 
             const formDetector = new FormDetector(activePage);
             const authHandler = new AuthHandler(activePage, formDetector, handler, autofillData);
-            const pageType = await authHandler.classifier.classify();
-            console.log(`[Autofill] Page classified as: ${pageType}`);
 
             if (pageType === 'captcha') {
                 updateSessionStatus(session_id, 'manual_action_required', 'CAPTCHA detected.');
@@ -151,15 +189,24 @@ async function performAutofill(session_id, url, autofillData, jobSource, page) {
             if (pageType === 'login' || pageType === 'register') {
                 console.log('[Autofill] Auth Wall detected.');
                 const authResult = await authHandler.handleAuth({
-                    autoCreateAccount: autofillData.auto_create_account || false,
-                    credentials: autofillData.portal_credentials
+                    autoCreateAccount: Boolean(autofillData.auto_create_account),
+                    credentials: session.portal_credentials || autofillData.portal_credentials,
+                    email: autofillData.connected_email
                 });
+                if (authResult.credentials) {
+                    session.portal_credentials = {
+                        email: authResult.credentials.email,
+                        username: authResult.credentials.email,
+                        password: authResult.credentials.password,
+                        domain: authResult.credentials.domain,
+                        portal_name: jobSource || authResult.credentials.domain
+                    };
+                }
                 if (authResult.status === 'pending_verification') {
                     updateSessionStatus(session_id, 'pending_verification', authResult.message);
-                    session.portal_credentials = authResult.credentials;
                     return;
-                } else if (authResult.status === 'needs_authentication') {
-                    throw new Error('LOGIN_REQUIRED');
+                } else if (authResult.status === 'needs_authentication' || authResult.status === 'error') {
+                    throw new Error(authResult.message || 'LOGIN_REQUIRED');
                 } else if (authResult.status === 'success') {
                     await activePage.waitForTimeout(4000);
                     continue;
@@ -187,11 +234,11 @@ async function performAutofill(session_id, url, autofillData, jobSource, page) {
 
                 // Try to SUBMIT or Click NEXT
                 console.log('[Autofill] Attempting to submit/proceed to next page...');
-                const subBtn = await activePage.$('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Next"), button:has-text("Continue"), button:has-text("Proceed"), button:has-text("Continue Application"), [role="button"]:has-text("Apply"), [role="button"]:has-text("Continue")');
-                if (subBtn) {
+                const subBtn = activePage.locator('button[type="submit"], input[type="submit"], #submit_app, button:has-text("Submit application"), button:has-text("Submit")').first();
+                if (await subBtn.count() && await subBtn.isVisible().catch(() => false)) {
                     await subBtn.click();
                     await activePage.waitForTimeout(5000);
-                    continue; // See if there is more on the next page
+                    continue;
                 } else {
                     console.log('[Autofill] No submit button found. Presuming completion.');
                     break;

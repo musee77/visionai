@@ -36,6 +36,32 @@ router = APIRouter()
 security = HTTPBearer()
 
 
+def _clean_referral_code(code: Optional[str]) -> Optional[str]:
+    cleaned = (code or "").strip()
+    if not cleaned or len(cleaned) > 32:
+        return None
+    if not all(ch.isalnum() or ch in "-_" for ch in cleaned):
+        return None
+    return cleaned
+
+
+async def _attach_signup_referral(user_id: str, email: str, code: Optional[str]) -> None:
+    cleaned = _clean_referral_code(code)
+    if not cleaned:
+        return
+    try:
+        from app.database import get_database
+        from app.services.core.referral_service import ReferralService
+        db = await get_database()
+        await ReferralService(db).record_signup(
+            referee_user_id=str(user_id),
+            referee_email=email,
+            code=cleaned
+        )
+    except Exception as referral_error:
+        logger.warning(f"Referral was not recorded for {email}: {referral_error}")
+
+
 # Pydantic models
 class UserRegister(BaseModel):
     email: EmailStr
@@ -158,17 +184,11 @@ async def register(user_data: UserRegister, request: Request):
         user_doc["_id"] = result.inserted_id
 
         if user_data.referral_code:
-            try:
-                from app.database import get_database
-                from app.services.core.referral_service import ReferralService
-                db = await get_database()
-                await ReferralService(db).record_signup(
-                    referee_user_id=str(result.inserted_id),
-                    referee_email=user_data.email,
-                    code=user_data.referral_code
-                )
-            except Exception as referral_error:
-                logger.warning(f"Referral was not recorded for {user_data.email}: {referral_error}")
+            await _attach_signup_referral(
+                str(result.inserted_id),
+                user_data.email,
+                user_data.referral_code
+            )
         
         # detailed user creation for auth service hook? No, keep it simple here or use AuthService
         
@@ -542,7 +562,7 @@ async def resend_verification(request: ResendVerificationRequest):
 import json
 
 @router.get("/google/login")
-async def google_login(location: Optional[str] = None):
+async def google_login(location: Optional[str] = None, ref: Optional[str] = None):
     """Initiate Google OAuth flow"""
     try:
         location_data = None
@@ -552,7 +572,10 @@ async def google_login(location: Optional[str] = None):
             except Exception:
                 pass
                 
-        auth_url, state = OAuthService.get_google_auth_url(location_data=location_data)
+        auth_url, state = OAuthService.get_google_auth_url(
+            location_data=location_data,
+            referral_code=_clean_referral_code(ref)
+        )
         return {
             "success": True,
             "auth_url": auth_url,
@@ -591,6 +614,12 @@ async def google_callback(code: str, state: str, request: Request):
             location_data=metadata.get("location") if metadata else None,
             registration_ip=client_ip
         )
+        if is_new and metadata and metadata.get("referral_code"):
+            await _attach_signup_referral(
+                str(user["_id"]),
+                user_info["email"],
+                metadata.get("referral_code")
+            )
         
         redirect_url = f"{settings.FRONTEND_URL}/auth-callback.html?token={token}&provider=google"
         if is_new:
@@ -606,10 +635,12 @@ async def google_callback(code: str, state: str, request: Request):
 # ============ LINKEDIN OAUTH ROUTES ============
 
 @router.get("/linkedin/login")
-async def linkedin_login():
+async def linkedin_login(ref: Optional[str] = None):
     """Initiate LinkedIn OAuth flow"""
     try:
-        auth_url, state = OAuthService.get_linkedin_auth_url()
+        auth_url, state = OAuthService.get_linkedin_auth_url(
+            referral_code=_clean_referral_code(ref)
+        )
         logger.info(f"LinkedIn login URL: {auth_url}")
         return {
             "success": True,
@@ -625,7 +656,8 @@ async def linkedin_login():
 async def linkedin_callback(code: str, state: str):
     """Handle LinkedIn OAuth callback"""
     try:
-        if not OAuthService.verify_state_token(state):
+        is_valid, metadata = OAuthService.verify_state_token(state)
+        if not is_valid:
             return RedirectResponse(url=f"{settings.FRONTEND_URL}/login.html?error=invalid_state")
         
         tokens = await OAuthService.exchange_linkedin_code(code)
@@ -643,6 +675,12 @@ async def linkedin_callback(code: str, state: str):
             oauth_provider="linkedin",
             oauth_id=user_info["sub"]
         )
+        if is_new and metadata and metadata.get("referral_code"):
+            await _attach_signup_referral(
+                str(user["_id"]),
+                user_info["email"],
+                metadata.get("referral_code")
+            )
         
         redirect_url = f"{settings.FRONTEND_URL}/auth-callback.html?token={token}&provider=linkedin"
         if is_new:

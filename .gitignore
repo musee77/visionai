@@ -69,6 +69,7 @@ dmypy.json
 
 # Node.js
 node_modules/
+browser-automation/data/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

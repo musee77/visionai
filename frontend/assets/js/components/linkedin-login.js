@@ -33,7 +33,8 @@ class LinkedInLoginManager {
             // but we use the same API structure as Google
             const apiBase = window.CONFIG ? CONFIG.API_BASE_URL : 'http://localhost:8000';
             const apiPrefix = window.CONFIG ? CONFIG.API_PREFIX : '/api/v1';
-            const url = `${apiBase}${apiPrefix}/auth/linkedin/login`;
+            const referralCode = window.pendingReferralCode ? window.pendingReferralCode() : '';
+            const url = `${apiBase}${apiPrefix}/auth/linkedin/login${referralCode ? `?ref=${encodeURIComponent(referralCode)}` : ''}`;
 
             console.log('Initiating LinkedIn Login fetch to:', url);
 

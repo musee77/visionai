@@ -53,7 +53,7 @@
 
                 <!-- Filters -->
                 <div class="bg-white rounded-lg p-4 mb-6 shadow-sm">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
                         <input type="text" id="searchInput" placeholder="Search users..."
                             class="px-3 sm:px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
 
@@ -70,6 +70,13 @@
                             <option value="">All Status</option>
                             <option value="true">Active</option>
                             <option value="false">Inactive</option>
+                        </select>
+
+                        <select id="verifiedFilter"
+                            class="px-3 sm:px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            <option value="">All verification</option>
+                            <option value="true">Verified</option>
+                            <option value="false">Unverified</option>
                         </select>
 
                         <button onclick="applyFilters()"
@@ -95,6 +102,9 @@
                                         class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
                                         Status</th>
                                     <th
+                                        class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
+                                        Verified</th>
+                                    <th
                                         class="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
                                         Created</th>
                                     <th
@@ -104,7 +114,7 @@
                             </thead>
                             <tbody id="usersTableBody" class="bg-white divide-y divide-gray-200">
                                 <tr>
-                                    <td colspan="5" class="px-4 sm:px-6 py-4 text-center text-gray-500 text-sm">
+                                    <td colspan="6" class="px-4 sm:px-6 py-4 text-center text-gray-500 text-sm">
                                         Loading users...
                                     </td>
                                 </tr>
@@ -256,6 +266,19 @@
         </div>
     </div>
 
+    <div id="profileModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 p-4 overflow-y-auto">
+        <div class="bg-white rounded-lg max-w-3xl w-full mx-auto my-6">
+            <div class="px-4 sm:px-6 py-4 border-b border-gray-200 flex items-start justify-between gap-4">
+                <div>
+                    <h3 id="profileTitle" class="text-lg sm:text-xl font-bold text-gray-900">Profile</h3>
+                    <p id="profileEmail" class="text-sm text-gray-500"></p>
+                </div>
+                <button type="button" onclick="closeProfile()" class="text-sm text-gray-500 hover:text-gray-800">Close</button>
+            </div>
+            <div id="profileBody" class="px-4 sm:px-6 py-5 text-sm text-gray-700"></div>
+        </div>
+    </div>
+
     <script src="/admin/assets/js/admin-sidebar.js"></script>
     <script src="/assets/js/main.js"></script>
     <script>
@@ -271,11 +294,13 @@
                 const search = document.getElementById('searchInput').value;
                 const tier = document.getElementById('tierFilter').value;
                 const status = document.getElementById('statusFilter').value;
+                const verified = document.getElementById('verifiedFilter').value;
 
                 let endpoint = `/admin/users?page=${page}&limit=20`;
                 if (search) endpoint += `&search=${encodeURIComponent(search)}`;
                 if (tier) endpoint += `&tier=${tier}`;
                 if (status) endpoint += `&is_active=${status}`;
+                if (verified) endpoint += `&is_verified=${verified}`;
 
                 const data = await CVision.API.request(endpoint);
                 displayUsers(data.users);
@@ -285,16 +310,28 @@
             } catch (error) {
                 console.error('Error:', error);
                 document.getElementById('usersTableBody').innerHTML = `
-                    <tr><td colspan="5" class="px-4 sm:px-6 py-4 text-center text-red-500 text-sm">Failed to load users</td></tr>
+                    <tr><td colspan="6" class="px-4 sm:px-6 py-4 text-center text-red-500 text-sm">Failed to load users</td></tr>
                 `;
             }
+        }
+
+        function esc(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[ch]));
+        }
+
+        function formatWhen(value) {
+            if (!value) return '—';
+            const date = new Date(value);
+            return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
         }
 
         function displayUsers(users) {
             const tbody = document.getElementById('usersTableBody');
 
             if (users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="px-4 sm:px-6 py-4 text-center text-gray-500 text-sm">No users found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="px-4 sm:px-6 py-4 text-center text-gray-500 text-sm">No users found</td></tr>';
                 return;
             }
 
@@ -303,11 +340,11 @@
                     <td class="px-4 sm:px-6 py-4">
                         <div class="flex items-center min-w-0">
                             <div class="w-8 h-8 sm:w-10 sm:h-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 font-medium text-sm flex-shrink-0">
-                                ${user.first_name ? user.first_name[0].toUpperCase() : 'U'}
+                                ${esc(user.first_name ? user.first_name[0].toUpperCase() : 'U')}
                             </div>
                             <div class="ml-3 min-w-0">
-                                <div class="text-xs sm:text-sm font-medium text-gray-900 truncate">${user.first_name || ''} ${user.last_name || ''}</div>
-                                <div class="text-xs text-gray-500 truncate">${user.email}</div>
+                                <div class="text-xs sm:text-sm font-medium text-gray-900 truncate">${esc(user.first_name || '')} ${esc(user.last_name || '')}</div>
+                                <div class="text-xs text-gray-500 truncate">${esc(user.email)}</div>
                             </div>
                         </div>
                     </td>
@@ -316,7 +353,7 @@
                             ${user.subscription_tier === 'premium' ? 'bg-yellow-100 text-yellow-800' :
                     user.subscription_tier === 'basic' ? 'bg-blue-100 text-blue-800' :
                         'bg-gray-100 text-gray-800'}">
-                            ${user.subscription_tier}
+                            ${esc(user.subscription_tier)}
                         </span>
                     </td>
                     <td class="px-4 sm:px-6 py-4 hidden sm:table-cell">
@@ -325,16 +362,21 @@
                             ${user.is_active ? 'Active' : 'Inactive'}
                         </span>
                     </td>
+                    <td class="px-4 sm:px-6 py-4 hidden lg:table-cell">
+                        <span class="px-2 py-1 inline-flex text-xs font-semibold rounded-full ${user.is_verified ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+                            ${user.is_verified ? 'Verified' : 'Unverified'}
+                        </span>
+                    </td>
                     <td class="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-500 hidden md:table-cell">
-                        ${new Date(user.created_at).toLocaleDateString()}
+                        ${user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}
                     </td>
                     <td class="px-4 sm:px-6 py-4 text-xs sm:text-sm font-medium">
-                        <button onclick="editUser('${user.id}')" class="text-blue-600 hover:text-blue-900 mr-3">
-                            Edit
-                        </button>
-                        <button onclick="deleteUser('${user.id}')" class="text-red-600 hover:text-red-900">
-                            Delete
-                        </button>
+                        <div class="flex flex-wrap gap-x-3 gap-y-1">
+                            <button onclick="viewProfile('${esc(user.id)}')" class="text-gray-700 hover:text-gray-900">View</button>
+                            ${user.is_verified ? '' : `<button onclick="setVerified('${esc(user.id)}', true)" class="text-emerald-700 hover:text-emerald-900">Verify</button>`}
+                            <button onclick="editUser('${esc(user.id)}')" class="text-blue-600 hover:text-blue-900">Edit</button>
+                            <button onclick="deleteUser('${esc(user.id)}')" class="text-red-600 hover:text-red-900">Delete</button>
+                        </div>
                     </td>
                 </tr>
             `).join('');
@@ -467,6 +509,96 @@
         function closeEditModal() {
             document.getElementById('editModal').classList.add('hidden');
             currentUserId = null;
+        }
+
+        function closeProfile() {
+            document.getElementById('profileModal').classList.add('hidden');
+        }
+
+        function profileLine(label, value) {
+            return `<div><div class="text-xs uppercase tracking-wide text-gray-400">${label}</div><div class="mt-1 text-gray-900">${value || '—'}</div></div>`;
+        }
+
+        function renderProfile(user) {
+            const location = [user.location?.city, user.location?.state, user.location?.country].filter(Boolean).join(', ');
+            const counts = user.referral_counts || {};
+            const referredBy = user.referred_by
+                ? `${esc(user.referred_by.name || user.referred_by.email)} · ${esc(user.referred_by.email)} · ${esc(user.referred_by.referral_code || '')}`
+                : 'Signed up without a referral link';
+            const subscription = user.subscription
+                ? `${esc(user.subscription.plan_id || 'Plan')} · ${esc(user.subscription.status || '')} · ${esc(user.subscription.billing_interval || '')}`
+                : 'No billing record';
+            const referrals = (user.referrals || []).map(ref => `
+                <tr class="border-t border-gray-100">
+                    <td class="py-2 pr-3">${esc(ref.referee_name || '—')}<div class="text-xs text-gray-500">${esc(ref.referee_email)}</div></td>
+                    <td class="py-2 pr-3">${esc(ref.subscription_tier || '—')}</td>
+                    <td class="py-2 pr-3">${esc(ref.status)}</td>
+                    <td class="py-2">${esc(formatWhen(ref.referred_at))}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('profileTitle').textContent = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
+            document.getElementById('profileEmail').textContent = user.email || '';
+            document.getElementById('profileBody').innerHTML = `
+                <div class="flex flex-wrap items-center gap-2 mb-5">
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${user.is_verified ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${user.is_verified ? 'Verified' : 'Unverified'}</span>
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${user.is_active ? 'Active' : 'Inactive'}</span>
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">${esc(user.subscription_tier)}</span>
+                    <button type="button" onclick="setVerified('${esc(user.id)}', ${user.is_verified ? 'false' : 'true'}, true)"
+                        class="ml-auto px-3 py-1.5 text-xs bg-emerald-700 text-white rounded-lg hover:bg-emerald-800">
+                        ${user.is_verified ? 'Mark unverified' : 'Verify email'}
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                    ${profileLine('Phone', esc(user.phone))}
+                    ${profileLine('Role', esc(user.role))}
+                    ${profileLine('Joined', esc(formatWhen(user.created_at)))}
+                    ${profileLine('Last login', esc(formatWhen(user.last_login)))}
+                    ${profileLine('Verified at', esc(formatWhen(user.verified_at)))}
+                    ${profileLine('Job location', esc(location))}
+                    ${profileLine('Referral code', esc(user.referral_code))}
+                    ${profileLine('Automated apps from referrals', esc(user.referral_bonus_auto_applications))}
+                    ${profileLine('Gmail', user.gmail_connected ? 'Connected' : 'Not connected')}
+                    ${profileLine('Documents', esc(user.document_count))}
+                    ${profileLine('Applications', esc(user.application_count))}
+                    ${profileLine('Billing', subscription)}
+                </div>
+                <div class="mb-6">
+                    <h4 class="font-semibold text-gray-900 mb-2">Referred by</h4>
+                    <p>${referredBy}</p>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-gray-900 mb-1">Referrals</h4>
+                    <p class="text-gray-500 mb-3">${counts.total || 0} total · ${counts.pending || 0} waiting for a paid plan · ${counts.completed || 0} rewarded</p>
+                    ${(counts.total || 0) > (user.referrals || []).length ? '<p class="text-xs text-gray-400 mb-2">Showing the latest 50.</p>' : ''}
+                    ${referrals ? `<div class="overflow-x-auto"><table class="min-w-full text-sm"><thead><tr class="text-left text-xs uppercase text-gray-400"><th class="pb-2 pr-3">Person</th><th class="pb-2 pr-3">Plan</th><th class="pb-2 pr-3">Status</th><th class="pb-2">Signed up</th></tr></thead><tbody>${referrals}</tbody></table></div>` : '<p class="text-gray-500">No referrals yet.</p>'}
+                </div>
+            `;
+        }
+
+        async function viewProfile(userId) {
+            try {
+                const user = await CVision.API.request(`/admin/users/${userId}`);
+                renderProfile(user);
+                document.getElementById('profileModal').classList.remove('hidden');
+            } catch (error) {
+                console.error(error);
+                alert('Failed to load profile');
+            }
+        }
+
+        async function setVerified(userId, verified, refreshProfile = false) {
+            try {
+                await CVision.API.request(`/admin/users/${userId}/verify`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ is_verified: verified })
+                });
+                await loadUsers(currentPage);
+                if (refreshProfile) await viewProfile(userId);
+            } catch (error) {
+                console.error(error);
+                alert('Failed to update verification');
+            }
         }
 
         function applyFilters() {

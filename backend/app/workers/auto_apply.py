@@ -254,6 +254,47 @@ async def generate_cover_letter(user_cv: Dict, job: Dict) -> str:
         return None
 
 
+def _job_apply_url(job: Dict) -> str:
+    return job.get("external_url") or job.get("apply_url") or job.get("application_url") or ""
+
+
+def _blocked_apply_url(url: str) -> bool:
+    lowered = (url or "").lower()
+    return any(host in lowered for host in ("remoteok.com", "remoteok.io", "linkedin.com", "indeed.com"))
+
+
+async def _uploaded_cv_id(db, user_id: str):
+    ids = [user_id]
+    if ObjectId.is_valid(user_id):
+        ids.append(ObjectId(user_id))
+    document = await db.documents.find_one(
+        {"user_id": {"$in": ids}, "document_type": "cv"},
+        sort=[("created_at", -1)]
+    )
+    return str(document["_id"]) if document else None
+
+
+async def _basic_cover_letter(user_cv: Dict, job: Dict) -> str:
+    name = user_cv.get("full_name") or "Applicant"
+    title = job.get("title") or "the role"
+    company = job.get("company_name") or job.get("company") or "your team"
+    text = (
+        f"Dear hiring team,\n\n"
+        f"I am applying for the {title} role at {company}. "
+        f"My CV is attached.\n\n"
+        f"Thank you,\n{name}\n"
+    )
+    db = await get_database()
+    result = await db.documents.insert_one({
+        "user_id": user_cv.get("user_id"),
+        "job_id": str(job.get("_id")),
+        "type": "cover_letter",
+        "content": text,
+        "created_at": datetime.utcnow()
+    })
+    return str(result.inserted_id)
+
+
 async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dict:
     """Core logic to process auto-apply for a single user"""
     stats = {
@@ -396,6 +437,7 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
                 query["$and"] = [{"$or": role_conditions}]
 
             new_jobs = await db.jobs.find(query).limit(remaining_applications * 10).to_list(length=remaining_applications * 10)
+            new_jobs = [job for job in new_jobs if not _blocked_apply_url(_job_apply_url(job)) or job.get("application_email") or job.get("contact_email") or job.get("email")]
             
         else:
             # Fallback to generic recent jobs
@@ -418,6 +460,7 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
                 "created_at": {"$gte": seven_days_ago},
                 **email_exists
             }).limit(remaining_applications * 5).to_list(length=remaining_applications * 5)
+            new_jobs = [job for job in new_jobs if not _blocked_apply_url(_job_apply_url(job)) or job.get("application_email") or job.get("contact_email") or job.get("email")]
         
         stats["jobs_found"] = len(new_jobs)
         logger.info(f">>> COMPLETED: Job Database Search (Found {len(new_jobs)} jobs)")
@@ -476,10 +519,10 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
                     job.get("email") or
                     (job.get("company_info") or {}).get("contact", {}).get("email")
                 )
-                apply_url = job.get("external_url") or job.get("apply_url") or job.get("application_url")
+                apply_url = _job_apply_url(job)
                 has_gmail = bool(user.get("gmail_auth"))
                 can_email = bool(recipient_email and has_gmail)
-                can_browser = bool(apply_url)
+                can_browser = bool(apply_url) and not _blocked_apply_url(apply_url)
 
                 if not can_email and not can_browser:
                     logger.warning(
@@ -514,6 +557,9 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
                 logger.info(f">>> STARTED: Generating Smart CV for {job_id}")
                 custom_cv_id = await generate_custom_cv(user_cv, job)
                 if not custom_cv_id:
+                    custom_cv_id = await _uploaded_cv_id(db, user_id)
+                    logger.info(f"Custom CV unavailable, using uploaded CV {custom_cv_id}")
+                if not custom_cv_id and not can_browser:
                     logger.error(f"Failed to generate CV for job {job_id}")
                     continue
                 logger.info(f">>> COMPLETED: Smart CV Generation (ID: {custom_cv_id})")
@@ -529,10 +575,15 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
 
                 # Generate cover letter
                 logger.info(f">>> STARTED: Writing Cover Letter for {job_id}")
-                cover_letter_id = await generate_cover_letter(user_cv, job)
-                if not cover_letter_id:
+                cover_letter_id = await generate_cover_letter(user_cv, job) if can_email else None
+                if can_email and not cover_letter_id:
+                    cover_letter_id = await _basic_cover_letter(user_cv, job)
+                    logger.info(f"Generated cover letter unavailable, stored a plain letter {cover_letter_id}")
+                if can_email and not cover_letter_id and not can_browser:
                     logger.error(f"Failed to generate cover letter for job {job_id}")
                     continue
+                if can_email and not cover_letter_id:
+                    can_email = False
                 logger.info(f">>> COMPLETED: Cover Letter Generation (ID: {cover_letter_id})")
                 
                 await asyncio.sleep(1.0) # UX delay for reading
@@ -606,8 +657,9 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
                         job_id=job_id,
                         cv_id=custom_cv_id
                     )
-                    sent = bool(browser_result and browser_result.get("success"))
-                    if not sent:
+                    result_status = (browser_result or {}).get("status")
+                    sent = bool(browser_result and browser_result.get("success") and result_status == "completed")
+                    if browser_result and not browser_result.get("success"):
                         await db.applications.update_one(
                             {"_id": result.inserted_id},
                             {"$set": {
@@ -622,8 +674,9 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
                 if sent:
                     applications_sent += 1
                     stats["applications_sent"] += 1
-                    from app.services.core.subscription_service import SubscriptionService
-                    await SubscriptionService(db).track_usage(str(user_id), "auto_application")
+                    if can_email:
+                        from app.services.core.subscription_service import SubscriptionService
+                        await SubscriptionService(db).track_usage(str(user_id), "auto_application")
                     logger.info(f"Successfully processed auto-apply for job {job_id}")
                 
             except Exception as e:

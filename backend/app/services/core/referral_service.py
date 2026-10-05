@@ -80,7 +80,11 @@ class ReferralService:
                 "status": "pending"
             })
         if not existing and invite:
-            existing = invite
+            invite_referee = str(invite.get("referee_user_id") or "")
+            invite_email = (invite.get("referee_email") or "").lower()
+            same_person = invite_referee in ("", referee_id) or invite_email == (referee_email or "").lower()
+            if same_person:
+                existing = invite
         if existing:
             await self.db.referrals.update_one(
                 {"_id": existing["_id"]},
@@ -99,7 +103,8 @@ class ReferralService:
             "referrer_user_id": referrer_id,
             "referee_email": referee_email,
             "referee_user_id": referee_id,
-            "referral_code": normalized,
+            "referrer_code": normalized,
+            "referral_code": f"signup_{uuid.uuid4().hex}",
             "status": "pending",
             "referred_at": datetime.utcnow(),
             "referrer_reward_paid": False,
@@ -134,6 +139,49 @@ class ReferralService:
             {"$set": {"status": "completed", "completed_at": datetime.utcnow()}}
         )
         await self._grant_auto_bonus(referral["referrer_user_id"])
+
+    async def sync_paid_referrals(self, referrer_user_id: str) -> None:
+        """Create any missing signup rows, then complete friends already on Basic or Premium."""
+        referrer_id = str(referrer_user_id)
+        referred_query = [{"referred_by": referrer_id}]
+        if ObjectId.is_valid(referrer_id):
+            referred_query.append({"referred_by": ObjectId(referrer_id)})
+        friends = await self.db.users.find({"$or": referred_query}).to_list(length=200)
+        for friend in friends:
+            friend_id = str(friend["_id"])
+            if friend_id == referrer_id:
+                continue
+            existing = await self.db.referrals.find_one({
+                "referrer_user_id": referrer_id,
+                "referee_user_id": friend_id
+            })
+            if existing:
+                continue
+            await self.db.referrals.insert_one({
+                "_id": f"ref_{uuid.uuid4().hex[:8]}",
+                "program_id": "default",
+                "referrer_user_id": referrer_id,
+                "referee_email": friend.get("email") or "",
+                "referee_user_id": friend_id,
+                "referrer_code": (friend.get("referred_with_code") or ""),
+                "referral_code": f"signup_{uuid.uuid4().hex}",
+                "status": "pending",
+                "referred_at": friend.get("created_at") or datetime.utcnow(),
+                "referrer_reward_paid": False,
+                "referee_reward_paid": False,
+                "metadata": {"source": "signup"}
+            })
+
+        pending = await self.db.referrals.find({
+            "referrer_user_id": str(referrer_user_id),
+            "status": "pending",
+            "referee_user_id": {"$exists": True}
+        }).to_list(length=100)
+        for referral in pending:
+            referee = await self._find_user(referral.get("referee_user_id"))
+            tier = (referee or {}).get("subscription_tier")
+            if tier in self.REFERRAL_REWARDS["paid_tiers"]:
+                await self.reward_for_paid_plan(str(referee["_id"]))
     
     def generate_referral_code(self, user_id: str) -> str:
         """Generate unique referral code"""

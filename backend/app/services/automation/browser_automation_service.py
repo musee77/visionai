@@ -4,6 +4,7 @@ Browser Automation Service - Integration with Node.js Playwright Microservice
 Handles automated browser-based form filling and job application submission
 """
 
+import asyncio
 import logging
 import httpx
 from typing import Dict, Any, Optional
@@ -107,17 +108,30 @@ class BrowserAutomationService:
                 credentials = await BrowserAutomationService._get_user_portal_credentials(user_id, domain)
                 if credentials:
                     logger.info(f"Found existing credentials for {domain}")
+                    credentials = {
+                        "email": credentials.get("username") or credentials.get("email"),
+                        "username": credentials.get("username") or credentials.get("email"),
+                        "password": credentials.get("password") or credentials.get("password_encrypted"),
+                    }
             except Exception as e:
                 logger.warning(f"Failed to lookup credentials: {e}")
+
+            gmail = user.get("gmail_auth") or {}
+            connected_email = gmail.get("email_address") or ""
+            is_premium = str(user.get("subscription_tier") or "").lower() == "premium"
+            personal_info = BrowserAutomationService._personal_info(cv_data, user)
+            if connected_email:
+                personal_info["email"] = connected_email
 
             # Step 4: Call Node.js browser automation service
             automation_result = await BrowserAutomationService._call_browser_automation_service(
                 application_url=application_url,
                 user_data={
-                    "personal_info": cv_data.get("personal_info", {}),
+                    "personal_info": personal_info,
                     "experience": cv_data.get("experience", []),
                     "education": cv_data.get("education", []),
-                    "skills": cv_data.get("skills", {})
+                    "skills": cv_data.get("skills", {}),
+                    "connected_email": connected_email,
                 },
                 job_data={
                     "title": job.get("title"),
@@ -126,7 +140,7 @@ class BrowserAutomationService:
                 },
                 application_id=application_id,
                 credentials=credentials,
-                auto_create_account=True # Vision AI Extreme Mode instruction
+                auto_create_account=bool(is_premium and connected_email)
             )
             
             # Step 6: Update application with result
@@ -307,25 +321,23 @@ class BrowserAutomationService:
             if user_id_obj:
                 user_ids.append(user_id_obj)
 
+            if cv_id and ObjectId.is_valid(cv_id):
+                chosen = await db.documents.find_one({"_id": ObjectId(cv_id)})
+                if chosen and chosen.get("cv_data"):
+                    return chosen.get("cv_data")
+
             query = {
                 "user_id": {"$in": user_ids},
                 "document_type": "cv",
                 "cv_data": {"$exists": True, "$ne": None}
             }
             
-            if cv_id:
-                try:
-                    query["_id"] = ObjectId(cv_id)
-                except Exception as e:
-                    logger.error(f"Invalid cv_id format: {cv_id}")
-                    return None
-            
             logger.info(f"CV Query: {query}")
                 
             # Find document
             cv_doc = await db.documents.find_one(
                 query,
-                sort=[("upload_date", -1)]
+                sort=[("upload_date", -1), ("created_at", -1)]
             )
             
             if not cv_doc:
@@ -344,6 +356,52 @@ class BrowserAutomationService:
         except Exception as e:
             logger.error(f"Error getting CV data: {str(e)}")
             return None
+
+    @staticmethod
+    def _personal_info(cv_data: Dict[str, Any], user: Dict[str, Any]) -> Dict[str, Any]:
+        personal = dict(cv_data.get("personal_info") or {})
+        personal.setdefault("name", cv_data.get("name") or cv_data.get("full_name") or user.get("full_name") or "")
+        personal.setdefault("email", cv_data.get("email") or user.get("email") or "")
+        personal.setdefault("phone", cv_data.get("phone") or user.get("phone") or "")
+        personal.setdefault("location", cv_data.get("location") or "")
+        return personal
+
+    @staticmethod
+    async def _wait_for_browser_result(session_id: str) -> Dict[str, Any]:
+        """Wait until the browser session finishes instead of treating a start as a sent application."""
+        deadline = asyncio.get_running_loop().time() + 90
+        last_status = "started"
+        while asyncio.get_running_loop().time() < deadline:
+            await asyncio.sleep(3)
+            payload = await BrowserAutomationService.get_node_automation_status(session_id)
+            last_status = payload.get("status") or last_status
+            if last_status in ("completed", "error", "manual_action_required", "pending_verification"):
+                errors = payload.get("errors") or []
+                message = ""
+                if errors and isinstance(errors[-1], dict):
+                    message = errors[-1].get("message") or ""
+                if last_status == "completed":
+                    return {
+                        "success": True,
+                        "status": "completed",
+                        "session_id": session_id,
+                        "new_credentials": payload.get("new_credentials"),
+                    }
+                if last_status == "error":
+                    return {
+                        "success": False,
+                        "status": "error",
+                        "error": message or "Browser apply failed",
+                        "session_id": session_id
+                    }
+                return {
+                    "success": True,
+                    "status": "login_required" if last_status == "manual_action_required" and "login" in message.lower() else last_status,
+                    "error": message,
+                    "session_id": session_id,
+                    "new_credentials": payload.get("new_credentials"),
+                }
+        return {"success": True, "status": "started", "session_id": session_id}
 
     @staticmethod
     async def _get_user_portal_credentials(user_id: str, domain: str) -> Optional[Dict[str, Any]]:
@@ -458,7 +516,10 @@ class BrowserAutomationService:
                     "personal_info": user_data.get("personal_info", {}),
                     "experience": user_data.get("experience", []),
                     "education": user_data.get("education", []),
-                    "skills": user_data.get("skills", {})
+                    "skills": user_data.get("skills", {}),
+                    "connected_email": user_data.get("connected_email") or "",
+                    "auto_create_account": auto_create_account,
+                    "portal_credentials": credentials,
                 },
                 "job_source": BrowserAutomationService.detect_application_platform(application_url),
                 "credentials": credentials,
@@ -480,12 +541,9 @@ class BrowserAutomationService:
                 
                 if response.status_code == 200:
                     result = response.json()
+                    session_id = result.get("browser_session_id") or application_id
                     logger.info(f"Browser automation started: {result.get('status')}")
-                    return {
-                        "success": True, 
-                        "session_id": result.get("browser_session_id"),
-                        "status": result.get("status")
-                    }
+                    return await BrowserAutomationService._wait_for_browser_result(session_id)
                 else:
                     error_msg = f"Browser automation service error: {response.status_code}"
                     logger.error(error_msg)

@@ -29,12 +29,12 @@ class AutoApplyButton {
         const sliderTransform = this.isEnabled ? 'translate-x-[30px]' : 'translate-x-[0]';
 
         const locked = window.PremiumGuard && !PremiumGuard.hasAccess('AUTO_APPLY');
-        const label = locked ? 'Upgrade to Auto-Apply' : this.label;
+        const label = locked ? 'Upgrade to Auto-Apply' : (this.label || '');
 
         container.innerHTML = `
             <div class="flex items-center gap-3">
-                <span class="${this.textColor} font-medium whitespace-nowrap">${label}</span>
-                <div class="aa-toggle-component relative w-[60px] h-[30px] ${switchBg} rounded-full cursor-pointer transition-all duration-300" id="${this.containerId}-switch">
+                ${label ? `<span class="${this.textColor} font-medium whitespace-nowrap">${label}</span>` : ''}
+                <div class="aa-toggle-component relative w-[60px] h-[30px] ${switchBg} rounded-full cursor-pointer transition-all duration-300" id="${this.containerId}-switch" role="switch" aria-checked="${this.isEnabled ? 'true' : 'false'}" aria-label="${label || 'Automated applications'}">
                     <div class="aa-toggle-slider absolute top-[3px] left-[3px] w-[24px] h-[24px] bg-white rounded-full transition-all duration-300 shadow-sm" style="transform: ${this.isEnabled ? 'translateX(30px)' : 'translateX(0)'}" id="${this.containerId}-slider"></div>
                 </div>
             </div>

@@ -51,7 +51,14 @@ class GoogleLoginManager {
             // 2. Prepare API URL
             const apiBase = window.CONFIG ? CONFIG.API_BASE_URL : 'http://localhost:8000';
             const apiPrefix = window.CONFIG ? CONFIG.API_PREFIX : '/api/v1';
-            const url = `${apiBase}${apiPrefix}/auth/google/login${locationParam}`;
+            const referralCode = window.pendingReferralCode ? window.pendingReferralCode() : '';
+            const params = new URLSearchParams();
+            if (locationParam.startsWith('?location=')) {
+                params.set('location', decodeURIComponent(locationParam.slice('?location='.length)));
+            }
+            if (referralCode) params.set('ref', referralCode);
+            const query = params.toString();
+            const url = `${apiBase}${apiPrefix}/auth/google/login${query ? `?${query}` : ''}`;
 
             console.log('Initiating Google Login fetch to:', url);
 

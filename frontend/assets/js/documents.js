@@ -98,8 +98,9 @@ class DocumentManager {
             } else if (target.classList.contains('reparse-document-btn')) {
                 this.reparseDocument(documentId);
             } else if (target.classList.contains('customize-cv-btn') || target.classList.contains('generate-cover-letter-btn')) {
-                if (!this.canUseBasicDocuments()) return;
-                if (target.classList.contains('customize-cv-btn')) {
+                const feature = target.classList.contains('customize-cv-btn') ? 'CV_CUSTOMIZATION' : 'COVER_LETTER';
+                if (!this.canUseBasicDocuments(feature)) return;
+                if (feature === 'CV_CUSTOMIZATION') {
                     this.showCustomizationModal(documentId);
                 } else {
                     this.showCoverLetterModal(documentId);
@@ -333,7 +334,8 @@ class DocumentManager {
         const uploadDate = this.formatDate(document.upload_date);
         const fileSize = this.formatFileSize(document.file_size);
         const statusBadge = this.getStatusBadge(document.status);
-        const hasValidData = document.cv_data && !document.cv_data.error;
+        const isCoverLetter = document.document_type === 'cover_letter';
+        const hasValidData = !isCoverLetter && document.cv_data && !document.cv_data.error;
 
         return `
             <div class="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-all hover:border-primary-200">
@@ -356,7 +358,7 @@ class DocumentManager {
                             </div>
                         </div>
                         
-                        ${hasValidData ? this.renderParsedInfo(document.cv_data) : this.renderNeedsParsing()}
+                        ${isCoverLetter ? this.renderCoverLetterInfo() : (hasValidData ? this.renderParsedInfo(document.cv_data) : this.renderNeedsParsing())}
                     </div>
                     
                     <div class="flex flex-col space-y-2 ml-6 flex-shrink-0">
@@ -370,10 +372,12 @@ class DocumentManager {
                                 ${this.hasBasicDocuments() ? '📝 Cover Letter' : 'Upgrade to Cover Letter'}
                             </button>
                         ` : ''}
+                        ${isCoverLetter ? '' : `
                         <button class="reparse-document-btn bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap" 
                                 data-document-id="${document.id}">
                             ${hasValidData ? '🔄 Re-analyze' : '🔍 Analyze'}
                         </button>
+                        `}
                         <button class="delete-document-btn bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap" 
                                 data-document-id="${document.id}">
                             🗑️ Delete
@@ -402,6 +406,14 @@ class DocumentManager {
                     ${skills.length > 0 ? `<p><strong>Key Skills:</strong> ${skills.slice(0, 4).map(s => this.escapeHtml(s)).join(', ')}${skills.length > 4 ? '...' : ''}</p>` : ''}
                     ${experience.length > 0 ? `<p><strong>Experience:</strong> ${experience.length} role${experience.length !== 1 ? 's' : ''}</p>` : ''}
                 </div>
+            </div>
+        `;
+    }
+
+    renderCoverLetterInfo() {
+        return `
+            <div class="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                <p class="text-green-800 text-sm">Saved cover letter. Choose it when you apply to a job.</p>
             </div>
         `;
     }
@@ -436,7 +448,7 @@ class DocumentManager {
     }
 
     async deleteDocument(documentId) {
-        if (!confirm('Are you sure you want to delete this CV? This action cannot be undone.')) {
+        if (!confirm('Are you sure you want to delete this document? This action cannot be undone.')) {
             return;
         }
 
@@ -516,10 +528,31 @@ class DocumentManager {
         return tier === 'basic' || tier === 'premium';
     }
 
-    canUseBasicDocuments() {
-        if (this.hasBasicDocuments()) return true;
-        this.showAlert('Upgrade to Basic to customize a CV and select a cover letter.', 'warning');
-        return false;
+    canUseBasicDocuments(feature) {
+        if (window.PremiumGuard) {
+            const isCover = feature === 'COVER_LETTER';
+            return PremiumGuard.enforce(
+                feature,
+                isCover ? 'Upgrade to Cover Letter' : 'Upgrade to Customize',
+                isCover
+                    ? 'Selecting a cover letter is included on Basic and Premium.'
+                    : 'Customizing a CV is included on Basic and Premium.'
+            );
+        }
+        return this.hasBasicDocuments();
+    }
+
+    async readError(response, fallback) {
+        try {
+            const error = await response.json();
+            if (typeof error.detail === 'string' && error.detail) return error.detail;
+            if (Array.isArray(error.detail)) {
+                return error.detail.map((item) => item.msg || 'Invalid request').join('; ');
+            }
+        } catch (error) {
+            console.error('Could not read error response', error);
+        }
+        return fallback;
     }
 
     async handleCustomizeCv(e) {
@@ -532,6 +565,7 @@ class DocumentManager {
         const requestData = {
             job_description: formData.get('job_description'),
             company_name: formData.get('company_name'),
+            job_title: formData.get('job_title'),
             user_preferences: {}
         };
 
@@ -548,8 +582,7 @@ class DocumentManager {
             });
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Customization failed');
+                throw new Error(await this.readError(response, 'Customization failed'));
             }
 
             const result = await response.json();
@@ -591,8 +624,7 @@ class DocumentManager {
             });
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Cover letter generation failed');
+                throw new Error(await this.readError(response, 'Cover letter generation failed'));
             }
 
             const result = await response.json();
@@ -613,8 +645,20 @@ class DocumentManager {
 
         if (modal && content) {
             content.innerHTML = this.formatCvDataForDisplay(result.customized_cv);
+            this.setDownloadLink('customizedCvDownload', result.pdf_url);
             modal.classList.remove('hidden');
             modal.classList.add('flex');
+        }
+    }
+
+    setDownloadLink(id, url) {
+        const link = document.getElementById(id);
+        if (!link) return;
+        if (url) {
+            link.href = url;
+            link.classList.remove('hidden');
+        } else {
+            link.classList.add('hidden');
         }
     }
 
@@ -623,16 +667,18 @@ class DocumentManager {
         const content = document.getElementById('coverLetterContent');
 
         if (modal && content) {
+            this.setDownloadLink('coverLetterDownload', result.pdf_url);
+            const metadata = result.metadata || {};
             content.innerHTML = `
                 <div class="whitespace-pre-wrap bg-gray-50 p-6 rounded-lg border text-gray-700 leading-relaxed">
-                    ${this.escapeHtml(result.cover_letter)}
+                    ${this.escapeHtml(result.cover_letter || '')}
                 </div>
                 <div class="mt-6 p-4 bg-primary-50 rounded-lg border border-primary-200">
                     <h4 class="font-medium text-primary-900 mb-2">Generation Details</h4>
                     <div class="text-sm text-primary-700 space-y-1">
-                        <p><strong>Generated:</strong> ${new Date(result.metadata.generated_at).toLocaleString()}</p>
-                        <p><strong>Word count:</strong> ${result.metadata.word_count}</p>
-                        <p><strong>Tone:</strong> ${result.metadata.tone}</p>
+                        <p><strong>Generated:</strong> ${metadata.generated_at ? new Date(metadata.generated_at).toLocaleString() : 'Just now'}</p>
+                        <p><strong>Word count:</strong> ${metadata.word_count || 0}</p>
+                        <p><strong>Tone:</strong> ${this.escapeHtml(metadata.tone || 'professional')}</p>
                     </div>
                 </div>
             `;
@@ -677,6 +723,10 @@ class DocumentManager {
                     <div class="bg-gray-50 p-4 rounded-lg space-y-2">
             `;
 
+            if (Array.isArray(cvData.skills)) {
+                html += `<p class="text-gray-700">${cvData.skills.map(skill => this.escapeHtml(String(skill))).join(', ')}</p>`;
+            }
+
             if (cvData.skills.technical?.length > 0) {
                 html += `
                     <p>
@@ -707,14 +757,16 @@ class DocumentManager {
             `;
 
             cvData.experience.forEach(exp => {
+                if (!exp || typeof exp !== 'object') return;
+                const bullets = Array.isArray(exp.highlights) ? exp.highlights : (Array.isArray(exp.achievements) ? exp.achievements : []);
                 html += `
                     <div class="bg-gray-50 p-4 rounded-lg">
                         <h4 class="font-semibold text-gray-900">${this.escapeHtml(exp.title || 'Position')}</h4>
                         <p class="text-primary-600 font-medium">${this.escapeHtml(exp.company || '')}${exp.duration ? ' • ' + this.escapeHtml(exp.duration) : ''}</p>
                         ${exp.description ? `<p class="text-sm text-gray-700 mt-2 leading-relaxed">${this.escapeHtml(exp.description)}</p>` : ''}
-                        ${exp.achievements?.length > 0 ? `
+                        ${bullets.length > 0 ? `
                             <ul class="list-disc list-inside text-sm text-gray-700 mt-2 space-y-1">
-                                ${exp.achievements.map(achievement => `<li>${this.escapeHtml(achievement)}</li>`).join('')}
+                                ${bullets.map(achievement => `<li>${this.escapeHtml(String(achievement))}</li>`).join('')}
                             </ul>
                         ` : ''}
                     </div>

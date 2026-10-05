@@ -160,10 +160,16 @@ async def create_cvision_indexes():
     ]
     await db.database.subscriptions.create_indexes(subscriptions_indexes)
 
-    # Referrals indexes
+    # One person can refer many friends, so the share code is not unique here.
+    try:
+        await db.database.referrals.drop_index("referral_code_unique")
+    except Exception:
+        pass
+
     referrals_indexes = [
         IndexModel([("referrer_user_id", ASCENDING)], name="referrer_user_id"),
-        IndexModel([("referral_code", ASCENDING)], unique=True, name="referral_code_unique"),
+        IndexModel([("referrer_code", ASCENDING)], name="referrer_code"),
+        IndexModel([("referral_code", ASCENDING)], name="referral_code"),
         IndexModel([("referee_email", ASCENDING)], name="referee_email"),
         IndexModel([("status", ASCENDING)], name="status")
     ]

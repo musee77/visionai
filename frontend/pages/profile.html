@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profile - CVision</title>
+    <title>Profile - Synovae</title>
     <script src="/assets/js/auth-guard.js?v=1.2"></script>
     <link rel="stylesheet" href="../assets/css/global.css">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -28,6 +28,25 @@
             }
         }
     </script>
+    <style>
+        .job-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; background: #fff; }
+        .job-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1rem; }
+        .job-title { font-size: 1.125rem; font-weight: 700; color: #111827; }
+        .job-company { color: #6b7280; margin-top: 0.25rem; }
+        .match-score { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }
+        .score-circle { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; }
+        .score-high { background: #059669; }
+        .score-medium { background: #d97706; }
+        .score-low { background: #dc2626; }
+        .score-label { font-size: 0.75rem; color: #6b7280; }
+        .job-details { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 0.75rem; font-size: 0.875rem; color: #6b7280; }
+        .job-description { font-size: 0.875rem; color: #4b5563; line-height: 1.6; margin-bottom: 1rem; }
+        .job-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+        .btn-apply, .btn-view { padding: 0.6rem 1.1rem; border-radius: 8px; font-weight: 500; cursor: pointer; }
+        .btn-apply { background: #4f46e5; color: #fff; border: none; }
+        .btn-apply.auto-applied { background: #059669; cursor: default; }
+        .btn-view { background: #fff; color: #4f46e5; border: 1px solid #4f46e5; }
+    </style>
 </head>
 
 <body class="bg-gray-50 font-sans">
@@ -54,45 +73,59 @@
                         <div class="mt-4">
                             <span class="px-4 py-2 bg-primary-100 text-primary-700 text-sm font-medium rounded-full"
                                 id="subscriptionBadge"></span>
+                            <p class="text-sm text-gray-500 mt-3" id="planPrice"></p>
+                        </div>
+                        <div id="auto-apply" class="mt-6 pt-6 border-t border-gray-100 space-y-3">
+                            <div id="autoApplyButtonContainer" class="flex justify-center">
+                                <div class="h-[30px] w-[140px] bg-gray-200 rounded-full animate-pulse"></div>
+                            </div>
+                            <button id="uploadCvBtn" type="button"
+                                class="w-full bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 font-medium px-4 py-2 rounded-lg transition-colors">
+                                Upload CV
+                            </button>
+                            <div id="runTestContainer" class="w-full"></div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Subscription Stats -->
                 <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Usage Stats</h3>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-1">This month</h3>
+                    <p class="text-sm text-gray-500 mb-4">Usage against your current plan.</p>
                     <div class="space-y-4">
                         <div>
                             <div class="flex justify-between text-sm mb-1">
-                                <span class="text-gray-600">Monthly Searches</span>
-                                <span class="font-medium text-gray-900" id="searchesUsed">0/1</span>
+                                <span class="text-gray-600">Manual applications</span>
+                                <span class="font-medium text-gray-900" id="manualUsage">—</span>
                             </div>
                             <div class="w-full bg-gray-200 rounded-full h-2">
-                                <div class="bg-primary-500 h-2 rounded-full" id="searchesBar" style="width: 0%"></div>
+                                <div class="bg-primary-500 h-2 rounded-full" id="manualBar" style="width: 0%"></div>
                             </div>
                         </div>
 
-                        <div>
-                            <div class="flex justify-between text-sm mb-1">
-                                <span class="text-gray-600">Generations</span>
-                                <span class="font-medium text-gray-900" id="generationsUsed">0</span>
+                        <div class="pt-2 border-t border-gray-200 space-y-3">
+                            <div class="flex justify-between text-sm gap-3">
+                                <span class="text-gray-600">Automated applications</span>
+                                <span class="font-medium text-gray-900 text-right" id="autoUsage">—</span>
                             </div>
-                            <div class="w-full bg-gray-200 rounded-full h-2">
-                                <div class="bg-purple-500 h-2 rounded-full" id="generationsBar" style="width: 0%"></div>
-                            </div>
-                        </div>
-
-                        <div class="pt-2 border-t border-gray-200">
-                            <div class="flex justify-between text-sm">
-                                <span class="text-gray-600">Total Applications</span>
-                                <span class="font-medium text-gray-900" id="totalApps">0</span>
+                            <div class="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                                <span class="text-gray-500">Today</span>
+                                <span class="text-right font-medium text-gray-900" id="todayApplications">—</span>
+                                <span class="text-gray-500">Left today</span>
+                                <span class="text-right font-medium text-gray-900"><span id="remainingToday">—</span> of <span id="dailyLimit">5</span></span>
+                                <span class="text-gray-500">All time</span>
+                                <span class="text-right font-medium text-gray-900" id="totalApplications">—</span>
+                                <span class="text-gray-500">Average match</span>
+                                <span class="text-right font-medium text-gray-900" id="avgMatchScore">—</span>
+                                <span class="text-gray-500">Interview rate</span>
+                                <span class="text-right font-medium text-gray-900" id="interviewRate">—</span>
                             </div>
                         </div>
                     </div>
 
-                    <button onclick="upgradeAccount()"
+                    <button id="upgradeAccountBtn" onclick="upgradeAccount()"
                         class="w-full mt-4 btn-gradient text-white px-4 py-2 rounded-lg font-medium hover:shadow-lg transition-all">
-                        Upgrade Account
+                        Upgrade plan
                     </button>
                 </div>
 
@@ -171,21 +204,17 @@
                                     placeholder="+1 (555) 123-4567">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">City/State</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Job location</label>
                                 <input type="text" id="cityState"
                                     class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 focus:outline-none"
-                                    placeholder="Auto-detected" readonly>
+                                    placeholder="Used to filter jobs" readonly>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Country</label>
-                                <div class="relative">
-                                    <input type="text" id="country"
-                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
-                                        placeholder="Auto-detected" readonly>
-                                    <span id="currencyDisplay"
-                                        class="absolute right-3 top-2 text-xs font-semibold text-gray-500 bg-gray-200 rounded px-2 py-1">
-                                    </span>
-                                </div>
+                                <input type="text" id="country"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+                                    placeholder="Used to filter jobs" readonly>
+                                <p class="text-xs text-gray-500 mt-2">This location filters jobs. Plan prices stay in USD.</p>
                             </div>
                         </div>
 
@@ -203,6 +232,52 @@
                             </button>
                         </div>
                     </form>
+                </div>
+
+                <div id="cvDataContainer"></div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Matching jobs</h3>
+                        <a href="/pages/matching-jobs.html" class="text-sm text-primary-600 hover:text-primary-700 font-medium">View all</a>
+                    </div>
+                    <div id="matchingJobsContainer">
+                        <div class="text-center py-8 text-gray-500">Loading matches…</div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6" id="settingsSection" style="display: none;">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-6">Application limits</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <div class="flex justify-between items-start mb-3">
+                                <div>
+                                    <label class="text-sm font-medium text-gray-700 block">Daily limit</label>
+                                    <p class="text-xs text-gray-500 mt-1">Applications sent per day</p>
+                                </div>
+                                <span class="text-sm font-medium text-gray-900" id="maxApplicationsValueDisplay">5 Apps</span>
+                            </div>
+                            <input type="range" min="1" max="10" value="5" id="maxApplicationsSlider"
+                                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                        </div>
+                        <div>
+                            <div class="flex justify-between items-start mb-3">
+                                <div>
+                                    <label class="text-sm font-medium text-gray-700 block">Match threshold</label>
+                                    <p class="text-xs text-gray-500 mt-1">Minimum match score</p>
+                                </div>
+                                <span class="text-sm font-medium text-gray-900" id="minScoreValueDisplay">70% Match</span>
+                            </div>
+                            <input type="range" min="50" max="90" value="70" id="minScoreSlider"
+                                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-600">
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end">
+                        <button type="button" onclick="saveSettings()"
+                            class="px-6 py-2 bg-primary-500 text-white rounded-lg font-medium hover:bg-primary-600 transition-colors">
+                            Save changes
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Phase 3: Generation Preferences -->
@@ -329,18 +404,32 @@
     <!-- Delete Account Modal Container -->
     <div id="delete-account-modal-container"></div>
 
+    <div id="dropZone" class="hidden"></div>
+    <input type="file" id="fileInput" class="hidden" accept=".pdf,.docx,.doc,.txt">
+    <div id="uploadLoading" class="hidden fixed inset-0 bg-white/90 z-[80] items-center justify-center flex-col">
+        <p class="font-medium text-gray-700">Uploading and reading your CV…</p>
+    </div>
+    <div id="upgrade-modal-container"></div>
+
     <script src="../assets/js/utils/currency.js" defer></script>
+    <script src="/assets/js/components/upgrade-modal.js?v=1.1" defer></script>
+    <script src="/assets/js/components/premium-guard.js?v=1.2" defer></script>
+    <script src="/assets/js/utils/cv-loader.js?v=1.0" defer></script>
+    <script src="/assets/js/components/cv-uploader.js?v=2.3" defer></script>
+    <script src="/assets/js/components/auto-apply-button.js?v=1.9" defer></script>
+    <script src="/assets/js/components/run-test-button.js?v=1.7" defer></script>
+    <script src="../assets/js/pages/auto-apply.js?v=2.1" defer></script>
     <script src="../assets/js/utils/geolocation.js" defer></script>
     <script src="../assets/js/components/change-password-modal.js" defer></script>
     <script src="../assets/js/components/delete-account-modal.js" defer></script>
     <script src="../assets/js/main.js" defer></script>
     <script src="../assets/js/generation.js" defer></script>
-    <script src="../assets/js/pages/profile.js?v=2" defer></script>
-    <script src="../assets/js/components/navbar.js?v=1.4" defer></script>
+    <script src="../assets/js/pages/profile.js?v=3" defer></script>
+    <script src="../assets/js/components/navbar.js?v=1.6" defer></script>
 
     <script>
         // Load navbar component with proper initialization
-        fetch('../components/navbar.html?v=1.4')
+        fetch('../components/navbar.html?v=1.6')
             .then(response => response.text())
             .then(html => {
                 const container = document.getElementById('navbar-container');

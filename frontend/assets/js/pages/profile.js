@@ -51,7 +51,6 @@ async function checkAndPopulateLocation() {
 
                 // Update UI immediately
                 document.getElementById('country').value = `${countryObj.name} (${countryObj.code})`;
-                document.getElementById('currencyDisplay').textContent = countryObj.currency;
                 if (cityStr) document.getElementById('cityState').value = cityStr;
 
                 // Prepare update with ALL existing profile data to avoid overwriting
@@ -142,11 +141,8 @@ async function loadUserProfile() {
                     if (typeof locPrefs.country === 'string') {
                         // Legacy string format
                         document.getElementById('country').value = locPrefs.country;
-                        document.getElementById('currencyDisplay').textContent = '';
                     } else if (locPrefs.country.name) {
-                        // New Object format
                         document.getElementById('country').value = `${locPrefs.country.name} (${locPrefs.country.code})`;
-                        document.getElementById('currencyDisplay').textContent = locPrefs.country.currency || '';
                     } else {
                         document.getElementById('country').value = 'Not Set';
                     }
@@ -162,16 +158,7 @@ async function loadUserProfile() {
             console.warn('Could not load detailed profile (this is OK):', profileError);
         }
 
-        // Update usage stats
-        if (user.usage_stats) {
-            const searches = user.usage_stats.monthly_searches || 0;
-            const maxSearches = user.subscription_tier === 'free' ? 1 :
-                user.subscription_tier === 'basic' ? 150 : 200;
-
-            document.getElementById('searchesUsed').textContent = `${searches}/${maxSearches}`;
-            document.getElementById('searchesBar').style.width = `${(searches / maxSearches) * 100}%`;
-            document.getElementById('totalApps').textContent = user.usage_stats.total_applications || 0;
-        }
+        await loadPlanDetails((user.subscription_tier || 'free').toLowerCase());
 
         // Load preferences
         try {
@@ -199,6 +186,73 @@ async function loadUserProfile() {
         console.error('Error loading profile:', error);
         CVision.Utils.showAlert('Failed to load profile', 'error');
     }
+}
+
+function formatPlanPrice(cents, interval) {
+    const amount = (Number(cents) || 0) / 100;
+    const price = `$${amount.toFixed(2)}`;
+    if (!cents) return `${price}`;
+    if (interval === 'yearly') return `${price}/year`;
+    if (interval === 'one_time') return `${price} one time`;
+    return `${price}/month`;
+}
+
+function formatQuota(used, limit) {
+    const count = Number(used) || 0;
+    if (limit === undefined || limit === null) return String(count);
+    if (Number(limit) === 0) return 'Not included';
+    if (Number(limit) >= 9999) return `${count} · unlimited`;
+    return `${count} of ${limit}`;
+}
+
+function quotaWidth(used, limit) {
+    const count = Number(used) || 0;
+    const cap = Number(limit);
+    if (!cap || cap >= 9999) return count > 0 ? '100%' : '0%';
+    return `${Math.min(100, Math.round((count / cap) * 100))}%`;
+}
+
+async function loadPlanDetails(tier) {
+    const fallback = {
+        free: { plan: 'Free', price_cents: 0, billing_interval: 'monthly', limits: { manual_applications: 3, auto_applications: 0 }, current_usage: {} },
+        basic: { plan: 'Basic', price_cents: 299, billing_interval: 'monthly', limits: { manual_applications: 999999, auto_applications: 0 }, current_usage: {} },
+        premium: { plan: 'Premium', price_cents: 2999, billing_interval: 'monthly', limits: { manual_applications: 9999, auto_applications: 9999 }, current_usage: {} }
+    };
+    let data = fallback[tier] || fallback.free;
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}${CONFIG.API_PREFIX}/subscriptions/usage`, {
+            headers: { 'Authorization': `Bearer ${CVision.Utils.getToken()}` }
+        });
+        if (response.ok) data = await response.json();
+    } catch (error) {
+        console.warn('Could not load plan usage:', error);
+    }
+
+    const limits = data.limits || {};
+    const usage = data.current_usage || {};
+    const manualText = formatQuota(usage.manual_applications, limits.manual_applications);
+    const bonusLeft = Number(limits.referral_bonus_auto_applications) || 0;
+    let autoText = formatQuota(usage.auto_applications, limits.auto_applications);
+    if (bonusLeft > 0 && Number(limits.auto_applications) < 9999) {
+        autoText = Number(limits.auto_applications) > 0
+            ? `${autoText} · ${bonusLeft} referral left`
+            : `${bonusLeft} referral application${bonusLeft === 1 ? '' : 's'} left`;
+    }
+
+    const price = document.getElementById('planPrice');
+    if (price) price.textContent = formatPlanPrice(data.price_cents, data.billing_interval);
+    const badge = document.getElementById('subscriptionBadge');
+    if (badge && data.plan) badge.textContent = data.plan;
+    const manual = document.getElementById('manualUsage');
+    const manualBar = document.getElementById('manualBar');
+    const auto = document.getElementById('autoUsage');
+    if (manual) manual.textContent = manualText;
+    if (manualBar) manualBar.style.width = quotaWidth(usage.manual_applications, limits.manual_applications);
+    if (auto) auto.textContent = autoText;
+
+    const upgrade = document.getElementById('upgradeAccountBtn');
+    const planId = String(data.plan_id || data.tier || tier || '');
+    if (upgrade) upgrade.textContent = planId.includes('premium') ? 'View plan' : 'Upgrade plan';
 }
 
 async function loadRecentGenerations() {

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matching Jobs - Synovae</title>
+    <script src="/assets/js/auth-guard.js?v=1.2"></script>
+    <link rel="stylesheet" href="/assets/css/global.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { 500: '#667eea', 600: '#5a67d8', 700: '#4c51bf' }
+                    },
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        .job-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; background: #fff; }
+        .job-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1rem; }
+        .job-title { font-size: 1.125rem; font-weight: 700; color: #111827; }
+        .job-company { color: #6b7280; margin-top: 0.25rem; }
+        .match-score { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }
+        .score-circle { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; }
+        .score-high { background: #059669; }
+        .score-medium { background: #d97706; }
+        .score-low { background: #dc2626; }
+        .score-label { font-size: 0.75rem; color: #6b7280; }
+        .job-details { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 0.75rem; font-size: 0.875rem; color: #6b7280; }
+        .job-description { font-size: 0.875rem; color: #4b5563; line-height: 1.6; margin-bottom: 1rem; }
+        .job-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+        .btn-apply, .btn-view { padding: 0.6rem 1.1rem; border-radius: 8px; font-weight: 500; cursor: pointer; }
+        .btn-apply { background: #4f46e5; color: #fff; border: none; }
+        .btn-apply.auto-applied { background: #059669; cursor: default; }
+        .btn-view { background: #fff; color: #4f46e5; border: 1px solid #4f46e5; }
+    </style>
+</head>
+
+<body class="bg-gray-50 font-sans">
+    <div id="navbar-container"></div>
+
+    <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Matching jobs</h1>
+                <p class="text-sm text-gray-500 mt-1">Jobs matched to your CV. Ten per page.</p>
+            </div>
+            <a href="/pages/profile.html#auto-apply" class="text-sm text-primary-600 hover:text-primary-700 font-medium">Back to profile</a>
+        </div>
+
+        <div id="matchingJobsList" class="space-y-4">
+            <div class="text-center py-8 text-gray-500">Loading matches…</div>
+        </div>
+        <div id="matchingJobsPager" class="mt-6"></div>
+    </main>
+
+    <script src="/assets/js/main.js" defer></script>
+    <script src="/assets/js/pages/matching-jobs.js?v=1" defer></script>
+    <script src="/assets/js/components/navbar.js?v=1.6" defer></script>
+    <script defer>
+        fetch('/components/navbar.html?v=1.6')
+            .then(response => response.text())
+            .then(html => {
+                document.getElementById('navbar-container').innerHTML = html;
+                if (window.CVisionNavbar) CVisionNavbar.init('Jobs');
+            })
+            .catch(error => console.error('Failed to load navbar:', error));
+    </script>
+</body>
+
+</html>

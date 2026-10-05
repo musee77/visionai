@@ -16,6 +16,35 @@ from fastapi import HTTPException
 logger = logging.getLogger(__name__)
 
 
+def _openai_error_text(exc: Exception) -> str:
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        err = body.get("error")
+        if isinstance(err, dict) and err.get("message"):
+            return str(err["message"])
+    text = str(exc).strip()
+    return text or exc.__class__.__name__
+
+
+def _raise_openai_http(exc: Exception) -> None:
+    message = _openai_error_text(exc)
+    lower = message.lower()
+    if "no credits" in lower or "insufficient_quota" in lower:
+        raise HTTPException(
+            status_code=402,
+            detail="The OpenAI account has no credits remaining. Add credits, then try again."
+        ) from exc
+    if "rate_limit" in lower or "rate limit" in lower:
+        raise HTTPException(
+            status_code=429,
+            detail="OpenAI is busy right now. Please try again in a moment."
+        ) from exc
+    raise HTTPException(
+        status_code=500,
+        detail=f"Error generating AI response: {message}"
+    ) from exc
+
+
 class OpenAIClient:
     def __init__(self):
         if not settings.OPENAI_API_KEY:
@@ -317,23 +346,11 @@ class OpenAIClient:
             
             return response.choices[0].message.content
             
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Error in OpenAI chat completion: {e}")
-            if "rate_limit" in str(e).lower():
-                raise HTTPException(
-                    status_code=429,
-                    detail="OpenAI API rate limit exceeded. Please try again later."
-                )
-            elif "insufficient_quota" in str(e).lower():
-                raise HTTPException(
-                    status_code=402,
-                    detail="OpenAI API quota exceeded. Please check your billing."
-                )
-            else:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Error generating AI response: {str(e)}"
-                )
+            _raise_openai_http(e)
     
     async def analyze_email_response(
         self,

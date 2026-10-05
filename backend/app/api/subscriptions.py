@@ -303,6 +303,7 @@ async def get_referral_stats_detailed(
     """Get detailed referral statistics"""
     user_id = str(get_user_id(current_user))
     service = ReferralService(db)
+    await service.sync_paid_referrals(user_id)
     
     stats = await service.get_referral_stats(user_id)
     
@@ -336,6 +337,7 @@ async def get_referral_list(
 ):
     """Get paginated referral list"""
     user_id = str(get_user_id(current_user))
+    await ReferralService(db).sync_paid_referrals(user_id)
     
     query = {"referrer_user_id": user_id}
     if status and status != "all":
@@ -386,6 +388,7 @@ async def get_referral_activity(
 ):
     """Get recent referral activity"""
     user_id = str(get_user_id(current_user))
+    await ReferralService(db).sync_paid_referrals(user_id)
     
     referrals_cursor = db.referrals.find({
         "referrer_user_id": user_id

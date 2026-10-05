@@ -142,10 +142,13 @@ async def customize_cv_for_job(
             )
         
         if not cv_result.get("success"):
-            error_msg = cv_result.get('error', 'Unknown error')
+            error_msg = cv_result.get("error") or "Unknown error"
+            status_code = cv_result.get("status_code") or 500
+            if status_code not in {400, 402, 403, 429, 500, 503}:
+                status_code = 500
             logger.error(f"CV customization failed: {error_msg}")
             raise HTTPException(
-                status_code=500,
+                status_code=status_code,
                 detail=f"CV customization failed: {error_msg}"
             )
         

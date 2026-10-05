@@ -51,9 +51,12 @@ class OAuthService:
     # ============ GOOGLE OAUTH ============
     
     @staticmethod
-    def get_google_auth_url(location_data: Optional[Dict] = None) -> Tuple[str, str]:
+    def get_google_auth_url(location_data: Optional[Dict] = None, referral_code: Optional[str] = None) -> Tuple[str, str]:
         """Generate Google OAuth authorization URL"""
-        state = OAuthService.generate_state_token(metadata={"location": location_data})
+        state = OAuthService.generate_state_token(metadata={
+            "location": location_data,
+            "referral_code": (referral_code or "").strip() or None
+        })
         
         params = {
             "client_id": settings.GOOGLE_CLIENT_ID,
@@ -118,9 +121,11 @@ class OAuthService:
     # ============ LINKEDIN OAUTH ============
     
     @staticmethod
-    def get_linkedin_auth_url() -> Tuple[str, str]:
+    def get_linkedin_auth_url(referral_code: Optional[str] = None) -> Tuple[str, str]:
         """Generate LinkedIn OAuth authorization URL"""
-        state = OAuthService.generate_state_token()
+        state = OAuthService.generate_state_token(metadata={
+            "referral_code": (referral_code or "").strip() or None
+        })
         
         params = {
         "response_type": "code",

@@ -1,194 +1,194 @@
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Notifications - CVision</title>
-    <script src="/assets/js/auth-guard.js?v=1.2"></script>
-    <link rel="stylesheet" href="/assets/css/global.css">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .notification-card {
-            transition: all 0.2s ease;
-        }
-
-        .notification-card:hover {
-            transform: translateX(4px);
-        }
-
-        .notification-card.unread {
-            background-color: #eff6ff;
-            border-left: 4px solid #3b82f6;
-        }
-
-        .filter-btn.active {
-            background-color: #3b82f6;
-            color: white;
-        }
-
-        .spinner {
-            border: 2px solid #f3f4f6;
-            border-top: 2px solid #3b82f6;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-    </style>
-</head>
-
-<body class="bg-gray-50">
-    <!-- Include Navbar -->
-    <div id="navbar-container"></div>
-
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <!-- Page Header -->
-        <div class="mb-8">
-            <h1 class="text-3xl font-bold text-gray-900 mb-2">Notifications</h1>
-            <p class="text-gray-600">Stay updated with your job applications and activities</p>
-        </div>
-
-        <!-- Stats Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div class="flex items-center">
-                    <div class="p-3 bg-blue-100 rounded-lg">
-                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9">
-                            </path>
-                        </svg>
-                    </div>
-                    <div class="ml-4">
-                        <p class="text-2xl font-bold text-gray-900" id="totalCount">0</p>
-                        <p class="text-sm text-gray-600">Total</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div class="flex items-center">
-                    <div class="p-3 bg-green-100 rounded-lg">
-                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                    </div>
-                    <div class="ml-4">
-                        <p class="text-2xl font-bold text-gray-900" id="unreadCount">0</p>
-                        <p class="text-sm text-gray-600">Unread</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div class="flex items-center">
-                    <div class="p-3 bg-purple-100 rounded-lg">
-                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                    </div>
-                    <div class="ml-4">
-                        <p class="text-2xl font-bold text-gray-900" id="todayCount">0</p>
-                        <p class="text-sm text-gray-600">Today</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Filters and Actions -->
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div class="flex flex-wrap gap-2">
-                    <button onclick="filterNotifications('all')"
-                        class="filter-btn active px-4 py-2 text-sm font-medium rounded-lg transition-colors border border-gray-300">
-                        All
-                    </button>
-                    <button onclick="filterNotifications('unread')"
-                        class="filter-btn px-4 py-2 text-sm font-medium text-gray-700 bg-white hover:bg-gray-100 rounded-lg transition-colors border border-gray-300">
-                        Unread
-                    </button>
-                    <button onclick="filterNotifications('job_match')"
-                        class="filter-btn px-4 py-2 text-sm font-medium text-gray-700 bg-white hover:bg-gray-100 rounded-lg transition-colors border border-gray-300">
-                        Job Matches
-                    </button>
-                    <button onclick="filterNotifications('application_update')"
-                        class="filter-btn px-4 py-2 text-sm font-medium text-gray-700 bg-white hover:bg-gray-100 rounded-lg transition-colors border border-gray-300">
-                        Applications
-                    </button>
-                    <button onclick="filterNotifications('document_processed')"
-                        class="filter-btn px-4 py-2 text-sm font-medium text-gray-700 bg-white hover:bg-gray-100 rounded-lg transition-colors border border-gray-300">
-                        Documents
-                    </button>
-                </div>
-
-                <div class="flex gap-2">
-                    <button onclick="markAllAsRead()"
-                        class="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
-                        Mark All Read
-                    </button>
-                    <button onclick="deleteAllRead()"
-                        class="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">
-                        Delete Read
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Loading State -->
-        <div id="loadingState" class="flex justify-center items-center py-12">
-            <div class="spinner"></div>
-            <span class="ml-3 text-gray-600">Loading notifications...</span>
-        </div>
-
-        <!-- Notifications List -->
-        <div id="pageNotificationsList" class="space-y-3 hidden"></div>
-
-        <!-- Empty State -->
-        <div id="emptyState" class="hidden bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-            <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9">
-                </path>
-            </svg>
-            <h3 class="text-lg font-medium text-gray-900 mb-2">No notifications</h3>
-            <p class="text-gray-600">You're all caught up! Check back later for updates.</p>
-        </div>
-
-        <!-- Pagination -->
-        <div id="pagination" class="hidden mt-6 flex justify-center items-center gap-2">
-            <button onclick="previousPage()" id="prevBtn"
-                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                Previous
-            </button>
-            <span class="px-4 py-2 text-sm text-gray-600">
-                Page <span id="currentPage">1</span> of <span id="totalPages">1</span>
-            </span>
-            <button onclick="nextPage()" id="nextBtn"
-                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                Next
-            </button>
-        </div>
-    </main>
-    <script src="/assets/js/main.js"></script>
-    <script src="/assets/js/pages/notifications.js" defer></script>
-    <script src="/assets/js/components/navbar.js?v=1.4"></script>
-
-    <!-- Chatbot -->
-    <link rel="stylesheet" href="/assets/css/chatbot.css">
-    <script src="/assets/js/chatbot.js"></script>
-</body>
-
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notifications - CVision</title>
+    <script src="/assets/js/auth-guard.js?v=1.2"></script>
+    <link rel="stylesheet" href="/assets/css/global.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .notification-card {
+            transition: all 0.2s ease;
+        }
+
+        .notification-card:hover {
+            transform: translateX(4px);
+        }
+
+        .notification-card.unread {
+            background-color: #eff6ff;
+            border-left: 4px solid #3b82f6;
+        }
+
+        .filter-btn.active {
+            background-color: #3b82f6;
+            color: white;
+        }
+
+        .spinner {
+            border: 2px solid #f3f4f6;
+            border-top: 2px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50">
+    <!-- Include Navbar -->
+    <div id="navbar-container"></div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Page Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Notifications</h1>
+            <p class="text-gray-600">Stay updated with your job applications and activities</p>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center">
+                    <div class="p-3 bg-blue-100 rounded-lg">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9">
+                            </path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-2xl font-bold text-gray-900" id="totalCount">0</p>
+                        <p class="text-sm text-gray-600">Total</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center">
+                    <div class="p-3 bg-green-100 rounded-lg">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-2xl font-bold text-gray-900" id="unreadCount">0</p>
+                        <p class="text-sm text-gray-600">Unread</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center">
+                    <div class="p-3 bg-purple-100 rounded-lg">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-2xl font-bold text-gray-900" id="todayCount">0</p>
+                        <p class="text-sm text-gray-600">Today</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters and Actions -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="filterNotifications('all')"
+                        class="filter-btn active px-4 py-2 text-sm font-medium rounded-lg transition-colors border border-gray-300">
+                        All
+                    </button>
+                    <button onclick="filterNotifications('unread')"
+                        class="filter-btn px-4 py-2 text-sm font-medium text-gray-700 bg-white hover:bg-gray-100 rounded-lg transition-colors border border-gray-300">
+                        Unread
+                    </button>
+                    <button onclick="filterNotifications('job_match')"
+                        class="filter-btn px-4 py-2 text-sm font-medium text-gray-700 bg-white hover:bg-gray-100 rounded-lg transition-colors border border-gray-300">
+                        Job Matches
+                    </button>
+                    <button onclick="filterNotifications('application_update')"
+                        class="filter-btn px-4 py-2 text-sm font-medium text-gray-700 bg-white hover:bg-gray-100 rounded-lg transition-colors border border-gray-300">
+                        Applications
+                    </button>
+                    <button onclick="filterNotifications('document_processed')"
+                        class="filter-btn px-4 py-2 text-sm font-medium text-gray-700 bg-white hover:bg-gray-100 rounded-lg transition-colors border border-gray-300">
+                        Documents
+                    </button>
+                </div>
+
+                <div class="flex gap-2">
+                    <button onclick="markAllAsRead()"
+                        class="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+                        Mark All Read
+                    </button>
+                    <button onclick="deleteAllRead()"
+                        class="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">
+                        Delete Read
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="flex justify-center items-center py-12">
+            <div class="spinner"></div>
+            <span class="ml-3 text-gray-600">Loading notifications...</span>
+        </div>
+
+        <!-- Notifications List -->
+        <div id="pageNotificationsList" class="space-y-3 hidden"></div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="hidden bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+            <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9">
+                </path>
+            </svg>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">No notifications</h3>
+            <p class="text-gray-600">You're all caught up! Check back later for updates.</p>
+        </div>
+
+        <!-- Pagination -->
+        <div id="pagination" class="hidden mt-6 flex justify-center items-center gap-2">
+            <button onclick="previousPage()" id="prevBtn"
+                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                Previous
+            </button>
+            <span class="px-4 py-2 text-sm text-gray-600">
+                Page <span id="currentPage">1</span> of <span id="totalPages">1</span>
+            </span>
+            <button onclick="nextPage()" id="nextBtn"
+                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                Next
+            </button>
+        </div>
+    </main>
+    <script src="/assets/js/main.js"></script>
+    <script src="/assets/js/pages/notifications.js" defer></script>
+    <script src="/assets/js/components/navbar.js?v=1.6"></script>
+
+    <!-- Chatbot -->
+    <link rel="stylesheet" href="/assets/css/chatbot.css">
+    <script src="/assets/js/chatbot.js"></script>
+</body>
+
 </html>

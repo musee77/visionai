@@ -359,7 +359,6 @@ body {
   transform: translate(-50%, -50%) scale(1);
 }
 
-button[type="button"]:hover,
 button[id*="google"]:hover,
 button[id*="linkedin"]:hover {
   background-color: #f9fafb;

@@ -1,7 +1,10 @@
 // browser-automation/src/ml/field-classifier.js
 
+const { getFormLearner } = require('./form-learner');
+
 class FieldClassifier {
     constructor() {
+        this.learner = getFormLearner();
         // Field type patterns for classification
         this.patterns = {
             first_name: [
@@ -86,10 +89,41 @@ class FieldClassifier {
     }
     
     classifyField(field) {
-        // Extract features from field
+        const learned = this.learner.predict(field);
+        const ruled = this.matchRules(field);
+        const trusted = learned
+            && learned.confidence >= 0.55
+            && learned.support >= 2;
+
+        if (trusted) {
+            if (ruled !== learned.type) {
+                console.log(`[ML] ${this.describe(field)} -> ${learned.type} (${learned.confidence.toFixed(2)}, ${learned.support} examples)`);
+            }
+            return learned.type;
+        }
+        if (ruled !== 'unknown') return ruled;
+        if (learned && learned.confidence >= 0.4 && learned.support >= 1) {
+            console.log(`[ML] ${this.describe(field)} -> ${learned.type} (${learned.confidence.toFixed(2)}, ${learned.support} examples)`);
+            return learned.type;
+        }
+        return 'unknown';
+    }
+
+    learn(field, fieldType) {
+        if (!fieldType || fieldType === 'unknown') return;
+        const trained = this.learner.train(field, fieldType);
+        if (trained) {
+            console.log(`[ML] Learned ${fieldType} from ${this.describe(field)} (${this.learner.model.total} examples)`);
+        }
+    }
+
+    save() {
+        this.learner.save();
+    }
+
+    matchRules(field) {
         const features = this.extractFeatures(field);
-        
-        // Try to match based on patterns
+
         for (const [fieldType, patterns] of Object.entries(this.patterns)) {
             for (const pattern of patterns) {
                 if (pattern.test(features.searchText)) {
@@ -97,8 +131,7 @@ class FieldClassifier {
                 }
             }
         }
-        
-        // Fallback: try autocomplete attribute
+
         if (field.autocomplete) {
             const autocompleteMap = {
                 'given-name': 'first_name',
@@ -113,13 +146,17 @@ class FieldClassifier {
                 'postal-code': 'zip_code',
                 'country': 'country'
             };
-            
+
             if (autocompleteMap[field.autocomplete]) {
                 return autocompleteMap[field.autocomplete];
             }
         }
-        
+
         return 'unknown';
+    }
+
+    describe(field) {
+        return field.label || field.name || field.id || field.placeholder || 'field';
     }
     
     extractFeatures(field) {

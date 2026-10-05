@@ -1,5 +1,22 @@
 // CVision Authentication JavaScript
 
+const REFERRAL_KEY = 'cvision_referral_code';
+
+function rememberReferralCode() {
+    const ref = (new URLSearchParams(window.location.search).get('ref') || '').trim();
+    if (/^[A-Za-z0-9_-]{4,32}$/.test(ref)) {
+        sessionStorage.setItem(REFERRAL_KEY, ref);
+    }
+}
+
+function pendingReferralCode() {
+    rememberReferralCode();
+    return sessionStorage.getItem(REFERRAL_KEY) || '';
+}
+
+window.pendingReferralCode = pendingReferralCode;
+rememberReferralCode();
+
 document.addEventListener('DOMContentLoaded', async function () {
     if (window.CVision?.rememberApplyJob) CVision.rememberApplyJob();
 
@@ -104,6 +121,13 @@ function initializeRegisterPage() {
     const form = document.getElementById('registerForm');
     const registerButton = document.getElementById('registerButton');
     const togglePassword = document.getElementById('togglePassword');
+    const referralCode = pendingReferralCode();
+    const referralNotice = document.getElementById('referralNotice');
+    const referralNoticeCode = document.getElementById('referralNoticeCode');
+    if (referralCode && referralNotice && referralNoticeCode) {
+        referralNoticeCode.textContent = referralCode;
+        referralNotice.classList.remove('hidden');
+    }
 
     // Password toggle functionality
     if (togglePassword) {
@@ -271,7 +295,7 @@ async function handleRegister() {
         }
 
         // Make register request
-        const referralCode = new URLSearchParams(window.location.search).get('ref');
+        const referralCode = pendingReferralCode();
         const response = await CVision.API.register({
             email: email,
             password: password,

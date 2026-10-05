@@ -13,28 +13,56 @@ class AutofillEngine {
         for (const form of forms) {
             try {
                 // Use site-specific handler if available
-                if (this.siteHandler && this.siteHandler.fillForm) {
+                let handled = [];
+                if (this.siteHandler && this.siteHandler.name !== 'Generic' && this.siteHandler.fillForm) {
                     const result = await this.siteHandler.fillForm(
                         this.page,
                         form,
                         autofillData
                     );
-                    filledFields.push(...result);
-                } else {
-                    // Use generic filling logic
-                    const result = await this.fillFormGeneric(form, autofillData);
-                    filledFields.push(...result);
+                    if (result && result.length) {
+                        handled = result;
+                        this.learnHandledFields(result);
+                    }
                 }
+                const usedSelectors = handled.map((item) => item.selector).filter(Boolean);
+                const remaining = {
+                    ...form,
+                    fields: (form.fields || []).filter((field) => !usedSelectors.some((selector) => (
+                        selector === field.selector
+                        || (field.id && selector.includes(field.id))
+                        || (field.name && selector.includes(field.name))
+                    )))
+                };
+                const result = await this.fillFormGeneric(remaining, autofillData);
+                filledFields.push(...handled, ...result);
             } catch (error) {
                 console.error('Error filling form:', error);
             }
         }
         
+        this.fieldClassifier.save();
         return filledFields;
+    }
+
+    learnHandledFields(filled) {
+        for (const item of filled) {
+            if (!item.fieldType) continue;
+            const field = item.field || {
+                name: item.selector,
+                id: item.selector,
+                label: '',
+                placeholder: ''
+            };
+            this.fieldClassifier.learn(field, item.fieldType);
+        }
     }
     
     async fillFormGeneric(form, data) {
         const filledFields = [];
+        const flat = (this.siteHandler && typeof this.siteHandler.extractAutofillData === 'function')
+            ? this.siteHandler.extractAutofillData(data)
+            : data;
         
         for (const field of form.fields) {
             try {
@@ -42,11 +70,12 @@ class AutofillEngine {
                 const fieldType = this.fieldClassifier.classifyField(field);
                 
                 // Get appropriate value
-                const value = this.getValueForField(fieldType, data);
+                const value = this.getValueForField(fieldType, flat);
                 
                 if (value) {
                     const filled = await this.fillField(field, value);
                     if (filled) {
+                        this.fieldClassifier.learn(field, fieldType);
                         filledFields.push({
                             selector: field.selector,
                             type: fieldType,
@@ -64,37 +93,19 @@ class AutofillEngine {
     
     async fillField(field, value) {
         try {
-            await this.page.waitForSelector(field.selector, { timeout: 5000 });
-            
+            const locator = this.page.locator(field.selector).first();
+            await locator.waitFor({ state: 'visible', timeout: 5000 });
+
             if (field.type === 'select') {
-                await this.page.select(field.selector, value);
+                await locator.selectOption({ label: String(value) }).catch(() => locator.selectOption(String(value)));
             } else if (field.type === 'checkbox' || field.type === 'radio') {
-                if (value) {
-                    await this.page.click(field.selector);
-                }
+                if (value) await locator.check().catch(() => locator.click());
             } else if (field.type === 'file') {
-                // Handle file uploads separately
                 return false;
             } else {
-                // Clear existing value
-                await this.page.click(field.selector, { clickCount: 3 });
-                await this.page.keyboard.press('Backspace');
-                
-                // Type new value with human-like delay
-                await this.page.type(field.selector, String(value), { 
-                    delay: Math.random() * 100 + 50 
-                });
+                await locator.fill(String(value));
             }
-            
-            // Trigger change event
-            await this.page.evaluate((selector) => {
-                const element = document.querySelector(selector);
-                if (element) {
-                    element.dispatchEvent(new Event('change', { bubbles: true }));
-                    element.dispatchEvent(new Event('blur', { bubbles: true }));
-                }
-            }, field.selector);
-            
+
             return true;
         } catch (error) {
             console.error(`Failed to fill field ${field.selector}:`, error.message);
@@ -104,23 +115,24 @@ class AutofillEngine {
     
     getValueForField(fieldType, data) {
         const mapping = {
-            'first_name': data.user?.first_name,
-            'last_name': data.user?.last_name,
-            'full_name': `${data.user?.first_name || ''} ${data.user?.last_name || ''}`.trim(),
-            'email': data.user?.email,
-            'phone': data.user?.phone,
-            'address': data.user?.address,
-            'city': data.user?.city,
-            'state': data.user?.state,
-            'zip_code': data.user?.zip_code,
-            'country': data.user?.country,
-            'linkedin': data.cv_data?.linkedin,
-            'portfolio': data.cv_data?.portfolio,
-            'github': data.cv_data?.github,
-            'cover_letter': data.cover_letter
+            'first_name': data.firstName || data.first_name,
+            'last_name': data.lastName || data.last_name,
+            'full_name': data.fullName || data.full_name,
+            'email': data.email,
+            'phone': data.phone,
+            'address': data.address,
+            'city': data.city,
+            'state': data.state,
+            'zip_code': data.zip || data.zip_code,
+            'country': data.country,
+            'linkedin': data.linkedin,
+            'portfolio': data.portfolio,
+            'github': data.github,
+            'cover_letter': data.coverLetter || data.cover_letter
         };
         
-        return mapping[fieldType] || null;
+        const value = mapping[fieldType];
+        return value ? String(value).trim() : null;
     }
     
     async uploadFile(fileInputSelector, filePath) {

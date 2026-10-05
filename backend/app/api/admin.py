@@ -115,6 +115,7 @@ async def list_users(
     search: Optional[str] = None,
     tier: Optional[SubscriptionTier] = None,
     is_active: Optional[bool] = None,
+    is_verified: Optional[bool] = None,
     current_admin = Depends(require_admin),
     db = Depends(get_database)
 ):
@@ -134,6 +135,9 @@ async def list_users(
     
     if is_active is not None:
         query["is_active"] = is_active
+
+    if is_verified is not None:
+        query["is_verified"] = is_verified
     
     skip = (page - 1) * limit
     
@@ -155,34 +159,156 @@ async def list_users(
         "pages": (total + limit - 1) # limit
     }
 
+def _country_label(country) -> str:
+    if isinstance(country, dict):
+        return country.get("name") or country.get("code") or ""
+    return country or ""
+
+
+async def _user_brief(db, user_id: Optional[str]) -> Optional[dict]:
+    if not user_id or not ObjectId.is_valid(str(user_id)):
+        return None
+    doc = await db.users.find_one(
+        {"_id": ObjectId(str(user_id))},
+        {"email": 1, "first_name": 1, "last_name": 1, "referral_code": 1, "subscription_tier": 1, "is_verified": 1}
+    )
+    if not doc:
+        return None
+    return {
+        "id": str(doc["_id"]),
+        "email": doc.get("email") or "",
+        "name": f"{doc.get('first_name') or ''} {doc.get('last_name') or ''}".strip(),
+        "referral_code": doc.get("referral_code") or "",
+        "subscription_tier": doc.get("subscription_tier") or "free",
+        "is_verified": bool(doc.get("is_verified"))
+    }
+
+
+async def _profile_payload(db, user: dict) -> dict:
+    user_id = str(user.pop("_id"))
+    profile = user.get("profile") or {}
+    location = profile.get("location_preferences") or {}
+    personal = profile.get("personal_info") or {}
+    jobs = profile.get("job_preferences") or {}
+    usage = user.get("usage_stats") or {}
+
+    referrals = await db.referrals.find({"referrer_user_id": user_id}).sort("referred_at", -1).to_list(50)
+    referral_rows = []
+    for ref in referrals:
+        referee = await _user_brief(db, ref.get("referee_user_id"))
+        referral_rows.append({
+            "id": str(ref.get("_id")),
+            "referee_email": ref.get("referee_email") or (referee or {}).get("email") or "",
+            "referee_name": (referee or {}).get("name") or "",
+            "status": ref.get("status") or "pending",
+            "referred_at": ref.get("referred_at"),
+            "completed_at": ref.get("completed_at"),
+            "subscription_tier": (referee or {}).get("subscription_tier")
+        })
+
+    pending = await db.referrals.count_documents({"referrer_user_id": user_id, "status": "pending"})
+    completed = await db.referrals.count_documents({"referrer_user_id": user_id, "status": "completed"})
+    total_referrals = await db.referrals.count_documents({"referrer_user_id": user_id})
+    subscription = await db.subscriptions.find_one({"user_id": user_id}, {"paystack_authorization_code": 0, "payment_method_id": 0})
+    subscription_view = None
+    if subscription:
+        subscription_view = {
+            "plan_id": subscription.get("plan_id"),
+            "status": subscription.get("status"),
+            "billing_interval": subscription.get("billing_interval"),
+            "current_period_end": subscription.get("current_period_end")
+        }
+
+    return {
+        "id": user_id,
+        "email": user.get("email"),
+        "first_name": user.get("first_name") or "",
+        "last_name": user.get("last_name") or "",
+        "phone": user.get("phone") or personal.get("phone") or "",
+        "role": user.get("role") or "user",
+        "subscription_tier": user.get("subscription_tier") or "free",
+        "is_active": bool(user.get("is_active", True)),
+        "is_verified": bool(user.get("is_verified")),
+        "verified_at": user.get("verified_at"),
+        "created_at": user.get("created_at"),
+        "last_login": user.get("last_login"),
+        "referral_code": user.get("referral_code") or "",
+        "referral_bonus_auto_applications": int(user.get("referral_bonus_auto_applications") or 0),
+        "gmail_connected": bool(user.get("gmail_auth")),
+        "location": {
+            "city": location.get("city") or personal.get("city") or "",
+            "state": location.get("state") or personal.get("state") or "",
+            "country": _country_label(location.get("country") or personal.get("country"))
+        },
+        "bio": profile.get("bio") or "",
+        "skills": (profile.get("skills") or [])[:20],
+        "job_titles": (jobs.get("job_titles") or [])[:8],
+        "usage": {
+            "total_applications": usage.get("total_applications") or 0,
+            "total_searches": usage.get("total_searches") or 0
+        },
+        "document_count": await db.documents.count_documents({"$or": [{"user_id": user_id}, {"user_id": ObjectId(user_id)}]}),
+        "application_count": await db.applications.count_documents({"$or": [{"user_id": user_id}, {"user_id": ObjectId(user_id)}]}),
+        "referred_by": await _user_brief(db, user.get("referred_by")),
+        "referrals": referral_rows,
+        "referral_counts": {
+            "total": total_referrals,
+            "pending": pending,
+            "completed": completed
+        },
+        "subscription": subscription_view
+    }
+
+
 @router.get("/users/{user_id}")
 async def get_user(
     user_id: str,
     current_admin = Depends(require_admin),
     db = Depends(get_database)
 ):
-    """Get single user details"""
-    from bson import ObjectId
-    
-    try:
-        user = await db.users.find_one({"_id": ObjectId(user_id)}, {"password": 0})
-        
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        user["id"] = str(user.pop("_id"))
-        
-        # Get user's documents count
-        doc_count = await db.documents.count_documents({"user_id": user_id})
-        user["document_count"] = doc_count
-        
-        return user
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """Get a user profile, including who referred them and who they referred."""
+    if not ObjectId.is_valid(user_id):
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user = await db.users.find_one({"_id": ObjectId(user_id)}, {"password": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return await _profile_payload(db, user)
 
 class UserStatusUpdate(BaseModel):
     is_active: bool
+
+class UserVerifyUpdate(BaseModel):
+    is_verified: bool = True
+
+@router.patch("/users/{user_id}/verify")
+async def update_user_verification(
+    user_id: str,
+    verify_update: UserVerifyUpdate,
+    current_admin = Depends(require_admin),
+    db = Depends(get_database)
+):
+    """Mark a user's email as verified or unverified."""
+    if not ObjectId.is_valid(user_id):
+        raise HTTPException(status_code=404, detail="User not found")
+
+    now = datetime.utcnow()
+    result = await db.users.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {
+            "is_verified": verify_update.is_verified,
+            "verified_at": now if verify_update.is_verified else None,
+            "updated_at": now
+        }}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {
+        "message": "User verified" if verify_update.is_verified else "User marked unverified",
+        "is_verified": verify_update.is_verified
+    }
 
 class UserTierUpdate(BaseModel):
     tier: SubscriptionTier

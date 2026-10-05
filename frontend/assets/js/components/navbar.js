@@ -247,15 +247,8 @@ const CVisionNavbar = (function () {
     }
 
     function labelLockedActions() {
-        const autoApplyLocked = window.PremiumGuard && !PremiumGuard.hasAccess('AUTO_APPLY');
-        document.querySelectorAll('.js-auto-apply-link').forEach((link) => {
-            const label = link.querySelector('.js-auto-apply-label');
-            if (label) label.textContent = autoApplyLocked ? 'Upgrade to Auto-Apply' : 'Auto-Apply';
-            link.onclick = (event) => {
-                if (!autoApplyLocked) return;
-                event.preventDefault();
-                PremiumGuard.enforce('AUTO_APPLY', 'Upgrade', 'Automated applications are included on Premium.');
-            };
+        document.querySelectorAll('.js-auto-apply-link, a[href="/pages/auto-apply"], a[href="/pages/auto-apply.html"]').forEach((link) => {
+            link.remove();
         });
     }
 

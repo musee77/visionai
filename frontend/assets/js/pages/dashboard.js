@@ -394,7 +394,7 @@ async function uploadPendingLandingCv() {
             PremiumGuard.enforce('AUTO_APPLY', 'Upgrade', 'Automated applications are included on Premium.');
             return;
         }
-        window.location.href = '/pages/auto-apply.html';
+        window.location.href = '/pages/profile.html#auto-apply';
     }
 
     function labelLockedDashboardActions() {

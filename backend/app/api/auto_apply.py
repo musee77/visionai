@@ -4,7 +4,7 @@ Auto-Apply API Endpoints
 Premium feature for automatic job applications
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing import List, Optional
 from datetime import datetime, timedelta
 from bson import ObjectId
@@ -365,9 +365,55 @@ async def get_cv_data(
     }
 
 
+def _format_salary(job: dict) -> str:
+    salary_range = job.get("salary_range") or {}
+    salary = job.get("salary") or ""
+    if salary or not isinstance(salary_range, dict):
+        return salary
+
+    def _amount(value):
+        try:
+            return f"{float(value):,.0f}"
+        except (TypeError, ValueError):
+            return None
+
+    minimum = _amount(salary_range.get("min_amount"))
+    maximum = _amount(salary_range.get("max_amount"))
+    currency = salary_range.get("currency") or ""
+    if isinstance(currency, dict):
+        currency = currency.get("value") or ""
+    if minimum and maximum:
+        return f"{currency} {minimum}–{maximum}".strip()
+    if minimum:
+        return f"{currency} {minimum}+".strip()
+    return ""
+
+
+def _format_matching_jobs(jobs: list) -> list:
+    formatted_jobs = []
+    for job in jobs:
+        job_id = str(job["_id"])
+        formatted_jobs.append({
+            "_id": job_id,
+            "id": job_id,
+            "title": job.get("title", ""),
+            "company": job.get("company_name") or job.get("company") or "",
+            "company_name": job.get("company_name") or job.get("company") or "",
+            "location": job.get("location", ""),
+            "salary": _format_salary(job),
+            "description": job.get("description") or "",
+            "requirements": job.get("requirements", ""),
+            "created_at": job.get("created_at") or job.get("posted_date"),
+            "match_score": job.get("match_score", 0),
+            "applied": False
+        })
+    return formatted_jobs
+
+
 @router.get("/matching-jobs")
 async def get_matching_jobs(
-    limit: int = 10,
+    limit: int = Query(default=10, ge=1, le=100),
+    page: Optional[int] = Query(default=None, ge=1),
     current_user: dict = Depends(get_current_user),
     db = Depends(get_database)
 ):
@@ -396,50 +442,19 @@ async def get_matching_jobs(
             detail="Please upload your CV first"
         )
     
-    # Use matching service to find jobs
-    # Note: We need to inject the db into the service or ensure it's initialized
     matching_service.db = db
+    if page is not None:
+        pool = await matching_service.find_matching_jobs(user_id, cv_data, limit=100)
+        start = (page - 1) * limit
+        return {
+            "jobs": _format_matching_jobs(pool[start:start + limit]),
+            "total": len(pool),
+            "page": page,
+            "page_size": limit
+        }
+
     matching_jobs = await matching_service.find_matching_jobs(user_id, cv_data, limit=limit)
-    
-    # Format for response
-    formatted_jobs = []
-    for job in matching_jobs:
-        salary_range = job.get("salary_range") or {}
-        salary = job.get("salary") or ""
-        if not salary and isinstance(salary_range, dict):
-            def _amount(value):
-                try:
-                    return f"{float(value):,.0f}"
-                except (TypeError, ValueError):
-                    return None
-
-            minimum = _amount(salary_range.get("min_amount"))
-            maximum = _amount(salary_range.get("max_amount"))
-            currency = salary_range.get("currency") or ""
-            if isinstance(currency, dict):
-                currency = currency.get("value") or ""
-            if minimum and maximum:
-                salary = f"{currency} {minimum}–{maximum}".strip()
-            elif minimum:
-                salary = f"{currency} {minimum}+".strip()
-
-        job_id = str(job["_id"])
-        formatted_jobs.append({
-            "_id": job_id,
-            "id": job_id,
-            "title": job.get("title", ""),
-            "company": job.get("company_name") or job.get("company") or "",
-            "company_name": job.get("company_name") or job.get("company") or "",
-            "location": job.get("location", ""),
-            "salary": salary,
-            "description": job.get("description") or "",
-            "requirements": job.get("requirements", ""),
-            "created_at": job.get("created_at") or job.get("posted_date"),
-            "match_score": job.get("match_score", 0),
-            "applied": False
-        })
-    
-    return formatted_jobs
+    return _format_matching_jobs(matching_jobs)
 
 
 @router.put("/settings")

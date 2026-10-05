@@ -152,78 +152,154 @@ class DocumentService:
                 Path(file_path).unlink()
             raise HTTPException(status_code=500, detail=f"Failed to upload cover letter: {str(e)}")
 
-    async def customize_cv_for_job(self, document_id: str, job_description: str, 
+    def _pasted_job(self, company_name: str, job_description: str, job_title: Optional[str] = None) -> Dict[str, Any]:
+        title = (job_title or "").strip() or "Target role"
+        return {
+            "title": title,
+            "company_name": (company_name or "").strip(),
+            "description": (job_description or "").strip(),
+            "requirements": [],
+        }
+
+    def _raise_generation_failure(self, result: Dict[str, Any], fallback: str) -> None:
+        detail = result.get("error") or fallback
+        status_code = result.get("status_code") or 500
+        if status_code not in {400, 402, 403, 429, 500, 503}:
+            status_code = 500
+        raise HTTPException(status_code=status_code, detail=detail)
+
+    async def _load_parsed_cv(self, document_id: str, user_id: str) -> Dict[str, Any]:
+        document = await self.get_document(document_id, user_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="CV document not found")
+        if document.get("document_type") == "cover_letter":
+            raise HTTPException(
+                status_code=400,
+                detail="Choose a CV to customize. This file is a cover letter."
+            )
+
+        cv_data = document.get("cv_data")
+        if isinstance(cv_data, str):
+            import json
+            try:
+                cv_data = json.loads(cv_data)
+            except json.JSONDecodeError:
+                raise HTTPException(status_code=400, detail="CV data is corrupted. Please re-upload your CV.")
+
+        if not isinstance(cv_data, dict) or not cv_data or cv_data.get("error"):
+            raise HTTPException(
+                status_code=400,
+                detail="CV has not been parsed yet. Analyze it before customizing."
+            )
+        return cv_data
+
+    async def customize_cv_for_job(self, document_id: str, job_description: str,
                                  company_name: str, user_id: str,
+                                 job_title: Optional[str] = None,
                                  user_preferences: Dict[str, Any] = None) -> Dict[str, Any]:
-        """
-        Customize CV for a specific job
-        """
+        """Customize a parsed CV for a pasted role and save a PDF."""
         try:
-            # Get original CV document
-            document = await self.get_document(document_id, user_id)
-            if not document:
-                raise HTTPException(status_code=404, detail="CV document not found")
-            
-            cv_data = document.get("cv_data", {})
-            
-            # Customize CV using AI service
-            customization_result = await ai_service.customize_cv_for_job(
+            from app.services.documents.cv_customization_service import cv_customization_service
+            from app.services.documents.pdf_service import pdf_service
+
+            cv_data = await self._load_parsed_cv(document_id, user_id)
+            job = self._pasted_job(company_name, job_description, job_title)
+            result = await cv_customization_service.customize_cv_for_job(
                 cv_data=cv_data,
-                job_description=job_description,
-                company_name=company_name,
+                job_data=job,
                 user_preferences=user_preferences
             )
-            
+            if not result.get("success"):
+                self._raise_generation_failure(result, "CV customization failed")
+
+            customized_cv = result["customized_cv"]
+            pdf_buffer = await pdf_service.generate_cv_pdf(
+                cv_content=customized_cv,
+                template="professional",
+                watermark=False,
+                user_id=user_id
+            )
+            pdf_path = await pdf_service.save_pdf(pdf_buffer, user_id, f"doc-{document_id}", "cv")
+            pdf_url = await pdf_service.get_pdf_url(pdf_path)
+            await cv_customization_service._store_generated_cv(
+                user_id=user_id,
+                job_id=f"doc-{document_id}",
+                customized_cv=customized_cv,
+                match_score=result.get("job_match_score") or 0
+            )
             return {
                 "success": True,
-                "customized_cv": customization_result.get("customized_cv", cv_data),
-                "metadata": customization_result.get("metadata", {}),
-                "status": customization_result.get("status", "completed")
+                "customized_cv": customized_cv,
+                "pdf_url": pdf_url,
+                "metadata": {
+                    "company_name": job["company_name"],
+                    "job_title": job["title"],
+                    "match_score": result.get("job_match_score")
+                },
+                "status": "completed"
             }
-            
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Error customizing CV: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to customize CV: {str(e)}"
-            )
+            detail = getattr(e, "detail", None)
+            if not isinstance(detail, str) or not detail.strip():
+                detail = str(e).strip() or "CV customization failed"
+            raise HTTPException(status_code=500, detail=detail)
 
     async def generate_cover_letter(self, document_id: str, job_description: str,
                                   company_name: str, job_title: str, user_id: str,
                                   user_preferences: Dict[str, Any] = None) -> Dict[str, Any]:
-        """
-        Generate cover letter for a job
-        """
+        """Generate a cover letter for a pasted role and save a PDF."""
         try:
-            # Get CV document
-            document = await self.get_document(document_id, user_id)
-            if not document:
-                raise HTTPException(status_code=404, detail="CV document not found")
-            
-            cv_data = document.get("cv_data", {})
-            
-            # Generate cover letter using AI service
-            cover_letter_result = await ai_service.generate_cover_letter(
+            from app.services.documents.cover_letter_service import cover_letter_service
+            from app.services.documents.pdf_service import pdf_service
+
+            cv_data = await self._load_parsed_cv(document_id, user_id)
+            tone = "professional"
+            if user_preferences and user_preferences.get("cover_letter_tone"):
+                tone = user_preferences["cover_letter_tone"]
+            job = self._pasted_job(company_name, job_description, job_title)
+            result = await cover_letter_service.generate_cover_letter(
                 cv_data=cv_data,
-                job_description=job_description,
-                company_name=company_name,
-                job_title=job_title,
-                user_preferences=user_preferences
+                job_data=job,
+                tone=tone
             )
-            
+            if not result.get("success"):
+                self._raise_generation_failure(result, "Cover letter generation failed")
+
+            letter_data = result["cover_letter"]
+            letter_text = letter_data.get("content", {}).get("full_text", "") if isinstance(letter_data, dict) else str(letter_data or "")
+            pdf_buffer = await pdf_service.generate_cover_letter_pdf(
+                letter_content=letter_data,
+                template="professional",
+                watermark=False
+            )
+            pdf_path = await pdf_service.save_pdf(pdf_buffer, user_id, f"doc-{document_id}", "cover_letter")
+            pdf_url = await pdf_service.get_pdf_url(pdf_path)
+            metadata = result.get("metadata") or {}
+            metadata.update({
+                "generated_at": metadata.get("generated_at") or datetime.utcnow().isoformat(),
+                "word_count": metadata.get("word_count") or len(letter_text.split()),
+                "tone": metadata.get("tone") or tone,
+                "company_name": job["company_name"],
+                "job_title": job["title"]
+            })
             return {
                 "success": True,
-                "cover_letter": cover_letter_result.get("cover_letter", ""),
-                "metadata": cover_letter_result.get("metadata", {}),
-                "status": cover_letter_result.get("status", "completed")
+                "cover_letter": letter_text,
+                "pdf_url": pdf_url,
+                "metadata": metadata,
+                "status": "completed"
             }
-            
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Error generating cover letter: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to generate cover letter: {str(e)}"
-            )
+            detail = getattr(e, "detail", None)
+            if not isinstance(detail, str) or not detail.strip():
+                detail = str(e).strip() or "Cover letter generation failed"
+            raise HTTPException(status_code=500, detail=detail)
 
     async def get_user_documents(self, user_id: str, document_type: str = None) -> List[Dict[str, Any]]:
         """

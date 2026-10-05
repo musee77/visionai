@@ -25,6 +25,8 @@ async function initAutoApplyPage() {
     const runTestBtn = new RunTestButton({
         containerId: 'runTestContainer',
         apiUrl: '/api/v1/auto-apply',
+        label: 'Run test',
+        styleClass: 'w-full justify-center bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-lg font-medium transition-colors',
         onComplete: (data) => {
             loadStats(); // Refresh stats
         }
@@ -34,7 +36,8 @@ async function initAutoApplyPage() {
     // Initialize AutoApplyButton
     const autoApplyBtn = new AutoApplyButton({
         containerId: 'autoApplyButtonContainer',
-        textColor: 'text-white',
+        label: '',
+        textColor: 'text-gray-900',
         onToggle: (isEnabled, settings) => {
             autoApplyEnabled = isEnabled;
             // Show/hide settings panel based on state
@@ -94,6 +97,10 @@ async function initAutoApplyPage() {
     // Initialize CvUploader if available
     if (window.CvUploader) {
         initCvUploader();
+    }
+
+    if (location.hash === '#auto-apply') {
+        document.getElementById('auto-apply')?.scrollIntoView();
     }
 }
 
@@ -187,20 +194,7 @@ function renderCVProfile(containerId, cvData, userInfo = null) {
     // Debug: Log the raw CV data structure
     console.log('CV Data Structure:', cvData);
 
-    // Normalize Data - Handle both nested (from AI parsing) and flat structures
-    const personalInfo = cvData.personal_info || {};
-    const fullName = userInfo?.full_name || personalInfo.name || cvData.name || cvData.full_name || 'Not provided';
-    const email = userInfo?.email || personalInfo.email || cvData.email || '-';
-    const phone = personalInfo.phone || cvData.phone || '-';
-    const location = personalInfo.location || cvData.location || '-';
-
-    // Handle education level - could be from education array or direct field
-    const education = Array.isArray(cvData.education) ? cvData.education : [];
-    const educationLevel = cvData.education_level || (education[0]?.degree) || 'Member';
-
-    // Calculate years of experience from experience array or use direct field
     const experience = Array.isArray(cvData.experience) ? cvData.experience : [];
-    const yearsExp = cvData.years_of_experience || experience.length * 2 || 0;
 
     // Handle summary - could be professional_summary or summary
     const summary = cvData.professional_summary || cvData.summary || 'No summary available';
@@ -227,43 +221,8 @@ function renderCVProfile(containerId, cvData, userInfo = null) {
     const hasMoreExperience = experience.length > maxVisibleExperience;
 
     const cvHTML = `
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
-        <!-- Personal Info Card -->
-        <div class="lg:col-span-4 h-full">
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 h-full">
-                <div class="flex items-center gap-4 mb-6 pb-6 border-b border-gray-50">
-                    <div class="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold shadow-md">
-                        ${(fullName || 'U').charAt(0)}
-                    </div>
-                    <div>
-                        <h3 class="text-xl font-bold text-gray-900">${fullName}</h3>
-                        <p class="text-sm text-blue-600 font-medium">${educationLevel}</p>
-                    </div>
-                </div>
-
-                <div class="space-y-4">
-                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <span class="text-sm text-gray-500">Email</span>
-                        <span class="text-sm font-medium text-gray-900 truncate max-w-[180px]">${email}</span>
-                    </div>
-                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <span class="text-sm text-gray-500">Phone</span>
-                        <span class="text-sm font-medium text-gray-900">${phone}</span>
-                    </div>
-                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <span class="text-sm text-gray-500">Location</span>
-                        <span class="text-sm font-medium text-gray-900">${location}</span>
-                    </div>
-                     <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <span class="text-sm text-gray-500">Experience</span>
-                        <span class="text-sm font-medium text-gray-900">${yearsExp} years</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Summary & Skills Column -->
-        <div class="lg:col-span-8 flex flex-col gap-6">
+    <div class="space-y-6">
+        <div class="flex flex-col gap-6">
             <!-- Summary -->
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                 <h3 class="flex items-center gap-2 text-lg font-bold text-gray-900 mb-4">
@@ -311,8 +270,7 @@ function renderCVProfile(containerId, cvData, userInfo = null) {
             </div>
         </div>
 
-        <!-- Suggested Job Roles Section (Full Width) -->
-        <div class="lg:col-span-12">
+        <div>
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="flex items-center gap-2 text-lg font-bold text-gray-900">
@@ -330,8 +288,7 @@ function renderCVProfile(containerId, cvData, userInfo = null) {
             </div>
         </div>
 
-         <!-- Experience Section (Full Width) -->
-        <div class="lg:col-span-12">
+        <div>
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                 <div class="flex items-center justify-between mb-6">
                     <h3 class="flex items-center gap-2 text-lg font-bold text-gray-900">
@@ -566,7 +523,7 @@ async function loadMatchingJobs(cvData = null) {
     }
 
     try {
-        const response = await fetch('/api/v1/auto-apply/matching-jobs?limit=10', {
+        const response = await fetch('/api/v1/auto-apply/matching-jobs?limit=2', {
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('access_token')}`
             }

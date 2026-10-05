@@ -88,10 +88,15 @@ class CVCustomizationService:
             }
             
         except Exception as e:
-            logger.error(f"CV customization failed: {str(e)}", exc_info=True)
+            detail = getattr(e, "detail", None)
+            if not isinstance(detail, str) or not detail.strip():
+                detail = str(e).strip() or e.__class__.__name__
+            status_code = getattr(e, "status_code", None)
+            logger.error(f"CV customization failed: {detail}", exc_info=True)
             return {
                 "success": False,
-                "error": str(e),
+                "error": detail,
+                "status_code": status_code if isinstance(status_code, int) else 500,
                 "customized_cv": cv_data
             }
     

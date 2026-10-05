@@ -206,6 +206,8 @@ async def reparse_document(
         
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
+        if document.get("document_type") == "cover_letter":
+            raise HTTPException(status_code=400, detail="Cover letters are stored as uploaded files and are not analyzed as CVs.")
         
         # Re-process with AI if text content is available
         text_content = document.get("text_content", "")
@@ -251,6 +253,75 @@ async def reparse_document(
             status_code=500,
             detail=f"Failed to re-parse document: {str(e)}"
         )
+
+
+class PastedRoleRequest(BaseModel):
+    company_name: str = Field(..., min_length=1)
+    job_description: str = Field(..., min_length=1)
+    job_title: Optional[str] = None
+    user_preferences: Optional[Dict[str, Any]] = None
+
+
+async def _require_document_generation(current_user: Dict[str, Any]):
+    user_id = str(current_user["_id"])
+    subscription_tier = str(current_user.get("subscription_tier", "free")).lower()
+    if subscription_tier not in {"basic", "premium"}:
+        raise HTTPException(
+            status_code=403,
+            detail="Customizing a CV and selecting a cover letter are included on Basic and Premium."
+        )
+    db = await get_database()
+    from app.api.generation import _check_generation_limit
+    if not await _check_generation_limit(user_id, subscription_tier, db):
+        raise HTTPException(
+            status_code=403,
+            detail="Generation limit reached for your subscription tier. Please upgrade."
+        )
+    return user_id, db
+
+
+@router.post("/{document_id}/customize")
+async def customize_document(
+    document_id: str,
+    request: PastedRoleRequest,
+    current_user: Dict[str, Any] = Depends(get_current_active_user)
+):
+    """Customize a CV from a pasted company, role, and job description."""
+    user_id, db = await _require_document_generation(current_user)
+    result = await document_service.customize_cv_for_job(
+        document_id=document_id,
+        job_description=request.job_description,
+        company_name=request.company_name,
+        job_title=request.job_title,
+        user_id=user_id,
+        user_preferences=request.user_preferences
+    )
+    from app.api.generation import _track_generation_usage
+    await _track_generation_usage(user_id, db)
+    return result
+
+
+@router.post("/{document_id}/cover-letter")
+async def generate_document_cover_letter(
+    document_id: str,
+    request: PastedRoleRequest,
+    current_user: Dict[str, Any] = Depends(get_current_active_user)
+):
+    """Generate a cover letter from a pasted company, role, and job description."""
+    if not (request.job_title or "").strip():
+        raise HTTPException(status_code=400, detail="Job title is required.")
+    user_id, db = await _require_document_generation(current_user)
+    result = await document_service.generate_cover_letter(
+        document_id=document_id,
+        job_description=request.job_description,
+        company_name=request.company_name,
+        job_title=request.job_title,
+        user_id=user_id,
+        user_preferences=request.user_preferences
+    )
+    from app.api.generation import _track_generation_usage
+    await _track_generation_usage(user_id, db)
+    return result
 
 
 # Health check endpoint

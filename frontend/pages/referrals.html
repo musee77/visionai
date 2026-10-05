@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Referrals & Rewards - CVision AI</title>
     <script src="/assets/js/auth-guard.js?v=1.2"></script>
-    <link rel="stylesheet" href="/assets/css/global.css">
+    <link rel="stylesheet" href="/assets/css/global.css?v=1.1">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
@@ -55,27 +55,37 @@
                     <div class="bg-white rounded-lg p-6 mb-4">
                         <div class="flex items-center justify-between">
                             <code id="referralCodeMain" class="text-3xl font-bold text-blue-600">LOADING...</code>
-                            <button onclick="copyReferralCode()"
-                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center">
+                            <button type="button" onclick="copyReferralCode(this)"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 hover:text-white transition-colors flex items-center">
                                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                 </svg>
-                                Copy
+                                Copy code
                             </button>
                         </div>
                     </div>
+                    <p class="text-sm text-blue-100 mb-2">Your referral link</p>
+                    <div class="flex items-center gap-2 bg-white rounded-lg p-2 mb-4">
+                        <input id="referralLinkMain" type="text" readonly
+                            class="flex-1 min-w-0 px-3 py-2 text-sm text-gray-800 bg-transparent outline-none"
+                            value="" placeholder="Loading link...">
+                        <button type="button" onclick="copyReferralLink(this)"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 hover:text-white whitespace-nowrap text-sm font-medium">
+                            Copy link
+                        </button>
+                    </div>
                     <div class="flex gap-2">
-                        <button onclick="shareViaEmail()"
-                            class="flex-1 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg px-4 py-2 transition-colors">
+                        <button type="button" onclick="shareViaEmail()"
+                            class="flex-1 bg-white/20 hover:bg-white/40 text-white hover:text-white rounded-lg px-4 py-2 transition-colors">
                             📧 Email
                         </button>
-                        <button onclick="shareViaTwitter()"
-                            class="flex-1 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg px-4 py-2 transition-colors">
+                        <button type="button" onclick="shareViaTwitter()"
+                            class="flex-1 bg-white/20 hover:bg-white/40 text-white hover:text-white rounded-lg px-4 py-2 transition-colors">
                             🐦 Twitter
                         </button>
-                        <button onclick="shareViaWhatsApp()"
-                            class="flex-1 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg px-4 py-2 transition-colors">
+                        <button type="button" onclick="shareViaWhatsApp()"
+                            class="flex-1 bg-white/20 hover:bg-white/40 text-white hover:text-white rounded-lg px-4 py-2 transition-colors">
                             💬 WhatsApp
                         </button>
                     </div>
@@ -144,13 +154,8 @@
 
         <!-- Enhanced Milestone Progress Tracker -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-8 mb-8 overflow-hidden relative">
-            <!-- Decorative background elements -->
-            <div
-                class="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full -translate-y-32 translate-x-32 opacity-50">
-            </div>
-            <div
-                class="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-green-100 to-blue-100 rounded-full translate-y-24 -translate-x-24 opacity-50">
-            </div>
+            <div class="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full -translate-y-32 translate-x-32 opacity-50"></div>
+            <div class="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-green-100 to-blue-100 rounded-full translate-y-24 -translate-x-24 opacity-50"></div>
 
             <div class="relative">
                 <div class="flex items-center justify-between mb-6">
@@ -158,99 +163,59 @@
                         <h2 class="text-2xl font-bold text-gray-900">Your Referral Journey</h2>
                         <p class="text-gray-600 mt-1">Earn rewards for every 5 paid referrals</p>
                     </div>
-                    <div
-                        class="hidden md:flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-full text-sm font-medium">
+                    <div class="hidden md:flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-full text-sm font-medium">
                         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path
-                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                         </svg>
-                        <span id="totalMilestonesCompleted">0</span> Milestones Completed
+                        <span id="totalMilestonesCompleted">0</span>
+                        <span id="milestonesCompletedLabel">Milestones Completed</span>
                     </div>
                 </div>
 
-                <!-- Progress Bar Section -->
                 <div class="mb-8">
                     <div class="flex justify-between items-center mb-2">
                         <span class="text-sm font-medium text-gray-600">Progress to next reward</span>
-                        <span id="progressText" class="text-sm font-bold text-purple-600">0 / 5 referrals</span>
+                        <span id="progressText" class="text-sm font-bold text-purple-600">0 / 5 paid referrals</span>
                     </div>
-
-                    <!-- Main Progress Bar -->
                     <div class="relative h-4 bg-gray-100 rounded-full overflow-hidden">
-                        <div id="progressBar"
-                            class="absolute left-0 top-0 h-full bg-gradient-to-r from-purple-500 via-blue-500 to-purple-600 rounded-full transition-all duration-1000 ease-out"
-                            style="width: 0%">
+                        <div id="progressBar" class="absolute left-0 top-0 h-full bg-gradient-to-r from-purple-500 via-blue-500 to-purple-600 rounded-full transition-all duration-1000 ease-out" style="width: 0%">
                             <div class="absolute inset-0 bg-white/20 animate-pulse"></div>
                         </div>
                     </div>
-
-                    <!-- Milestone Markers on Progress Bar -->
                     <div class="relative h-0">
                         <div class="absolute w-full flex justify-between -top-4 px-0">
                             <div class="flex flex-col items-center">
-                                <div
-                                    class="w-4 h-4 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 border-2 border-white shadow-lg">
-                                </div>
+                                <div class="w-4 h-4 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 border-2 border-white shadow-lg"></div>
                             </div>
+                            <div class="flex flex-col items-center"><div id="milestone1Marker" class="w-4 h-4 rounded-full bg-gray-300 border-2 border-white shadow transition-all duration-300"></div></div>
+                            <div class="flex flex-col items-center"><div id="milestone2Marker" class="w-4 h-4 rounded-full bg-gray-300 border-2 border-white shadow transition-all duration-300"></div></div>
+                            <div class="flex flex-col items-center"><div id="milestone3Marker" class="w-4 h-4 rounded-full bg-gray-300 border-2 border-white shadow transition-all duration-300"></div></div>
+                            <div class="flex flex-col items-center"><div id="milestone4Marker" class="w-4 h-4 rounded-full bg-gray-300 border-2 border-white shadow transition-all duration-300"></div></div>
                             <div class="flex flex-col items-center">
-                                <div id="milestone1Marker"
-                                    class="w-4 h-4 rounded-full bg-gray-300 border-2 border-white shadow transition-all duration-300">
-                                </div>
-                            </div>
-                            <div class="flex flex-col items-center">
-                                <div id="milestone2Marker"
-                                    class="w-4 h-4 rounded-full bg-gray-300 border-2 border-white shadow transition-all duration-300">
-                                </div>
-                            </div>
-                            <div class="flex flex-col items-center">
-                                <div id="milestone3Marker"
-                                    class="w-4 h-4 rounded-full bg-gray-300 border-2 border-white shadow transition-all duration-300">
-                                </div>
-                            </div>
-                            <div class="flex flex-col items-center">
-                                <div id="milestone4Marker"
-                                    class="w-4 h-4 rounded-full bg-gray-300 border-2 border-white shadow transition-all duration-300">
-                                </div>
-                            </div>
-                            <div class="flex flex-col items-center">
-                                <div id="milestone5Marker"
-                                    class="w-4 h-4 rounded-full bg-gray-300 border-2 border-white shadow transition-all duration-300 relative">
-                                    <svg class="w-3 h-3 text-white absolute top-0.5 left-0.5 hidden"
-                                        id="milestone5Check" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fill-rule="evenodd"
-                                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                            clip-rule="evenodd" />
+                                <div id="milestone5Marker" class="w-4 h-4 rounded-full bg-gray-300 border-2 border-white shadow transition-all duration-300 relative">
+                                    <svg class="w-3 h-3 text-white absolute top-0.5 left-0.5 hidden" id="milestone5Check" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
                                     </svg>
                                 </div>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Milestone Labels -->
                     <div class="flex justify-between mt-6 text-xs text-gray-500">
                         <span>Start</span>
                         <span>1</span>
                         <span>2</span>
                         <span>3</span>
                         <span>4</span>
-                        <span class="flex items-center gap-1 text-purple-600 font-semibold">
-                            5 🎉
-                        </span>
+                        <span class="flex items-center gap-1 text-purple-600 font-semibold">5</span>
                     </div>
+                    <p id="cycleNote" class="hidden mt-3 text-sm text-purple-700">This set of 5 is complete. The next 5 paid friends start another reward.</p>
                 </div>
 
-                <!-- Reward Preview Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <!-- Current Milestone Card -->
                     <div class="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl p-4 border border-purple-100">
                         <div class="flex items-center gap-3 mb-3">
-                            <div
-                                class="w-10 h-10 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
-                                <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd"
-                                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
-                                        clip-rule="evenodd" />
-                                </svg>
+                            <div class="w-10 h-10 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+                                <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg>
                             </div>
                             <div>
                                 <p class="text-sm font-medium text-gray-600">Referrals Needed</p>
@@ -259,16 +224,10 @@
                         </div>
                         <p class="text-xs text-gray-500">Until your next reward</p>
                     </div>
-
-                    <!-- Reward Amount Card -->
                     <div class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
                         <div class="flex items-center gap-3 mb-3">
-                            <div
-                                class="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center">
-                                <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                    <path
-                                        d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                </svg>
+                            <div class="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center">
+                                <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
                             </div>
                             <div>
                                 <p class="text-sm font-medium text-gray-600">Next Reward</p>
@@ -277,17 +236,10 @@
                         </div>
                         <p class="text-xs text-gray-500">5 automated applications</p>
                     </div>
-
-                    <!-- Total Earned Card -->
                     <div class="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100">
                         <div class="flex items-center gap-3 mb-3">
-                            <div
-                                class="w-10 h-10 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full flex items-center justify-center">
-                                <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd"
-                                        d="M5 2a2 2 0 00-2 2v14l3.5-2 3.5 2 3.5-2 3.5 2V4a2 2 0 00-2-2H5zm2.5 3a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm6.207.293a1 1 0 00-1.414 0l-6 6a1 1 0 101.414 1.414l6-6a1 1 0 000-1.414zm-2.207 6.707a1.5 1.5 0 100 3 1.5 1.5 0 000-3z"
-                                        clip-rule="evenodd" />
-                                </svg>
+                            <div class="w-10 h-10 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full flex items-center justify-center">
+                                <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 2a2 2 0 00-2 2v14l3.5-2 3.5 2 3.5-2 3.5 2V4a2 2 0 00-2-2H5zm2.5 3a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm6.207.293a1 1 0 00-1.414 0l-6 6a1 1 0 101.414 1.414l6-6a1 1 0 000-1.414zm-2.207 6.707a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" clip-rule="evenodd" /></svg>
                             </div>
                             <div>
                                 <p class="text-sm font-medium text-gray-600">Total Earned</p>
@@ -298,44 +250,35 @@
                     </div>
                 </div>
 
-                <!-- Milestone Steps -->
                 <div class="border-t border-gray-100 pt-6">
                     <h3 class="text-lg font-semibold text-gray-900 mb-4">How It Works</h3>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div class="flex items-start gap-3">
-                            <div
-                                class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 text-blue-600 font-bold text-sm">
-                                1</div>
+                            <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 text-blue-600 font-bold text-sm">1</div>
                             <div>
-                                <p class="font-medium text-gray-900">Share Your Code</p>
-                                <p class="text-sm text-gray-500">Send your referral code to friends</p>
+                                <p class="font-medium text-gray-900">Share your link</p>
+                                <p class="text-sm text-gray-500">Friends open your referral link to join</p>
                             </div>
                         </div>
                         <div class="flex items-start gap-3">
-                            <div
-                                class="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0 text-purple-600 font-bold text-sm">
-                                2</div>
+                            <div class="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0 text-purple-600 font-bold text-sm">2</div>
                             <div>
-                                <p class="font-medium text-gray-900">They Subscribe</p>
-                                <p class="text-sm text-gray-500">Friends sign up for a paid plan</p>
+                                <p class="font-medium text-gray-900">They create an account</p>
+                                <p class="text-sm text-gray-500">The account is tied to your referral link</p>
                             </div>
                         </div>
                         <div class="flex items-start gap-3">
-                            <div
-                                class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 text-green-600 font-bold text-sm">
-                                3</div>
+                            <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 text-green-600 font-bold text-sm">3</div>
                             <div>
-                                <p class="font-medium text-gray-900">Reach Milestone</p>
-                                <p class="text-sm text-gray-500">Get 5 paid referrals</p>
+                                <p class="font-medium text-gray-900">They subscribe</p>
+                                <p class="text-sm text-gray-500">Basic or Premium counts toward the 5</p>
                             </div>
                         </div>
                         <div class="flex items-start gap-3">
-                            <div
-                                class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 text-amber-600 font-bold text-sm">
-                                4</div>
+                            <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 text-amber-600 font-bold text-sm">4</div>
                             <div>
-                                <p class="font-medium text-gray-900">Earn Rewards!</p>
-                                <p class="text-sm text-gray-500">Get 5+5 bonus applications</p>
+                                <p class="font-medium text-gray-900">Earn 5 applications</p>
+                                <p class="text-sm text-gray-500">Every 5 paid friends adds 5 automated applications</p>
                             </div>
                         </div>
                     </div>
@@ -343,11 +286,9 @@
             </div>
         </div>
 
-        <!-- Rewards Tier Explanation -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-8 mb-8">
             <h2 class="text-2xl font-bold mb-6">Referral Rewards by Subscription Tier</h2>
             <div id="tierCardsContainer" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Tier cards will be dynamically loaded from backend -->
                 <div class="text-center py-12 col-span-3">
                     <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
                     <p class="text-gray-500 mt-4">Loading tier information...</p>
@@ -426,9 +367,9 @@
                 <div class="flex items-center gap-2">
                     <input type="text" id="referralLinkInput" readonly
                         class="flex-1 bg-white border border-gray-300 rounded-lg px-4 py-2 text-sm" value="">
-                    <button onclick="copyReferralLink()"
-                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 whitespace-nowrap">
-                        Copy Link
+                    <button type="button" onclick="copyReferralLink(this)"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 hover:text-white whitespace-nowrap">
+                        Copy link
                     </button>
                 </div>
             </div>
@@ -472,12 +413,12 @@
 
     <script src="/assets/js/inline-messages.js"></script>
     <script src="/assets/js/main.js"></script>
-    <script src="/assets/js/pages/referrals.js?v=1.5"></script>
-    <script src="/assets/js/components/navbar.js?v=1.4" defer></script>
+    <script src="/assets/js/pages/referrals.js?v=2.0"></script>
+    <script src="/assets/js/components/navbar.js?v=1.6" defer></script>
 
     <script defer>
         // Load navbar component with proper initialization
-        fetch('/components/navbar.html?v=1.4')
+        fetch('/components/navbar.html?v=1.6')
             .then(response => response.text())
             .then(html => {
                 const container = document.getElementById('navbar-container');

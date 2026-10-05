@@ -4,6 +4,8 @@ const { GenericHandler } = require('./generic');
 const { IndeedHandler } = require('./indeed');
 const { LinkedInHandler } = require('./linkedin');
 const { RemoteOKHandler } = require('./remoteok');
+const { GreenhouseHandler } = require('./greenhouse');
+const { LeverHandler } = require('./lever');
 
 class SiteHandlerFactory {
     static getHandler(url, jobSource) {
@@ -25,10 +27,15 @@ class SiteHandlerFactory {
             return new RemoteOKHandler();
         }
 
-        // Add more site-specific handlers here
-        // if (hostname.includes('greenhouse.io')) {
-        //     return new GreenhouseHandler();
-        // }
+        if (hostname.includes('greenhouse.io') || jobSource === 'greenhouse') {
+            console.log('Using Greenhouse handler');
+            return new GreenhouseHandler();
+        }
+
+        if (hostname.includes('lever.co') || jobSource === 'lever') {
+            console.log('Using Lever handler');
+            return new LeverHandler();
+        }
 
         console.log('Using generic handler');
         return new GenericHandler();

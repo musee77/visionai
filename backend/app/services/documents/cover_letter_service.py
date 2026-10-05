@@ -95,10 +95,15 @@ class CoverLetterService:
             }
             
         except Exception as e:
-            logger.error(f"Cover letter generation failed: {e}")
+            detail = getattr(e, "detail", None)
+            if not isinstance(detail, str) or not detail.strip():
+                detail = str(e).strip() or e.__class__.__name__
+            status_code = getattr(e, "status_code", None)
+            logger.error(f"Cover letter generation failed: {detail}")
             return {
                 "success": False,
-                "error": str(e),
+                "error": detail,
+                "status_code": status_code if isinstance(status_code, int) else 500,
                 "cover_letter": None
             }
     
@@ -169,7 +174,7 @@ Write a cover letter that doesn't just list qualifications, but tells a story of
         
         # Education
         education = cv_data.get("education", [])
-        if education:
+        if education and isinstance(education[0], dict):
             highest_ed = education[0]
             summary_parts.append(
                 f"{highest_ed.get('degree', 'Degree')} from {highest_ed.get('institution', 'University')}"
@@ -183,13 +188,21 @@ Write a cover letter that doesn't just list qualifications, but tells a story of
         job_data: Dict[str, Any]
     ) -> str:
         """Extract most relevant work experience"""
-        experience = cv_data.get("experience", [])[:3]  # Top 3
+        experience = cv_data.get("experience", [])[:3]
         
         exp_text = []
         for exp in experience:
-            highlights = exp.get("responsibilities", [])[:2]  # Top 2 highlights
+            if not isinstance(exp, dict):
+                continue
+            highlights = exp.get("highlights") or exp.get("achievements") or exp.get("responsibilities") or []
+            if isinstance(highlights, str):
+                highlight_text = highlights
+            elif isinstance(highlights, list):
+                highlight_text = ", ".join(str(item) for item in highlights[:2] if item)
+            else:
+                highlight_text = ""
             exp_text.append(
-                f"- {exp.get('title')} at {exp.get('company')}: {', '.join(highlights)}"
+                f"- {exp.get('title')} at {exp.get('company')}: {highlight_text}"
             )
         
         return "\n".join(exp_text) if exp_text else "General professional experience"
@@ -200,22 +213,28 @@ Write a cover letter that doesn't just list qualifications, but tells a story of
         job_data: Dict[str, Any]
     ) -> str:
         """Extract key matching skills"""
-        cv_skills = set(cv_data.get("skills", []))
-        job_skills = set(job_data.get("skills_required", []))
-        
-        matching = cv_skills.intersection(job_skills)
-        
-        if matching:
-            return ", ".join(list(matching)[:8])
-        else:
-            # Return top CV skills if no direct match
-            return ", ".join(list(cv_skills)[:8])
+        names = []
+        skills = cv_data.get("skills") or []
+        if isinstance(skills, dict):
+            for value in skills.values():
+                if isinstance(value, list):
+                    names.extend(str(item) for item in value if item)
+                elif value:
+                    names.append(str(value))
+        elif isinstance(skills, list):
+            names.extend(str(item) for item in skills if item)
+        job_skills = {str(item).lower() for item in (job_data.get("skills_required") or []) if item}
+        matching = [name for name in names if name.lower() in job_skills]
+        chosen = matching or names
+        return ", ".join(chosen[:8]) if chosen else "Not specified"
     
     def _calculate_years_experience(self, experience: list) -> int:
         """Calculate total years of experience"""
         # Simplified calculation - count unique year ranges
         years = set()
         for exp in experience:
+            if not isinstance(exp, dict):
+                continue
             duration = exp.get("duration", "")
             # Extract years (simplified)
             import re

@@ -20,7 +20,8 @@ class AuthHandler {
      * @returns {Promise<{status: string, message: string, credentials_extracted?: any}>}
      */
     async handleAuth(options = {}) {
-        const { autoCreateAccount = false, credentials = null } = options;
+        const { autoCreateAccount = false, credentials = null, email = '' } = options;
+        this.connectedEmail = email || this.autofillData.connected_email || this.autofillData.personal_info?.email || '';
         const pageType = await this.classifier.classify();
 
         console.log(`AuthHandler: Detected page type: ${pageType}`);
@@ -55,47 +56,29 @@ class AuthHandler {
      */
     async performLogin(credentials) {
         const { username, password, email } = credentials;
-        const loginValue = username || email;
+        const loginValue = email || username || this.connectedEmail;
 
         if (!loginValue || !password) {
             return { status: 'error', message: 'Missing login identifier or password.' };
         }
 
-        // Detect login forms
-        const forms = await this.formDetector.detectForms();
-
-        if (forms.length === 0) {
-            return { status: 'error', message: 'No login form detected on login page.' };
+        const emailField = this.page.locator('input[type="email"], input[name*="email" i], input[id*="email" i]').first();
+        if (await emailField.count()) {
+            await emailField.fill(loginValue);
         }
-
-        // Fill the form
-        // We use a simplified mapping for login
-        const loginData = {
-            email: loginValue,
-            firstName: loginValue, // Sometimes login fields match 'name' or 'firstname' patterns
-            fullName: loginValue,
-            lastName: password, // This is a hack because GenericHandler doesn't know about 'password' yet
-        };
-
-        // Actually, let's update GenericHandler to support password patterns
-        const filled = await this.siteHandler.fillForm(this.page, forms[0], {
-            personal_info: { email: loginValue },
-            password: password // We need to handle this in GenericHandler
-        });
-
-        // Manual password fill if GenericHandler skipped it
-        const passwordField = await this.page.$('input[type="password"]');
-        if (passwordField) {
+        const passwordField = this.page.locator('input[type="password"]').first();
+        if (await passwordField.count()) {
             await passwordField.fill(password);
+        } else {
+            return { status: 'error', message: 'No password field on the login page.' };
         }
 
-        // Submit the form
-        await Promise.all([
-            this.page.keyboard.press('Enter'),
-            this.page.waitForNavigation({ waitUntil: 'networkidle', timeout: 10000 }).catch(() => { })
-        ]);
-
-        return { status: 'success', message: 'Login attempt submitted.' };
+        await this.submitAuthForm();
+        return {
+            status: 'success',
+            message: 'Login attempt submitted.',
+            credentials: { email: loginValue, password, domain: new URL(this.page.url()).hostname }
+        };
     }
 
     /**
@@ -111,30 +94,39 @@ class AuthHandler {
             return { status: 'error', message: 'No registration form detected.' };
         }
 
+        const accountEmail = this.connectedEmail;
+        if (!accountEmail) {
+            return { status: 'needs_authentication', message: 'Premium account creation needs a connected email.' };
+        }
+
         // 2. Generate a secure password if not provided
         const generatedPassword = Math.random().toString(36).slice(-10) + 'A1!';
 
-        // 3. Fill the form
-        // Wrap registration data in the structure expected by GenericHandler
+        // 3. Fill the form with the connected email
         const registrationData = {
             ...this.autofillData,
-            password: generatedPassword
+            connected_email: accountEmail,
+            password: generatedPassword,
+            personal_info: {
+                ...(this.autofillData.personal_info || {}),
+                email: accountEmail
+            }
         };
 
-        const filled = await this.siteHandler.fillForm(this.page, forms[0], registrationData);
-
-        // Explicitly fill password fields as they might not be in GenericHandler's mapping
-        const passwordFields = await this.page.$$('input[type="password"]');
-        for (const field of passwordFields) {
-            await field.fill(generatedPassword);
+        if (this.siteHandler && this.siteHandler.fillForm) {
+            await this.siteHandler.fillForm(this.page, forms[0], registrationData);
+        }
+        const emailField = this.page.locator('input[type="email"], input[name*="email" i]').first();
+        if (await emailField.count()) await emailField.fill(accountEmail);
+        const passwordFields = this.page.locator('input[type="password"]');
+        const passwordCount = await passwordFields.count();
+        for (let index = 0; index < passwordCount; index += 1) {
+            await passwordFields.nth(index).fill(generatedPassword);
         }
 
         // 4. Submit
         console.log('AuthHandler: Submitting registration...');
-        await Promise.all([
-            this.page.keyboard.press('Enter'),
-            this.page.waitForNavigation({ waitUntil: 'networkidle', timeout: 15000 }).catch(() => { })
-        ]);
+        await this.submitAuthForm();
 
         // 5. Check if we are now on a "Verify Email" page
         const newPageType = await this.classifier.classify();
@@ -170,21 +162,23 @@ class AuthHandler {
      * Try to find a registration link on a login page
      */
     async navigateToRegister() {
-        const registerKeywords = ['register', 'sign up', 'signup', 'create account', 'join'];
-        const links = await this.page.$$('a');
+        const link = this.page.getByRole('link', { name: /register|sign up|signup|create account|join/i }).first();
+        if (!(await link.count())) return false;
+        console.log('AuthHandler: Found a registration link. Navigating...');
+        await link.click();
+        await this.page.waitForLoadState('domcontentloaded').catch(() => { });
+        return true;
+    }
 
-        for (const link of links) {
-            const text = await link.innerText();
-            if (registerKeywords.some(k => text.toLowerCase().includes(k))) {
-                console.log(`AuthHandler: Found registration link: "${text}". Navigating...`);
-                await Promise.all([
-                    link.click(),
-                    this.page.waitForNavigation({ waitUntil: 'networkidle', timeout: 10000 }).catch(() => { })
-                ]);
-                return true;
-            }
+    async submitAuthForm() {
+        const submit = this.page.locator('button[type="submit"], input[type="submit"]').first();
+        if (await submit.count()) {
+            await submit.click();
+        } else {
+            await this.page.keyboard.press('Enter');
         }
-        return false;
+        await this.page.waitForLoadState('domcontentloaded').catch(() => { });
+        await this.page.waitForTimeout(2000);
     }
 }
 
