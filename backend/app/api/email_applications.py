@@ -104,15 +104,23 @@ async def apply_via_email(
                 )
 
 
-        # 4. Create Application Record FIRST (needed for email agent)
         applications_collection = await get_applications_collection()
         job_title = job.get("title", "Job")
-        
         now = datetime.utcnow()
         message = request.cover_letter or f"Please find attached my CV and cover letter for the {job_title} position."
+        user_id = str(current_user["_id"])
+        existing = await applications_collection.find_one({
+            "job_id": request.job_id,
+            "user_id": user_id,
+            "deleted_at": None,
+        })
+        if existing and existing.get("status") not in ("withdrawn", "failed"):
+            detail = "This application is already waiting in review" if existing.get("status") == "awaiting_review" else "You have already applied to this job"
+            raise HTTPException(status_code=409, detail=detail)
+
         application_doc = {
             "job_id": request.job_id,
-            "user_id": str(current_user["_id"]),
+            "user_id": user_id,
             "status": ApplicationStatus.AWAITING_REVIEW.value,
             "source": ApplicationSource.DIRECT.value,
             "application_method": "email",
@@ -120,12 +128,13 @@ async def apply_via_email(
             "company_name": job.get("company_name") or job.get("company"),
             "location": job.get("location") if isinstance(job.get("location"), str) else None,
             "cv_document_id": request.cv_id,
-            "additional_message": request.cover_letter,
+            "cover_letter_content": request.cover_letter,
             "usage_type": "auto_application",
+            "usage_reserved": True,
             "review": {
                 "channel": "email",
                 "recipient_email": employer_email,
-                "apply_url": job.get("application_url") or job.get("external_url"),
+                "apply_url": job.get("application_url") or job.get("external_url") or job.get("apply_url"),
                 "message": message,
             },
             "created_at": now,
@@ -134,27 +143,29 @@ async def apply_via_email(
             "timeline": [{
                 "status": "awaiting_review",
                 "timestamp": now,
-                "note": "Ready for review before the email is sent"
-            }]
+                "note": "Ready for review before the email is sent",
+            }],
         }
-        
-        result = await applications_collection.insert_one(application_doc)
-        application_id = str(result.inserted_id)
-        await subscription_service.track_usage(str(current_user["_id"]), "auto_application")
-        await applications_collection.update_one(
-            {"_id": result.inserted_id},
-            {"$set": {"usage_reserved": True}}
-        )
+        if existing:
+            await applications_collection.update_one({"_id": existing["_id"]}, {"$set": application_doc})
+            application_id = str(existing["_id"])
+        else:
+            result = await applications_collection.insert_one(application_doc)
+            application_id = str(result.inserted_id)
+
+        await subscription_service.track_usage(user_id, "auto_application")
 
         return EmailApplicationResponse(
             success=True,
             message="Application is ready for review. Open Applications and choose In Review to send it.",
-            application_id=application_id
+            application_id=application_id,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Email application failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to send application: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to prepare application: {str(e)}")
 
 
 class ManualTrackRequest(BaseModel):
@@ -179,59 +190,82 @@ async def track_external_application(
 
 
 
-        # 1.5 Check Usage Limits (Manual Application)
-        subscription_service = SubscriptionService(await get_database())
-        can_apply, _, _ = await subscription_service.check_usage_limit(
-            str(current_user["_id"]),
-            "manual_application"
-        )
-        
-        if not can_apply:
-             raise HTTPException(
-                status_code=403,
-                detail="Monthly manual application limit reached. Please upgrade your plan."
-            )
-
-        # 2. Create Application Record
+        apply_url = request.application_url or job.get("application_url") or job.get("external_url") or job.get("apply_url")
         applications_collection = await get_applications_collection()
-        
-        # Check if already applied
+        user_id = str(current_user["_id"])
+        now = datetime.utcnow()
         existing = await applications_collection.find_one({
             "job_id": request.job_id,
-            "user_id": str(current_user["_id"])
+            "user_id": user_id,
+            "deleted_at": None,
+            "status": {"$nin": ["withdrawn", "failed"]},
         })
-        
         if existing:
-             raise HTTPException(status_code=400, detail="You have already applied to this job.")
+            channel = (existing.get("review") or {}).get("channel")
+            if existing.get("application_method") == "external" or channel == "external" or existing.get("status") != ApplicationStatus.AWAITING_REVIEW.value:
+                await applications_collection.update_one(
+                    {"_id": existing["_id"]},
+                    {"$set": {
+                        "status": ApplicationStatus.APPLIED.value,
+                        "application_method": "external",
+                        "application_url": apply_url,
+                        "review": None,
+                        "updated_at": now,
+                    }},
+                )
+            return EmailApplicationResponse(
+                success=True,
+                message="This application is saved. It does not need a review.",
+                application_id=str(existing["_id"]),
+            )
 
-        application_doc = Application(
-            job_id=request.job_id,
-            user_id=str(current_user["_id"]),
-            status=ApplicationStatus.SUBMITTED,
-            source=ApplicationSource.MANUAL,
-            application_method="external",
-            application_url=request.application_url or job.get("application_url"),
-            applied_date=datetime.utcnow(),
-            job_title=job.get("title", "Job"),
-            company_name=job.get("company_name") or job.get("company"),
-            location=job.get("location") if isinstance(job.get("location"), str) else None,
-            additional_notes=request.notes
-        )
-        
-        result = await applications_collection.insert_one(application_doc.dict(by_alias=True, exclude={"id"}))
-        
+        subscription_service = SubscriptionService(await get_database())
+        can_apply, _, _ = await subscription_service.check_usage_limit(user_id, "manual_application")
+        if not can_apply:
+            raise HTTPException(
+                status_code=403,
+                detail="Monthly manual application limit reached. Please upgrade your plan.",
+            )
 
-        
-        # Track usage
-        await subscription_service.track_usage(
-             str(current_user["_id"]),
-             "manual_application"
-        )
-        
+        location = job.get("location")
+        if isinstance(location, dict):
+            location = ", ".join(
+                part for part in [
+                    location.get("city"),
+                    location.get("region") or location.get("state"),
+                    location.get("country"),
+                ] if part
+            ) or None
+
+        result = await applications_collection.insert_one({
+            "job_id": request.job_id,
+            "user_id": user_id,
+            "status": ApplicationStatus.APPLIED.value,
+            "source": ApplicationSource.MANUAL.value,
+            "application_method": "external",
+            "application_url": apply_url,
+            "job_title": job.get("title", "Job"),
+            "company_name": job.get("company_name") or job.get("company"),
+            "location": location if isinstance(location, str) else None,
+            "additional_notes": request.notes,
+            "usage_type": "manual_application",
+            "usage_reserved": False,
+            "review": None,
+            "created_at": now,
+            "updated_at": now,
+            "applied_date": now,
+            "deleted_at": None,
+            "timeline": [{
+                "status": "applied",
+                "timestamp": now,
+                "note": "Opened the company application page",
+            }],
+        })
+        await subscription_service.track_usage(user_id, "manual_application")
         return EmailApplicationResponse(
             success=True,
-            message="Application tracked successfully",
-            application_id=str(result.inserted_id)
+            message="Application saved. Opening a company link does not need a review.",
+            application_id=str(result.inserted_id),
         )
 
     except HTTPException:

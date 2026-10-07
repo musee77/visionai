@@ -493,7 +493,7 @@ class JobModalComponent {
                 applyBtn.onclick = (e) => {
                     e.stopPropagation();
                     const companyUrl = job.application_url || originalUrl;
-                    if (window.JobApply?.openCompanyPage) window.JobApply.openCompanyPage(companyUrl);
+                    if (window.JobApply?.applyByOpeningLink) window.JobApply.applyByOpeningLink(jobId, companyUrl);
                     else if (companyUrl) window.open(companyUrl, '_blank', 'noopener,noreferrer');
                 };
             }

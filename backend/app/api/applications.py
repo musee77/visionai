@@ -90,6 +90,26 @@ async def create_application(
                 detail=f"Usage limit reached for {event_type.replace('_', ' ')}s. Please upgrade your plan."
             )
         
+        job = await db.jobs.find_one({"_id": ObjectId(app_data.get("job_id"))}) if ObjectId.is_valid(str(app_data.get("job_id") or "")) else None
+        recipient = None
+        apply_url = None
+        if job:
+            recipient = job.get("application_email") or job.get("contact_email") or job.get("email")
+            apply_url = job.get("application_url") or job.get("external_url") or job.get("apply_url")
+        link_only = not recipient
+        app_data["usage_type"] = event_type
+        if link_only:
+            app_data["status"] = "applied"
+            app_data["review"] = None
+        else:
+            app_data["status"] = "awaiting_review"
+            app_data["review"] = {
+                "channel": "email",
+                "recipient_email": recipient,
+                "apply_url": apply_url,
+                "message": app_data.get("cover_letter_content") or app_data.get("additional_notes") or "Review this application before it is sent.",
+            }
+
         # Create application using static method
         application_id = await ApplicationTrackingService.create_application(app_data, db)
         
@@ -117,24 +137,22 @@ async def create_application(
             metadata={"source": application.get("source", "manual")}
         )
         
-        # Track usage after successful creation
         await subscription_service.track_usage(
             str(current_user["_id"]), 
             event_type
         )
-        
-        # Send notification if service available
-        if NotificationService:
-            try:
-                notification_service = NotificationService(db)
-                await notification_service.send_application_submitted(
-                    user_id=str(current_user["_id"]),
-                    job_title=application.get("job_title", "Unknown Position"),
-                    company=application.get("company_name", "Unknown Company"),
-                    application_id=application_id
-                )
-            except Exception as e:
-                logger.warning(f"Failed to send notification: {e}")
+        saved_fields = {
+            "usage_type": event_type,
+            "application_url": apply_url,
+            "status": "applied" if link_only else "awaiting_review",
+            "application_method": "external" if link_only else "email",
+            "usage_reserved": not link_only,
+            "review": None if link_only else app_data.get("review"),
+        }
+        await db.applications.update_one(
+            {"_id": ObjectId(application_id)},
+            {"$set": saved_fields}
+        )
         
         # Format response
         return ApplicationResponse(
@@ -699,6 +717,8 @@ async def _owned_document(db, document_id: Optional[str], user_id: str):
         return None
     document = await db.documents.find_one({"_id": ObjectId(str(document_id))})
     if not document:
+        document = await db.generated_documents.find_one({"_id": ObjectId(str(document_id))})
+    if not document:
         return None
     owner = str(document.get("user_id") or "")
     if owner and owner != str(user_id):
@@ -748,17 +768,14 @@ async def get_application_review(
             "text": _document_preview(cv_document) or "No CV text is stored for this file."
         })
     letter = await _owned_document(db, application.get("cover_letter_document_id"), user_id)
-    if letter:
+    letter_text = _document_preview(letter) if letter else ""
+    if not letter_text:
+        letter_text = application.get("cover_letter_content") or ""
+    if letter or letter_text:
         documents.append({
             "label": "Cover letter",
             "name": "Cover letter",
-            "text": _document_preview(letter) or "No cover letter text is stored."
-        })
-    elif application.get("additional_message") or (application.get("form_data") or {}).get("cover_letter"):
-        documents.append({
-            "label": "Cover letter",
-            "name": "Cover letter",
-            "text": application.get("additional_message") or application.get("form_data", {}).get("cover_letter")
+            "text": letter_text or "No cover letter text is stored."
         })
 
     return {
@@ -802,20 +819,29 @@ async def submit_reviewed_application(
     channel = review.get("channel")
     user_id = str(current_user["_id"])
     now = datetime.utcnow()
+    usage_type = application.get("usage_type") or "auto_application"
+
+    if channel == "external":
+        await db.applications.update_one(
+            {"_id": application["_id"]},
+            {
+                "$set": {"status": "submitted", "applied_date": now, "updated_at": now},
+                "$push": {"timeline": {"status": "submitted", "timestamp": now, "note": "Confirmed after review"}}
+            }
+        )
+        return {"success": True, "status": "submitted"}
 
     if channel == "email":
         recipient = review.get("recipient_email")
         if not recipient:
             raise HTTPException(status_code=fastapi_status.HTTP_400_BAD_REQUEST, detail="This application has no recipient email")
-        usage_type = application.get("usage_type") or "auto_application"
         if not application.get("usage_reserved"):
             allowed, _, _ = await SubscriptionService(db).check_usage_limit(user_id, usage_type)
             if not allowed:
                 raise HTTPException(status_code=fastapi_status.HTTP_403_FORBIDDEN, detail="You have no applications left on this plan")
         from app.services.emails.email_agent_service import email_agent_service
         from app.workers.email_sender import send_application_email
-        stored_form = application.get("form_data") if isinstance(application.get("form_data"), dict) else None
-        form_data = dict(stored_form) if stored_form else await email_agent_service.extract_form_data_from_cv(user_id, db=db)
+        form_data = await email_agent_service.extract_form_data_from_cv(user_id, db=db)
         form_data["message"] = review.get("message") or f"Please find attached my CV and cover letter for the {application.get('job_title')} position."
         send_application_email.delay(
             user_id=user_id,
@@ -841,7 +867,7 @@ async def submit_reviewed_application(
             }
         )
         if not application.get("usage_reserved"):
-            await SubscriptionService(db).track_usage(user_id, application.get("usage_type") or "auto_application")
+            await SubscriptionService(db).track_usage(user_id, usage_type)
         return {"success": True, "status": "submitted"}
 
     if channel == "browser":

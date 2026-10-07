@@ -47,6 +47,37 @@ class JobApplyComponent {
         window.open(target, '_blank', 'noopener,noreferrer');
     }
 
+    async applyByOpeningLink(jobId, url) {
+        const target = typeof url === 'string' ? url : this.companyApplyUrl(url);
+        if (window.PremiumGuard) {
+            const canProceed = await window.PremiumGuard.enforceLimit('MANUAL_APPLICATION');
+            if (!canProceed) return;
+        }
+        try {
+            if (jobId && window.CVision && window.CVision.API) {
+                await window.CVision.API.request('/email-applications/track', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        job_id: String(jobId),
+                        application_url: target || null,
+                    }),
+                });
+                if (window.JobActions && window.JobActions.appliedJobIds) {
+                    window.JobActions.appliedJobIds.add(String(jobId));
+                }
+            }
+        } catch (error) {
+            const message = (error && error.message) || 'Could not save this application.';
+            if (window.CVision && window.CVision.Utils) {
+                window.CVision.Utils.showAlert(message, 'error');
+            } else {
+                alert(message);
+            }
+            return;
+        }
+        this.openCompanyPage(target);
+    }
+
     /**
      * Inject the Apply Modal into the DOM
      */
@@ -363,6 +394,19 @@ class JobApplyComponent {
         const cvId = document.getElementById('applyModalCvSelect')?.value;
         const coverLetterId = document.getElementById('applyModalCoverLetterSelect')?.value;
 
+        const jobForLink = this.currentJob || {};
+        const jobHasEmail = !!(
+            jobForLink.application_email ||
+            jobForLink.contact_email ||
+            jobForLink.email ||
+            (jobForLink.company_info && jobForLink.company_info.contact && jobForLink.company_info.contact.email)
+        );
+        if (!jobHasEmail) {
+            this.closeApplyModal();
+            await this.applyByOpeningLink(this.currentJobId, this.companyApplyUrl(jobForLink));
+            return;
+        }
+
         if (!cvId) {
             // Check if user has no CVs at all (dropdown would usually have "Select a CV..." or "No CVs found")
             const cvSelect = document.getElementById('applyModalCvSelect');
@@ -380,13 +424,6 @@ class JobApplyComponent {
             return;
         }
 
-        // --- SUBSCRIPTION LIMIT CHECK ---
-        // Check if user is allowed to proceed with this application
-        if (window.PremiumGuard) {
-            const canProceed = await window.PremiumGuard.enforceLimit('MANUAL_APPLICATION');
-            if (!canProceed) return; // Blocked by guard (modal shown)
-        }
-
         this.closeApplyModal();
 
         const job = this.currentJob || {};
@@ -396,32 +433,22 @@ class JobApplyComponent {
             job.email ||
             (job.company_info?.contact?.email)
         );
+        const companyUrl = this.companyApplyUrl(job);
 
-        const hasUrl = !!(
-            job.application_url ||
-            job.external_url ||
-            job.apply_url
-        );
+        if (!hasEmail) {
+            await this.applyByOpeningLink(this.currentJobId, companyUrl);
+            return;
+        }
 
-        if (hasEmail) {
-            console.log('JobApply: Priority 1 - Email Apply (Quick Apply)');
-            if (typeof window.openQuickApplyForm === 'function') {
-                window.openQuickApplyForm(this.currentJobId, cvId, coverLetterId);
-            } else {
-                console.error('openQuickApplyForm function not found');
-                alert('Navigation failed: Quick Apply form missing.');
-            }
-        } else if (hasUrl) {
-            console.log('JobApply: Priority 2 - Browser Automation');
-            if (window.BrowserAutomation && typeof window.BrowserAutomation.startAutofill === 'function') {
-                window.BrowserAutomation.startAutofill(this.currentJobId, cvId, coverLetterId);
-            } else {
-                console.error('BrowserAutomation.startAutofill not found');
-                alert('Browser automation service is not loaded.');
-            }
+        if (window.PremiumGuard) {
+            const canProceed = await window.PremiumGuard.enforceLimit('MANUAL_APPLICATION');
+            if (!canProceed) return;
+        }
+
+        if (typeof window.openQuickApplyForm === 'function') {
+            window.openQuickApplyForm(this.currentJobId, cvId, coverLetterId);
         } else {
-            console.warn('JobApply: No automated application method found for this job');
-            alert('This job requires manual application. Please follow the instructions on the job board.');
+            alert('Navigation failed: Quick Apply form missing.');
         }
     }
 }

@@ -51,9 +51,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     loadStats();
-    const openingReview = window.location.hash === '#review';
-    await loadTabComponent(openingReview ? 'review' : 'applications');
-    if (openingReview) switchTab('review');
+    const openReview = window.location.hash === '#review';
+    await loadTabComponent(openReview ? 'review' : 'applications');
+    if (openReview) switchTab('review');
     else loadApplications();
 });
 

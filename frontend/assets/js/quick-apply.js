@@ -251,7 +251,10 @@ class QuickApplyManager {
             const result = await response.json();
 
             if (result.success) {
-                this.showSuccess(result.message || 'Application is ready for review. Open Applications and choose In Review to send it.');
+                this.showSuccess(
+                    result.message || 'Application is ready for review. Open Applications and choose In Review to send it.',
+                    'Ready for review'
+                );
 
                 if (window.JobActions) {
                     window.JobActions.markAsApplied(this.currentJobId);
@@ -298,8 +301,8 @@ class QuickApplyManager {
     /**
      * Show success message with custom modal
      */
-    showSuccess(message) {
-        this.injectSuccessModal(message);
+    showSuccess(message, title = 'Ready for review') {
+        this.injectSuccessModal(message, title);
     }
 
     injectSuccessModal(
@@ -329,8 +332,8 @@ class QuickApplyManager {
                     <p class="text-gray-600 mb-6" id="${modalId}Message">${message || 'The email agent has successfully processed your application.'}</p>
                     
                     <div class="space-y-3 w-full">
-                        <button onclick="window.location.href='applications.html'" class="w-full btn-gradient text-white rounded-xl px-4 py-3 font-semibold hover:shadow-lg transition-all shadow-md">
-                            View Applications
+                        <button onclick="window.location.href='applications.html#review'" class="w-full btn-gradient text-white rounded-xl px-4 py-3 font-semibold hover:shadow-lg transition-all shadow-md">
+                            Open In Review
                         </button>
                         <button onclick="document.getElementById('${modalId}').remove()" class="w-full bg-gray-50 text-gray-700 rounded-xl px-4 py-3 font-semibold hover:bg-gray-100 transition-colors">
                             Close

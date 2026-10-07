@@ -101,6 +101,15 @@ class AutomationService:
                     "method": "none"
                 }
             
+            application = await db.applications.find_one({"_id": ObjectId(application_id)}) if ObjectId.is_valid(str(application_id)) else None
+            if application and application.get("status") == "awaiting_review":
+                return {
+                    "success": False,
+                    "status": "awaiting_review",
+                    "error": "This application is waiting for review",
+                    "method": "review",
+                }
+
             # Check if quick apply (email) is possible
             recipient_email = QuickApplyService.has_recruiter_email(job)
             

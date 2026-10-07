@@ -527,12 +527,10 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
                 apply_url = _job_apply_url(job)
                 has_gmail = bool(user.get("gmail_auth"))
                 can_email = bool(recipient_email and has_gmail)
-                can_browser = bool(apply_url) and not _blocked_apply_url(apply_url)
+                can_browser = False
 
-                if not can_email and not can_browser:
-                    logger.warning(
-                        f"Skipping job {job_id}: no Gmail path and no apply link."
-                    )
+                if not can_email:
+                    logger.info(f"Skipping job {job_id}: opening a company link is not an application.")
                     continue
                 
                 # Calculate progress

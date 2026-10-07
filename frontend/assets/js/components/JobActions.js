@@ -462,7 +462,7 @@ class JobActionComponent {
                          Applied
                     </button>
                 ` : `
-                    <button type="button" data-apply-url="${this.escapeAttr(job.application_url || job.external_url || job.apply_url || '')}" onclick="event.stopPropagation(); window.JobApply.openCompanyPage(this.dataset.applyUrl)"
+                    <button type="button" data-job-id="${this.escapeAttr(jobId)}" data-apply-url="${this.escapeAttr(job.application_url || job.external_url || job.apply_url || '')}" onclick="event.stopPropagation(); window.JobApply.applyByOpeningLink(this.dataset.jobId, this.dataset.applyUrl)"
                         class="flex-1 btn-gradient text-white rounded-lg px-4 py-2 text-sm font-semibold hover:shadow-lg transition-all shadow-md flex items-center justify-center gap-2">
                          Apply
                     </button>
