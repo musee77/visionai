@@ -167,8 +167,8 @@ async def submit_quick_apply(
         
         # Check subscription usage limits
         subscription_service = SubscriptionService(db)
-        can_apply = await subscription_service.check_usage_limit(user_id, "manual_application")
-        if not can_apply:
+        allowed, _, _ = await subscription_service.check_usage_limit(user_id, "manual_application")
+        if not allowed:
             raise HTTPException(
                 status_code=403,
                 detail="Manual application limit reached. Please upgrade your plan to apply to more jobs."
@@ -188,64 +188,65 @@ async def submit_quick_apply(
             "job_id": submission.job_id
         })
         
-        if existing_app:
-            raise HTTPException(
-                status_code=409,
-                detail="You have already applied to this job"
-            )
-        
-        # Create application record
+        if existing_app and existing_app.get("status") not in ("withdrawn", "failed"):
+            detail = "This application is already waiting in review" if existing_app.get("status") == "awaiting_review" else "You have already applied to this job"
+            raise HTTPException(status_code=409, detail=detail)
+
+        letter = submission.additional_message or (submission.form_data.cover_letter if submission.form_data else None)
+        message = letter or f"Please find attached my CV and cover letter for the {job.get('title')} position."
+        now = datetime.utcnow()
         application_doc = {
             "user_id": user_id,
             "job_id": submission.job_id,
-            "status": "applied",
-            "source": "auto_apply",
+            "status": "awaiting_review",
+            "source": "manual",
+            "auto_applied": False,
             "job_title": job.get("title"),
             "company_name": job.get("company_name"),
             "location": job.get("location"),
             "form_data": submission.form_data.dict(),
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-            "deleted_at": None
+            "cv_document_id": submission.cv_document_id,
+            "cover_letter_document_id": submission.cover_letter_document_id,
+            "additional_message": submission.additional_message,
+            "usage_type": "manual_application",
+            "review": {
+                "channel": "email",
+                "recipient_email": submission.recipient_email,
+                "apply_url": job.get("application_url") or job.get("external_url") or job.get("apply_url"),
+                "message": message,
+            },
+            "email_monitoring_enabled": False,
+            "created_at": now,
+            "updated_at": now,
+            "deleted_at": None,
+            "timeline": [{
+                "status": "awaiting_review",
+                "timestamp": now,
+                "note": "Ready for review before the email is sent"
+            }]
         }
         
         try:
-            result = await db.applications.insert_one(application_doc)
-            application_id = str(result.inserted_id)
-            
-            logger.info(f"Created application record: {application_id}")
-            
-            # Send application via Gmail in background
-            send_result = await email_agent_service.send_application_via_gmail(
-                user_id=user_id,
-                job_id=submission.job_id,
-                application_id=application_id,
-                recipient_email=submission.recipient_email,
-                form_data=submission.form_data.dict(),
-                cv_document_id=submission.cv_document_id,
-                cover_letter_document_id=submission.cover_letter_document_id,
-                additional_message=submission.additional_message
-            )
-            
-            if send_result.get("success"):
-                # Track usage after successful submission
-                await subscription_service.track_usage(user_id, "manual_application")
-                
-                return QuickApplySubmissionResponse(
-                    success=True,
-                    application_id=application_id,
-                    gmail_message_id=send_result.get("gmail_message_id"),
-                    sent_at=datetime.fromisoformat(send_result.get("sent_at")),
-                    recipient=send_result.get("recipient"),
-                    message="Application sent successfully via email"
-                )
+            if existing_app:
+                await db.applications.update_one({"_id": existing_app["_id"]}, {"$set": application_doc})
+                application_id = str(existing_app["_id"])
             else:
-                return QuickApplySubmissionResponse(
-                    success=False,
-                    application_id=application_id,
-                    error=send_result.get("error"),
-                    message="Failed to send application email"
-                )
+                result = await db.applications.insert_one(application_doc)
+                application_id = str(result.inserted_id)
+
+            await subscription_service.track_usage(user_id, "manual_application")
+            await db.applications.update_one(
+                {"_id": ObjectId(application_id)},
+                {"$set": {"usage_reserved": True}}
+            )
+            logger.info(f"Prepared application {application_id} for review")
+
+            return QuickApplySubmissionResponse(
+                success=True,
+                application_id=application_id,
+                recipient=submission.recipient_email,
+                message="Application is ready for review. Open Applications and choose In Review to send it."
+            )
 
         except Exception as db_error:
             if "duplicate key error" in str(db_error):
@@ -340,8 +341,8 @@ async def legacy_autofill_start(
         
         # Check subscription usage limits
         subscription_service = SubscriptionService(db)
-        can_apply = await subscription_service.check_usage_limit(user_id, "manual_application")
-        if not can_apply:
+        allowed, _, _ = await subscription_service.check_usage_limit(user_id, "manual_application")
+        if not allowed:
             raise HTTPException(
                 status_code=403,
                 detail="Manual application limit reached. Please upgrade your plan to use auto-apply."
@@ -353,41 +354,56 @@ async def legacy_autofill_start(
             "job_id": request.job_id
         })
         
-        if not application:
-            # Create application record
-            application_doc = {
-                "user_id": user_id,
-                "job_id": request.job_id,
-                "status": "pending",
-                "source": "browser_automation",
-                "job_title": job.get("title"),
-                "company_name": job.get("company_name"),
-                "location": job.get("location"),
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
-            }
+        if application and application.get("status") not in ("withdrawn", "failed"):
+            detail = "This application is already waiting in review" if application.get("status") == "awaiting_review" else "You have already applied to this job"
+            raise HTTPException(status_code=409, detail=detail)
+
+        now = datetime.utcnow()
+        apply_url = job.get("application_url") or job.get("external_url") or job.get("apply_url")
+        application_doc = {
+            "user_id": user_id,
+            "job_id": request.job_id,
+            "status": "awaiting_review",
+            "source": "browser_automation",
+            "auto_applied": False,
+            "job_title": job.get("title"),
+            "company_name": job.get("company_name"),
+            "location": job.get("location"),
+            "cv_document_id": request.cv_id,
+            "cover_letter_document_id": request.cover_letter_id,
+            "usage_type": "manual_application",
+            "review": {
+                "channel": "browser",
+                "recipient_email": None,
+                "apply_url": apply_url,
+                "message": "Your name, email, and phone will be filled on the application form, then the form will be submitted.",
+            },
+            "created_at": now,
+            "updated_at": now,
+            "deleted_at": None,
+            "timeline": [{
+                "status": "awaiting_review",
+                "timestamp": now,
+                "note": "Ready for review before the form is submitted"
+            }]
+        }
+        if application:
+            await db.applications.update_one({"_id": application["_id"]}, {"$set": application_doc})
+            application_id = str(application["_id"])
+        else:
             result = await db.applications.insert_one(application_doc)
             application_id = str(result.inserted_id)
-            logger.info(f"Created application record for automation: {application_id}")
-        else:
-            application_id = str(application["_id"])
-            logger.info(f"Using existing application record for automation: {application_id}")
 
-        # Trigger automation in background via AutomationService
-        from app.services.automation.automation_service import AutomationService
-        background_tasks.add_task(
-            AutomationService.auto_apply_to_job,
-            user_id=user_id,
-            application_id=application_id,
-            job_id=request.job_id,
-            cv_id=request.cv_id,
-            usage_type="manual_application" # Tracked on success
+        await subscription_service.track_usage(user_id, "manual_application")
+        await db.applications.update_one(
+            {"_id": ObjectId(application_id)},
+            {"$set": {"usage_reserved": True}}
         )
-        
+
         return AutofillStartResponse(
             success=True,
             session_id=application_id,
-            message="Browser automation started successfully"
+            message="Application is ready for review. Open Applications and choose In Review to send it."
         )
         
     except HTTPException:

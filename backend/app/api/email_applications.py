@@ -108,97 +108,49 @@ async def apply_via_email(
         applications_collection = await get_applications_collection()
         job_title = job.get("title", "Job")
         
-        application_doc = Application(
-            job_id=request.job_id,
-            user_id=str(current_user["_id"]),
-            status=ApplicationStatus.DRAFT,  # Start as draft
-            source=ApplicationSource.DIRECT,
-            application_method="email",
-            applied_date=datetime.utcnow(),
-            job_title=job.get("title") or job_title,
-            company_name=job.get("company_name") or job.get("company"),
-            location=job.get("location") if isinstance(job.get("location"), str) else None
-        )
-        
-        result = await applications_collection.insert_one(application_doc.dict(by_alias=True, exclude={"id"}))
-        application_id = str(result.inserted_id)
-        
-        # 5. Prepare form data
-        form_data = {
-            "first_name": current_user.get('first_name', ''),
-            "last_name": current_user.get('last_name', ''),
-            "email": current_user.get('email', ''),
-            "phone": current_user.get('phone', ''),
+        now = datetime.utcnow()
+        message = request.cover_letter or f"Please find attached my CV and cover letter for the {job_title} position."
+        application_doc = {
+            "job_id": request.job_id,
+            "user_id": str(current_user["_id"]),
+            "status": ApplicationStatus.AWAITING_REVIEW.value,
+            "source": ApplicationSource.DIRECT.value,
+            "application_method": "email",
+            "job_title": job.get("title") or job_title,
+            "company_name": job.get("company_name") or job.get("company"),
+            "location": job.get("location") if isinstance(job.get("location"), str) else None,
+            "cv_document_id": request.cv_id,
+            "additional_message": request.cover_letter,
+            "usage_type": "auto_application",
+            "review": {
+                "channel": "email",
+                "recipient_email": employer_email,
+                "apply_url": job.get("application_url") or job.get("external_url"),
+                "message": message,
+            },
+            "created_at": now,
+            "updated_at": now,
+            "deleted_at": None,
+            "timeline": [{
+                "status": "awaiting_review",
+                "timestamp": now,
+                "note": "Ready for review before the email is sent"
+            }]
         }
         
-        
-        # 6. Send via Email Agent Service
-        from app.services.emails.email_agent_service import email_agent_service
-        
-        try:
-            logger.info(f"Sending application via email agent for user {current_user['_id']} to job {request.job_id}")
-            
-            send_result = await email_agent_service.send_application_via_gmail(
-                user_id=str(current_user["_id"]),
-                job_id=request.job_id,
-                application_id=application_id,
-                recipient_email=employer_email,
-                form_data=form_data,
-                cv_document_id=request.cv_id,
-                cover_letter_document_id=None,
-                additional_message=request.cover_letter
-            )
-            
-            logger.info(f"Email agent result: {send_result}")
-            
-            # Handle None or missing result
-            if send_result is None:
-                logger.error("Email agent returned None")
-                raise HTTPException(
-                    status_code=500,
-                    detail="Email service returned no response. Please check your Gmail connection and try again."
-                )
-            
-            if not send_result.get("success"):
-                error_msg = send_result.get("error", "Unknown error occurred")
-                logger.error(f"Email agent failed: {error_msg}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to send application: {error_msg}"
-                )
-            
+        result = await applications_collection.insert_one(application_doc)
+        application_id = str(result.inserted_id)
+        await subscription_service.track_usage(str(current_user["_id"]), "auto_application")
+        await applications_collection.update_one(
+            {"_id": result.inserted_id},
+            {"$set": {"usage_reserved": True}}
+        )
 
-        
-            # Track usage
-            await subscription_service.track_usage(
-                 str(current_user["_id"]),
-                 "auto_application"
-            )
-
-            # Success! Application status already updated by email agent
-            return EmailApplicationResponse(
-                success=True,
-                message="Application sent successfully",
-                application_id=application_id,
-                thread_id=send_result.get("gmail_message_id")
-            )
-            
-        except HTTPException:
-            raise
-        except Exception as email_error:
-            logger.error(f"Email agent exception: {str(email_error)}", exc_info=True)
-            # Update application to failed
-            await applications_collection.update_one(
-                {"_id": result.inserted_id},
-                {"$set": {
-                    "status": ApplicationStatus.FAILED,
-                    "error_message": str(email_error)
-                }}
-            )
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to send application: {str(email_error)}"
-            )
+        return EmailApplicationResponse(
+            success=True,
+            message="Application is ready for review. Open Applications and choose In Review to send it.",
+            application_id=application_id
+        )
 
     except Exception as e:
         logger.error(f"Email application failed: {str(e)}")

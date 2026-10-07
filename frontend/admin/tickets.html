@@ -66,15 +66,22 @@
             window.location.href = 'login.html';
         }
 
-        function loadTickets() {
+        function escapeHtml(value) {
+            return String(value || '').replace(/[&<>"']/g, (char) => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[char]));
+        }
+
+        async function loadTickets() {
             const tableBody = document.getElementById('ticketsTableBody');
-            const tickets = JSON.parse(localStorage.getItem('visionai_tickets') || '[]').reverse(); // Newest first
+            const payload = await CVision.API.request('/admin/support-tickets');
+            const tickets = (payload && payload.tickets) || [];
 
             if (tickets.length === 0) {
                 tableBody.innerHTML = `
                     <tr>
                         <td colspan="6" class="px-6 py-8 text-center text-gray-500">
-                            No support tickets found. Use the chatbot to create one!
+                            No support tickets yet.
                         </td>
                     </tr>
                 `;
@@ -83,20 +90,19 @@
 
             tableBody.innerHTML = tickets.map(ticket => `
                 <tr class="hover:bg-gray-50 transition-colors">
-                    <td class="px-6 py-4 text-sm font-medium text-gray-900">#${ticket.id}</td>
+                    <td class="px-6 py-4 text-sm font-medium text-gray-900">#${escapeHtml(ticket.id).slice(0, 8)}</td>
                     <td class="px-6 py-4">
-                        <span class="px-2 py-1 text-xs rounded-full font-medium ${ticket.status === 'open' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                }">
-                            ${ticket.status.toUpperCase()}
+                        <span class="px-2 py-1 text-xs rounded-full font-medium ${ticket.status === 'open' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}">
+                            ${escapeHtml(ticket.status).toUpperCase()}
                         </span>
                     </td>
-                    <td class="px-6 py-4 text-sm text-gray-600">${ticket.email}</td>
-                    <td class="px-6 py-4 text-sm text-gray-600 max-w-xs truncate" title="${ticket.message}">${ticket.message}</td>
-                    <td class="px-6 py-4 text-sm text-gray-600">${new Date(ticket.timestamp).toLocaleString()}</td>
+                    <td class="px-6 py-4 text-sm text-gray-600">${escapeHtml(ticket.email)}</td>
+                    <td class="px-6 py-4 text-sm text-gray-600 max-w-xs truncate" title="${escapeHtml(ticket.message)}">${escapeHtml(ticket.message)}</td>
+                    <td class="px-6 py-4 text-sm text-gray-600">${ticket.created_at ? new Date(ticket.created_at).toLocaleString() : ''}</td>
                     <td class="px-6 py-4 text-sm">
                         ${ticket.status === 'open' ? `
-                            <button onclick="resolveTicket(${ticket.id})" class="text-blue-600 hover:text-blue-800 font-medium mr-3">Resolve</button>
-                            <a href="mailto:${ticket.email}?subject=Re: Ticket #${ticket.id}&body=Hi there,%0A%0ARegarding your ticket:%0A> ${encodeURIComponent(ticket.message)}%0A%0A" class="text-gray-600 hover:text-gray-800 font-medium">Reply</a>
+                            <button onclick="resolveTicket('${escapeHtml(ticket.id)}')" class="text-blue-600 hover:text-blue-800 font-medium mr-3">Resolve</button>
+                            <a href="mailto:${encodeURIComponent(ticket.email)}?subject=Re:%20Support%20ticket" class="text-gray-600 hover:text-gray-800 font-medium">Reply</a>
                         ` : `
                             <span class="text-green-600 font-medium">Completed</span>
                         `}
@@ -105,17 +111,13 @@
             `).join('');
         }
 
-        function resolveTicket(id) {
-            const tickets = JSON.parse(localStorage.getItem('visionai_tickets') || '[]');
-            const index = tickets.findIndex(t => t.id === id);
-
-            if (index !== -1) {
-                if (confirm('Mark this ticket as resolved?')) {
-                    tickets[index].status = 'resolved';
-                    localStorage.setItem('visionai_tickets', JSON.stringify(tickets));
-                    loadTickets();
-                }
-            }
+        async function resolveTicket(id) {
+            if (!confirm('Mark this ticket as resolved?')) return;
+            await CVision.API.request(`/admin/support-tickets/${id}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ status: 'resolved' })
+            });
+            loadTickets();
         }
 
 

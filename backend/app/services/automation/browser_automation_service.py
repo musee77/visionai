@@ -5,11 +5,15 @@ Handles automated browser-based form filling and job application submission
 """
 
 import asyncio
+import base64
+import hashlib
 import logging
 import httpx
+from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime
 from bson import ObjectId
+from cryptography.fernet import Fernet
 
 from app.database import get_database
 from app.core.config import settings
@@ -19,6 +23,33 @@ logger = logging.getLogger(__name__)
 
 # Browser automation service URL (from docker-compose or config)
 BROWSER_AUTOMATION_URL = getattr(settings, 'BROWSER_AUTOMATION_URL')
+
+
+def _secret_box() -> Fernet:
+    digest = hashlib.sha256(settings.JWT_SECRET_KEY.encode()).digest()
+    return Fernet(base64.urlsafe_b64encode(digest))
+
+
+def _encrypt_secret(value: str) -> str:
+    return _secret_box().encrypt(value.encode()).decode()
+
+
+def _decrypt_secret(value: str) -> str:
+    if not value:
+        return ""
+    try:
+        return _secret_box().decrypt(value.encode()).decode()
+    except Exception:
+        return value
+
+
+def _upload_path(file_path: str) -> str:
+    if not file_path:
+        return ""
+    path = Path(file_path)
+    if path.is_absolute():
+        return str(path)
+    return str(Path(settings.UPLOAD_DIR) / path)
 
 
 class BrowserAutomationService:
@@ -83,6 +114,15 @@ class BrowserAutomationService:
             if not cv_data:
                 logger.error(f"Failed to find CV data for user {user_id} (cv_id: {cv_id})")
                 raise ValueError("User has no CV uploaded or CV is not yet analyzed")
+
+            existing_application = await db.applications.find_one({"_id": ObjectId(application_id)})
+            previous_status = (existing_application or {}).get("status")
+            cover_letter = await BrowserAutomationService._document_text(
+                db, (existing_application or {}).get("cover_letter_document_id")
+            )
+            resume_file_path = cv_data.get("resume_file_path") or await BrowserAutomationService._resume_file_path(
+                db, (existing_application or {}).get("cv_document_id"), user_id
+            )
             
             # Step 3: Update application status to "processing"
             await db.applications.update_one(
@@ -108,10 +148,11 @@ class BrowserAutomationService:
                 credentials = await BrowserAutomationService._get_user_portal_credentials(user_id, domain)
                 if credentials:
                     logger.info(f"Found existing credentials for {domain}")
+                    stored_password = credentials.get("password") or credentials.get("password_encrypted") or ""
                     credentials = {
                         "email": credentials.get("username") or credentials.get("email"),
                         "username": credentials.get("username") or credentials.get("email"),
-                        "password": credentials.get("password") or credentials.get("password_encrypted"),
+                        "password": _decrypt_secret(stored_password),
                     }
             except Exception as e:
                 logger.warning(f"Failed to lookup credentials: {e}")
@@ -132,6 +173,8 @@ class BrowserAutomationService:
                     "education": cv_data.get("education", []),
                     "skills": cv_data.get("skills", {}),
                     "connected_email": connected_email,
+                    "cover_letter": cover_letter,
+                    "resume_file_path": resume_file_path or "",
                 },
                 job_data={
                     "title": job.get("title"),
@@ -248,10 +291,10 @@ class BrowserAutomationService:
                     from app.workers.auto_apply import monitor_browser_application
                     monitor_browser_application.delay(application_id)
 
-                    # Track usage on success (only if it returned SUCCESS immediately, which is rare for browser automation but possible for email fallback)
-                    subscription_service = SubscriptionService(db)
-                    await subscription_service.track_usage(user_id, usage_type)
-                    logger.info(f"Usage tracked for user {user_id} ({usage_type}) after IMMEDIATE successful application.")
+                    if not (existing_application or {}).get("usage_reserved"):
+                        subscription_service = SubscriptionService(db)
+                        await subscription_service.track_usage(user_id, usage_type)
+                        logger.info(f"Usage tracked for user {user_id} ({usage_type}) after IMMEDIATE successful application.")
             else:
                 status_update = {
                     "status": "pending",
@@ -260,6 +303,15 @@ class BrowserAutomationService:
                 }
                 logger.error(f"Browser auto-apply failed for application {application_id}: {automation_result.get('error')}")
             
+            sent = bool(
+                automation_result.get("success")
+                and automation_result.get("status") == "completed"
+            )
+            if previous_status == "awaiting_review" and not sent:
+                status_update["status"] = "awaiting_review"
+                status_update["automation_status"] = "failed"
+                status_update["automation_error"] = automation_result.get("error") or "The application was not submitted"
+
             status_update["updated_at"] = datetime.utcnow()
             await db.applications.update_one(
                 {"_id": ObjectId(application_id)},
@@ -296,6 +348,53 @@ class BrowserAutomationService:
     
     
     @staticmethod
+    def _cv_payload(document: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        if not document:
+            return None
+        data = document.get("cv_data") if isinstance(document.get("cv_data"), dict) else None
+        if not data and isinstance(document.get("content"), dict):
+            data = document.get("content")
+        if not isinstance(data, dict) or not data:
+            return None
+        payload = dict(data)
+        if document.get("file_path"):
+            payload["resume_file_path"] = _upload_path(document.get("file_path"))
+        return payload
+
+    @staticmethod
+    async def _document_text(db, document_id: Optional[str]) -> str:
+        if not document_id or not ObjectId.is_valid(str(document_id)):
+            return ""
+        document = await db.documents.find_one({"_id": ObjectId(str(document_id))})
+        if not document:
+            document = await db.generated_documents.find_one({"_id": ObjectId(str(document_id))})
+        if not document:
+            return ""
+        content = document.get("content")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, dict):
+            return content.get("full_text") or content.get("text") or content.get("summary") or ""
+        return document.get("text_content") or ""
+
+    @staticmethod
+    async def _resume_file_path(db, document_id: Optional[str], user_id: str) -> str:
+        document = None
+        if document_id and ObjectId.is_valid(str(document_id)):
+            document = await db.documents.find_one({"_id": ObjectId(str(document_id))})
+            if not document:
+                document = await db.generated_documents.find_one({"_id": ObjectId(str(document_id))})
+        if document and document.get("file_path"):
+            return _upload_path(document.get("file_path"))
+        latest = await db.documents.find_one(
+            {"user_id": {"$in": [user_id, ObjectId(user_id)] if ObjectId.is_valid(user_id) else [user_id]}, "document_type": "cv"},
+            sort=[("created_at", -1)]
+        )
+        if latest and latest.get("file_path"):
+            return _upload_path(latest.get("file_path"))
+        return ""
+
+    @staticmethod
     async def _get_user_cv_data(user_id: str, cv_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
         Get user's CV data (optionally by specific ID)
@@ -323,8 +422,11 @@ class BrowserAutomationService:
 
             if cv_id and ObjectId.is_valid(cv_id):
                 chosen = await db.documents.find_one({"_id": ObjectId(cv_id)})
-                if chosen and chosen.get("cv_data"):
-                    return chosen.get("cv_data")
+                if not chosen:
+                    chosen = await db.generated_documents.find_one({"_id": ObjectId(cv_id)})
+                parsed = BrowserAutomationService._cv_payload(chosen)
+                if parsed:
+                    return parsed
 
             query = {
                 "user_id": {"$in": user_ids},
@@ -351,7 +453,7 @@ class BrowserAutomationService:
                 return None
             
             logger.info(f"Successfully found CV data for document {cv_doc.get('_id')}")
-            return cv_doc.get("cv_data")
+            return BrowserAutomationService._cv_payload(cv_doc) or cv_doc.get("cv_data")
             
         except Exception as e:
             logger.error(f"Error getting CV data: {str(e)}")
@@ -380,12 +482,19 @@ class BrowserAutomationService:
                 message = ""
                 if errors and isinstance(errors[-1], dict):
                     message = errors[-1].get("message") or ""
-                if last_status == "completed":
+                if last_status == "completed" and payload.get("submitted"):
                     return {
                         "success": True,
                         "status": "completed",
                         "session_id": session_id,
                         "new_credentials": payload.get("new_credentials"),
+                    }
+                if last_status == "completed":
+                    return {
+                        "success": False,
+                        "status": "error",
+                        "error": "The form was filled but not submitted",
+                        "session_id": session_id,
                     }
                 if last_status == "error":
                     return {
@@ -440,7 +549,7 @@ class BrowserAutomationService:
                 "portal_name": portal_name,
                 "domain": domain,
                 "username": username,
-                "password_encrypted": password, # In a real system, we'd encrypt here
+                "password_encrypted": _encrypt_secret(password),
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow()
             }

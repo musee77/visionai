@@ -89,63 +89,6 @@ async function uploadPendingLandingCv() {
             gmailConnect.init();
         }
 
-        // Initialize RunTestButton
-        const runTestBtn = new RunTestButton({
-            buttonId: 'testRunBtn',
-            apiUrl: `${API_BASE_URL}/api/v1/auto-apply`,
-            onStart: () => {
-                const bar = document.getElementById('testProgressBar');
-                const fill = document.getElementById('testProgressFill');
-                const status = document.getElementById('testProgressStatus');
-                const result = document.getElementById('testRunResult');
-                const percent = document.getElementById('testProgressPercent');
-
-                if (bar) bar.classList.remove('hidden');
-                if (fill) fill.style.width = '0%';
-                if (status) status.textContent = 'Initializing...';
-                if (percent) percent.textContent = '0%';
-                if (result) {
-                    result.classList.add('hidden');
-                    result.innerHTML = '';
-                }
-            },
-            onProgress: (data) => {
-                const fill = document.getElementById('testProgressFill');
-                const status = document.getElementById('testProgressStatus');
-                const percent = document.getElementById('testProgressPercent');
-
-                if (fill) {
-                    const pct = Math.round((data.current / data.total) * 100);
-                    fill.style.width = `${pct}%`;
-                    if (percent) percent.textContent = `${pct}%`;
-                }
-                if (status) status.textContent = data.status || 'Processing...';
-            },
-            onComplete: (data) => {
-                const result = document.getElementById('testRunResult');
-                if (result) {
-                    result.classList.remove('hidden');
-                    const appsSent = data.applications_sent || 0;
-                    if (appsSent > 0) {
-                        result.className = "mt-3 text-sm p-3 rounded-md border text-center bg-green-50 border-green-200 text-green-700";
-                        result.innerHTML = `<strong>Success! ${appsSent} applications sent.</strong>`;
-                    } else {
-                        result.className = "mt-3 text-sm p-3 rounded-md border text-center bg-blue-50 border-blue-200 text-blue-700";
-                        result.innerHTML = `<strong>${data.message || 'Test run completed'}</strong>`;
-                    }
-                }
-                loadAutomationStatus();
-            },
-            onError: (error) => {
-                const result = document.getElementById('testRunResult');
-                if (result) {
-                    result.classList.remove('hidden');
-                    result.className = "mt-3 text-sm p-3 rounded-md border text-center bg-red-50 border-red-200 text-red-700";
-                    result.innerText = `Test Failed: ${error.message}`;
-                }
-            }
-        });
-        runTestBtn.init();
     }
 
     // setupFileUpload and handleFileUpload removed - replaced by CvUploader component

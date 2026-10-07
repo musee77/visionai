@@ -60,14 +60,13 @@ class BrowserAutomationManager {
                 throw new Error(data.detail || 'Failed to start automation');
             }
 
-            console.log('✅ Automation started. Session ID:', data.session_id);
+            console.log('✅ Application held for review. Session ID:', data.session_id);
 
-            window.AutomationUI?.updateStatus('Active', 'Automation engine warmed up! Connecting...', 15);
-
-            // Start polling if we have a session ID
-            if (data.session_id) {
-                this.pollStatus(data.session_id);
-            }
+            window.AutomationUI?.updateStatus(
+                'Review',
+                data.message || 'Application is ready for review. Open Applications and choose In Review to send it.',
+                100
+            );
 
             console.groupEnd();
             return data;

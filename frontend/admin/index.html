@@ -171,7 +171,7 @@
                 const basicCount = stats.users_by_tier.basic || 0;
 
                 // Approximate Revenue
-                const revenue = (premiumCount * 29) + (basicCount * 9); // $29 Premium, $9 Basic
+                const revenue = (premiumCount * 49.99) + (basicCount * 4.99);
                 if (revenue) {
                     document.getElementById('estRevenue').textContent = '$' + revenue.toLocaleString();
                 } else {

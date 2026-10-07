@@ -1,10 +1,12 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel, EmailStr
 from typing import Optional
+from datetime import datetime
 import logging
 
 from app.services.emails.email_service import email_service
 from app.core.config import settings
+from app.database import get_database
 
 logger = logging.getLogger(__name__)
 
@@ -55,3 +57,43 @@ async def contact_form_submission(
             status_code=500,
             detail="There was an error processing your request. Please try again later."
         )
+
+
+class TicketRequest(BaseModel):
+    email: EmailStr
+    message: str
+
+
+@router.post("/tickets")
+async def create_support_ticket(request: TicketRequest, background_tasks: BackgroundTasks):
+    """Save a support ticket from the help chat."""
+    message = (request.message or "").strip()
+    if len(message) < 2:
+        raise HTTPException(status_code=400, detail="Message is required")
+    db = await get_database()
+    now = datetime.utcnow()
+    result = await db.support_tickets.insert_one({
+        "email": request.email,
+        "message": message,
+        "status": "open",
+        "created_at": now,
+        "updated_at": now,
+    })
+    email_sent = False
+    try:
+        background_tasks.add_task(
+            email_service.send_email,
+            subject=f"Support ticket from {request.email}",
+            recipients=[settings.SUPPORT_EMAIL],
+            body=message,
+            subtype="plain",
+            reply_to=request.email
+        )
+        email_sent = True
+    except Exception as error:
+        logger.warning(f"Support ticket email was not queued: {error}")
+    return {
+        "success": True,
+        "id": str(result.inserted_id),
+        "email_sent": email_sent,
+    }

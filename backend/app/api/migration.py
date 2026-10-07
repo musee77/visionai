@@ -4,12 +4,16 @@ Run this once via: curl http://localhost:8000/api/v1/migrate-applications
 """
 from fastapi import APIRouter, Depends
 from app.database import get_database
+from app.api.deps import require_admin
 from datetime import datetime
 
 router = APIRouter()
 
 @router.post("/migrate-applications")
-async def migrate_applications(db = Depends(get_database)):
+async def migrate_applications(
+    db = Depends(get_database),
+    current_admin = Depends(require_admin),
+):
     """Add deleted_at field to all applications missing it"""
     
     # Find applications without deleted_at field

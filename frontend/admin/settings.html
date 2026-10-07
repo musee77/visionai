@@ -104,23 +104,23 @@
         }
 
         // Load Settings
-        function loadSettings() {
-            const settings = JSON.parse(localStorage.getItem('visionai_admin_settings') || '{}');
-
-            // Defauts
-            document.getElementById('maintenanceMode').checked = settings.maintenanceMode || false;
-            document.getElementById('userRegistration').checked = settings.userRegistration !== false; // Default true
-            document.getElementById('emailNotifications').checked = settings.emailNotifications !== false; // Default true
+        async function loadSettings() {
+            const settings = await CVision.API.request('/admin/settings');
+            document.getElementById('maintenanceMode').checked = !!(settings && settings.maintenance_mode);
+            document.getElementById('userRegistration').checked = !settings || settings.user_registration !== false;
+            document.getElementById('emailNotifications').checked = !settings || settings.email_notifications !== false;
         }
 
-        function saveSettings() {
+        async function saveSettings() {
             const settings = {
-                maintenanceMode: document.getElementById('maintenanceMode').checked,
-                userRegistration: document.getElementById('userRegistration').checked,
-                emailNotifications: document.getElementById('emailNotifications').checked
+                maintenance_mode: document.getElementById('maintenanceMode').checked,
+                user_registration: document.getElementById('userRegistration').checked,
+                email_notifications: document.getElementById('emailNotifications').checked
             };
-
-            localStorage.setItem('visionai_admin_settings', JSON.stringify(settings));
+            await CVision.API.request('/admin/settings', {
+                method: 'PUT',
+                body: JSON.stringify(settings)
+            });
 
             // Show success animation/toast
             const btn = document.querySelector('button[onclick="saveSettings()"]');

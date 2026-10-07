@@ -312,6 +312,11 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
             task_instance.update_state(state='PROGRESS', meta={'current': 5, 'total': 100, 'status': 'Initializing user data...'})
 
         user_id = str(user["_id"])
+        tier = str(user.get("subscription_tier") or "free").lower()
+        bonus_left = int(user.get("referral_bonus_auto_applications") or 0)
+        if tier != "premium" and bonus_left <= 0:
+            stats["reason"] = "Auto-apply is included on Premium."
+            return {"success": True, "applications_sent": 0, "message": stats["reason"], "stats": stats}
         
         # DEBUG: Inspect user object structure
         logger.info(f"DEBUG: Processing user {user_id}")
@@ -352,7 +357,7 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
             "user_id": user_id,
             "created_at": {"$gte": today_start},
             "auto_applied": True,
-            "status": {"$nin": ["failed"]}
+            "status": {"$nin": ["failed", "withdrawn", "awaiting_review"]}
         })
         
         if applications_today >= max_daily_applications:
@@ -575,41 +580,48 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
 
                 # Generate cover letter
                 logger.info(f">>> STARTED: Writing Cover Letter for {job_id}")
-                cover_letter_id = await generate_cover_letter(user_cv, job) if can_email else None
-                if can_email and not cover_letter_id:
+                cover_letter_id = await generate_cover_letter(user_cv, job)
+                if not cover_letter_id:
                     cover_letter_id = await _basic_cover_letter(user_cv, job)
                     logger.info(f"Generated cover letter unavailable, stored a plain letter {cover_letter_id}")
-                if can_email and not cover_letter_id and not can_browser:
-                    logger.error(f"Failed to generate cover letter for job {job_id}")
-                    continue
-                if can_email and not cover_letter_id:
-                    can_email = False
                 logger.info(f">>> COMPLETED: Cover Letter Generation (ID: {cover_letter_id})")
                 
                 await asyncio.sleep(1.0) # UX delay for reading
                 
                 # Create application record
+                channel = "email" if can_email else "browser"
+                submission_message = (
+                    f"Please find attached my CV and cover letter for the {job.get('title')} position."
+                    if channel == "email"
+                    else "Your name, email, and phone will be filled on the application form, then the form will be submitted."
+                )
                 application = {
                     "user_id": user_id,
                     "job_id": job_id,
                     "job_title": job.get("title"),
                     "company_name": company_name,
                     "location": job.get("location"),
-                    "status": "pending",
+                    "status": "awaiting_review",
                     "source": "auto_apply",
                     "auto_applied": True,
-                    "email_monitoring_enabled": True,
+                    "email_monitoring_enabled": False,
                     "priority": "medium",
                     "match_score": match_score,
                     "cv_document_id": custom_cv_id,
                     "cover_letter_document_id": cover_letter_id,
+                    "review": {
+                        "channel": channel,
+                        "recipient_email": recipient_email,
+                        "apply_url": apply_url,
+                        "message": submission_message,
+                    },
                     "created_at": datetime.utcnow(),
                     "updated_at": datetime.utcnow(),
                     "deleted_at": None,
                     "timeline": [{
-                        "status": "pending",
+                        "status": "awaiting_review",
                         "timestamp": datetime.utcnow(),
-                        "note": f"Queued auto-apply (match score: {match_score:.2f})"
+                        "note": f"Ready for review before submission (match score: {match_score:.2f})"
                     }],
                     "documents": [],
                     "communications": [],
@@ -618,66 +630,22 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
                 }
                 
                 result = await db.applications.insert_one(application)
-                application_id = str(result.inserted_id)
                 application_record_id = result.inserted_id
+                await SubscriptionService(db).track_usage(str(user_id), "auto_application")
+                await db.applications.update_one(
+                    {"_id": application_record_id},
+                    {"$set": {"usage_reserved": True}}
+                )
                 
                 if task_instance:
                     task_instance.update_state(state='PROGRESS', meta={
                         'current': int(current_base + (progress_step * 0.9)), 
                         'total': 100, 
-                        'status': f'Sending application to {company_name}...'
+                        'status': f'Ready for review: {job.get("title")} at {company_name}'
                     })
 
-                sent = False
-                if can_email:
-                    form_data = await email_agent_service.extract_form_data_from_cv(user_id, cv_data=user_cv, db=db)
-                    form_data["message"] = f"Please find attached my CV and cover letter for the {job.get('title')} position."
-                    from app.workers.email_sender import send_application_email
-                    send_application_email.delay(
-                        user_id=user_id,
-                        job_id=job_id,
-                        application_id=application_id,
-                        recipient_email=recipient_email,
-                        form_data=form_data,
-                        cv_document_id=custom_cv_id,
-                        cover_letter_document_id=cover_letter_id,
-                        additional_message=None
-                    )
-                    await db.applications.update_one(
-                        {"_id": result.inserted_id},
-                        {"$set": {"email_status": "queued", "updated_at": datetime.utcnow()}}
-                    )
-                    sent = True
-                    logger.info(f"Queued email application for job {job_id}")
-                elif can_browser:
-                    from app.services.automation.browser_automation_service import BrowserAutomationService
-                    browser_result = await BrowserAutomationService.auto_apply_to_job(
-                        user_id=user_id,
-                        application_id=application_id,
-                        job_id=job_id,
-                        cv_id=custom_cv_id
-                    )
-                    result_status = (browser_result or {}).get("status")
-                    sent = bool(browser_result and browser_result.get("success") and result_status == "completed")
-                    if browser_result and not browser_result.get("success"):
-                        await db.applications.update_one(
-                            {"_id": result.inserted_id},
-                            {"$set": {
-                                "status": "failed",
-                                "automation_status": "failed",
-                                "automation_error": (browser_result or {}).get("error", "Browser apply failed"),
-                                "updated_at": datetime.utcnow()
-                            }}
-                        )
-                        logger.warning(f"Browser auto-apply failed for job {job_id}")
-
-                if sent:
-                    applications_sent += 1
-                    stats["applications_sent"] += 1
-                    if can_email:
-                        from app.services.core.subscription_service import SubscriptionService
-                        await SubscriptionService(db).track_usage(str(user_id), "auto_application")
-                    logger.info(f"Successfully processed auto-apply for job {job_id}")
+                stats["prepared_for_review"] = stats.get("prepared_for_review", 0) + 1
+                logger.info(f"Prepared {job_id} for review via {channel}")
                 
             except Exception as e:
                 logger.error(f"Error auto-applying to job {job.get('_id')}: {e}")
@@ -696,11 +664,12 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
         if task_instance:
             task_instance.update_state(state='PROGRESS', meta={'current': 100, 'total': 100, 'status': 'Test run complete!'})
 
-        msg = f"Sent {applications_sent} applications."
-        if applications_sent == 0:
-             msg = "No applications sent."
-             if stats["reason"]:
-                 msg = stats["reason"]
+        prepared = stats.get("prepared_for_review", 0)
+        msg = f"{prepared} applications are ready for review." if prepared else "No applications ready for review."
+        if applications_sent:
+            msg = f"Sent {applications_sent} applications."
+        elif not prepared and stats.get("reason"):
+            msg = stats["reason"]
 
         return {"success": True, "applications_sent": applications_sent, "message": msg, "stats": stats}
 
@@ -721,7 +690,11 @@ def auto_apply_to_matching_jobs():
             
             # Get users with auto-apply enabled
             auto_apply_users = await db.users.find({
-                "preferences.auto_apply_enabled": True
+                "preferences.auto_apply_enabled": True,
+                "$or": [
+                    {"subscription_tier": "premium"},
+                    {"referral_bonus_auto_applications": {"$gt": 0}}
+                ]
             }).to_list(length=None)
             
             if not auto_apply_users:

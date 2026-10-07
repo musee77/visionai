@@ -17,6 +17,8 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import secrets
 import hashlib
+import hmac
+import time
 from passlib.context import CryptContext
 from fastapi import HTTPException, status
 import logging
@@ -24,6 +26,39 @@ import logging
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def sign_oauth_state(user_id: str) -> str:
+    """Bind an OAuth callback to one user for a short time."""
+    issued = str(int(time.time()))
+    payload = f"{user_id}.{issued}"
+    signature = hmac.new(
+        settings.JWT_SECRET_KEY.encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"{payload}.{signature}"
+
+
+def read_oauth_state(state: str, max_age_seconds: int = 900) -> str:
+    """Return the user id from a signed OAuth state, or raise ValueError."""
+    parts = (state or "").split(".")
+    if len(parts) != 3:
+        raise ValueError("Invalid state")
+    user_id, issued, signature = parts
+    payload = f"{user_id}.{issued}"
+    expected = hmac.new(
+        settings.JWT_SECRET_KEY.encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(expected, signature):
+        raise ValueError("Invalid state")
+    if int(time.time()) - int(issued) > max_age_seconds:
+        raise ValueError("State expired")
+    if not user_id:
+        raise ValueError("Invalid state")
+    return user_id
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

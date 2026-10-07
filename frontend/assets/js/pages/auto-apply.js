@@ -21,18 +21,6 @@ async function initAutoApplyPage() {
         return;
     }
 
-    // Initialize RunTestButton
-    const runTestBtn = new RunTestButton({
-        containerId: 'runTestContainer',
-        apiUrl: '/api/v1/auto-apply',
-        label: 'Run test',
-        styleClass: 'w-full justify-center bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-lg font-medium transition-colors',
-        onComplete: (data) => {
-            loadStats(); // Refresh stats
-        }
-    });
-    runTestBtn.init();
-
     // Initialize AutoApplyButton
     const autoApplyBtn = new AutoApplyButton({
         containerId: 'autoApplyButtonContainer',

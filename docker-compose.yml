@@ -43,6 +43,7 @@ services:
       - HEADLESS=true
     volumes:
       - ./browser-automation:/app
+      - ./uploads:/app/uploads
       - /app/node_modules
       - /dev/shm:/dev/shm
     networks:

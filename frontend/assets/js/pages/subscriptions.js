@@ -583,8 +583,11 @@ async function handlePaymentSubmit(e) {
             email: cleanEmail,
             amount: finalAmount,
             currency: targetCurrency,
-            planCode: selectedPlan.planCode,
+            planCode: '',
             metadata: {
+                user_id: (CVision.Utils.getUser() || {}).id || (CVision.Utils.getUser() || {})._id || '',
+                plan_id: selectedPlan.id,
+                usd_cents: selectedPlan.price,
                 custom_fields: [{
                     display_name: "Plan",
                     variable_name: "plan_name",

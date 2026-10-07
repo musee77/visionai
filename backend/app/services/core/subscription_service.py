@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Union
 import logging
+import math
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import uuid
 from bson import ObjectId
@@ -21,6 +22,20 @@ from app.integrations.paystack_client import PaystackClient
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Same USD rates the pricing page uses when it converts a charge.
+USD_EXCHANGE_RATES = {
+    "USD": 1,
+    "KES": 129.0,
+    "EUR": 0.92,
+    "GBP": 0.79,
+    "NGN": 1500.0,
+    "ZAR": 18.5,
+    "GHS": 12.0,
+    "CAD": 1.35,
+    "AUD": 1.5,
+    "INR": 83.0,
+}
 
 class SubscriptionService:
     def __init__(self, db: AsyncIOMotorDatabase):
@@ -158,7 +173,7 @@ class SubscriptionService:
                 name="Basic",
                 tier=SubscriptionTier.BASIC,
                 description="One-time Basic plan",
-                price=Money(amount=299, currency=Currency.USD),
+                price=Money(amount=499, currency=Currency.USD),
                 billing_interval="one_time",
                 trial_period_days=0,
                 limits=manual_plus_limits,
@@ -176,7 +191,7 @@ class SubscriptionService:
                 name="Basic",
                 tier=SubscriptionTier.BASIC,
                 description="Basic plan, billed monthly",
-                price=Money(amount=299, currency=Currency.USD),
+                price=Money(amount=499, currency=Currency.USD),
                 billing_interval="monthly",
                 trial_period_days=0,
                 limits=manual_plus_limits,
@@ -212,7 +227,7 @@ class SubscriptionService:
                 name="Premium",
                 tier=SubscriptionTier.PREMIUM,
                 description="Monthly Premium plan",
-                price=Money(amount=2999, currency=Currency.USD),  # $29.99/month
+                price=Money(amount=4999, currency=Currency.USD),  # $49.99/month
                 billing_interval="monthly",
                 trial_period_days=14,
                 limits=premium_limits,
@@ -238,6 +253,24 @@ class SubscriptionService:
             )
         }
     
+    def _expected_charge_minor(self, plan: SubscriptionPlan, currency: str) -> Optional[int]:
+        """Plan price in the minor units Paystack charges for this currency."""
+        currency = (currency or "").upper()
+        if not currency:
+            return None
+        if plan.price_overrides and currency in plan.price_overrides:
+            return int(plan.price_overrides[currency].amount)
+        rate = USD_EXCHANGE_RATES.get(currency)
+        if rate is None:
+            return None
+        usd_cents = int(plan.price.amount or 0)
+        if currency == "USD":
+            return usd_cents
+        major = (usd_cents / 100) * rate
+        if currency == "KES":
+            major = math.ceil(major)
+        return int(round(major * 100))
+
     async def create_subscription(
         self,
         user_id: str,
@@ -262,8 +295,12 @@ class SubscriptionService:
         
         # Get plan
         plan = await self.get_plan(plan_id)
-        if not plan:
-            raise ValueError("Invalid plan ID")
+        if not plan or not plan.is_active:
+            raise ValueError("This plan is not available")
+        if reference:
+            already_paid = await self.db.subscriptions.find_one({"paystack_transaction_reference": reference})
+            if already_paid:
+                return await self.get_subscription(already_paid["_id"])
         
         now = datetime.utcnow()
         
@@ -304,20 +341,14 @@ class SubscriptionService:
                 if verification["status"] != "success":
                     raise ValueError(f"Transaction failed: {verification.get('gateway_response', 'Unknown error')}")
 
-                # Ensure the amount matches
-                verification_currency = verification.get("currency", "KES")
-                expected_price = plan.price
-                
-                # Check for currency specific override
-                if plan.price_overrides and verification_currency in plan.price_overrides:
-                    expected_price = plan.price_overrides[verification_currency]
-                
-                # Check amount (Paystack returns amount in kobo/cents)
-                # expected_price.amount is also in kobo/cents
-                # Note: This logic assumes expected_price.amount is in the same unit as Paystack verification.
-                if verification["amount"] < expected_price.amount:
+                paid_currency = str(verification.get("currency") or "").upper()
+                paid_amount = int(verification.get("amount") or 0)
+                expected_amount = self._expected_charge_minor(plan, paid_currency)
+                if expected_amount is None:
+                    raise ValueError(f"Unsupported payment currency: {paid_currency or 'missing'}")
+                if paid_amount < int(expected_amount * 0.9):
                     raise ValueError(
-                        f"Transaction amount is below the required price of {expected_price.amount}"
+                        f"Transaction amount {paid_amount} {paid_currency} is below the price of this plan"
                     )
                 
                 customer_data = verification.get("customer", {})
@@ -579,20 +610,16 @@ class SubscriptionService:
         }
         
         try:
-            # If there is a Paystack subscription code (recurring), disable it
-            if subscription.paystack_subscription_code:
-                # We need email token for disable? 
-                # API documentation says: POST /subscription/disable with "code" and "token"
-                # But token is sent to user email. 
-                # Alternative: Some Paystack integration allows 'manage' link or just stopping local renewal if we charge via authorization manually.
-                # If it's a true Paystack Subscription (auto-charge):
-                # We might not have the 'token'. 
-                # Best effort: Update local status. 
-                pass
-                
+            code = subscription.paystack_subscription_code
+            if code:
+                remote = await self.paystack_client.fetch_subscription(code)
+                email_token = (remote or {}).get("email_token")
+                if email_token:
+                    await self.paystack_client.disable_subscription(code, email_token)
+                else:
+                    logger.warning(f"Paystack subscription {code} has no email token, cancelled locally only")
         except Exception as e:
             logger.error(f"Paystack cancellation error: {e}")
-            # Continue to cancel locally
         
         if cancel_immediately:
             update_data["status"] = SubscriptionStatus.CANCELLED.value
@@ -666,10 +693,47 @@ class SubscriptionService:
 
         if event_type == "auto_application":
             await self._consume_referral_auto_bonus(user_id, subscription.plan_id, previous_usage, quantity)
-        
+
         usage_event["id"] = usage_event["_id"]
         return UsageEvent(**usage_event)
-    
+
+    async def release_usage(self, user_id: str, event_type: str, quantity: int = 1) -> None:
+        """Give back a reserved use, such as a review the user skipped."""
+        subscription = await self.get_user_subscription(user_id)
+        if not subscription:
+            return
+        usage_field_map = {
+            "manual_application": "manual_applications",
+            "auto_application": "auto_applications",
+            "application": "manual_applications",
+        }
+        usage_field = usage_field_map.get(event_type)
+        if not usage_field:
+            return
+        current = int(subscription.current_usage.get(usage_field, 0) or 0)
+        give_back = min(quantity, current)
+        if give_back <= 0:
+            return
+        await self.db.subscriptions.update_one(
+            {"_id": subscription.id},
+            {"$inc": {f"current_usage.{usage_field}": -give_back}}
+        )
+        if event_type != "auto_application":
+            return
+        plan = await self.get_plan(subscription.plan_id)
+        plan_limit = 0
+        if plan and plan.limits and plan.limits.monthly_auto_applications:
+            plan_limit = plan.limits.monthly_auto_applications.max_value
+        bonus_back = max(0, current - plan_limit) - max(0, current - give_back - plan_limit)
+        if bonus_back <= 0:
+            return
+        account = await self._find_account(user_id)
+        if account:
+            await self.db.users.update_one(
+                {"_id": account["_id"]},
+                {"$inc": {"referral_bonus_auto_applications": bonus_back}}
+            )
+
     async def _find_account(self, user_id: str):
         if ObjectId.is_valid(str(user_id)):
             return await self.db.users.find_one({"_id": ObjectId(str(user_id))})

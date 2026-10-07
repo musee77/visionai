@@ -36,7 +36,7 @@ const CVisionChatbot = {
         pricing: {
             keywords: ['price', 'cost', 'plan', 'subscription', 'free', 'premium', 'basic', 'upgrade'],
             responses: [
-                "We have 3 pricing plans:\n\n💚 Free — $0\n• 3 manual applications per month\n\n✋ Basic — $2.99/month\n• Manual applications with no monthly cap\n\n🚀 Premium — $29.99/month\n• Automated applications\n\nWant to see the pricing page?"
+                "We have 3 pricing plans:\n\n💚 Free — $0\n• 3 manual applications per month\n\n✋ Basic — $4.99/month\n• Manual applications with no monthly cap\n\n🚀 Premium — $49.99/month\n• Automated applications\n\nWant to see the pricing page?"
             ]
         },
         howItWorks: {
@@ -335,33 +335,30 @@ const CVisionChatbot = {
         this.chatState = 'normal';
 
         this.addMessage('bot', "Creating your ticket...");
+        const email = this.ticketData.email;
+        const message = this.ticketData.message;
+        this.ticketData = { email: '', message: '' };
 
-        // Create ticket object
-        const ticketId = Math.floor(Math.random() * 10000) + 1000;
-        const newTicket = {
-            id: ticketId,
-            email: this.ticketData.email,
-            message: this.ticketData.message,
-            status: 'open',
-            timestamp: new Date().toISOString()
-        };
-
-        // Save to localStorage for Admin Panel
-        try {
-            const tickets = JSON.parse(localStorage.getItem('visionai_tickets') || '[]');
-            tickets.push(newTicket);
-            localStorage.setItem('visionai_tickets', JSON.stringify(tickets));
-        } catch (e) {
-            console.error('Error saving ticket to localStorage:', e);
-        }
-
-        setTimeout(() => {
-            this.addMessage('bot', `✅ **Ticket Created Successfully!**\n\nTicket ID: #${ticketId}\n\nWe have sent a confirmation to **${this.ticketData.email}**. A human agent will review your message ("${this.ticketData.message.substring(0, 20)}...") and get back to you within 24 hours.\n\nCan I help you with anything else in the meantime?`);
-            this.showQuickActions();
-
-            // Reset ticket data
-            this.ticketData = { email: '', message: '' };
-        }, 1500);
+        const apiBase = (window.CONFIG && CONFIG.API_BASE_URL) || '';
+        const prefix = (window.CONFIG && CONFIG.API_PREFIX) || '/api/v1';
+        fetch(`${apiBase}${prefix}/support/tickets`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, message })
+        })
+            .then(async (response) => {
+                if (!response.ok) throw new Error('Ticket was not saved');
+                const saved = await response.json();
+                const followUp = saved.email_sent
+                    ? `A copy was sent to the support team. They will reply to **${email}**.`
+                    : `Your message is saved. The support team will reply to **${email}**.`;
+                this.addMessage('bot', `Ticket #${saved.id} is open.\n\n${followUp}`);
+                this.showQuickActions();
+            })
+            .catch(() => {
+                this.addMessage('bot', 'The ticket could not be saved. Please try again in a moment.');
+                this.showQuickActions();
+            });
     },
 
     showEscalationOptions() {

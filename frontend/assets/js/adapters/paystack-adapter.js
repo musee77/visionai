@@ -142,12 +142,9 @@
                     }
                 };
 
-                // Add plan for subscriptions, or amount for one-time payments
-                if (planCode && planCode.trim() !== '') {
-                    paystackConfig.plan = planCode.trim();
-                } else {
-                    paystackConfig.amount = Math.ceil(amount);
-                }
+                // Charge the amount shown in the app. A Paystack plan code bills
+                // the price saved in the Paystack dashboard instead.
+                paystackConfig.amount = Math.ceil(amount);
 
                 try {
                     const handler = PaystackPop.setup(paystackConfig);

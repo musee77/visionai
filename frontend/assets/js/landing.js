@@ -57,7 +57,7 @@ const LandingConfig = {
         },
         {
             name: 'Basic',
-            priceInCents: 299,
+            priceInCents: 499,
             features: [
                 { text: 'Manual applications with no monthly cap', included: true },
                 { text: 'Billed monthly', included: true },
@@ -70,7 +70,7 @@ const LandingConfig = {
         },
         {
             name: 'Premium',
-            priceInCents: 2999,
+            priceInCents: 4999,
             features: [
                 { text: 'Auto-apply included', included: true },
                 { text: 'Manual applications with no monthly cap', included: true },

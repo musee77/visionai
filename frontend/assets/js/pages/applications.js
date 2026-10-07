@@ -51,8 +51,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     loadStats();
-    await loadTabComponent('applications');
-    loadApplications();
+    const openingReview = window.location.hash === '#review';
+    await loadTabComponent(openingReview ? 'review' : 'applications');
+    if (openingReview) switchTab('review');
+    else loadApplications();
 });
 
 // ==================== APPLICATION PAGE FUNCTIONS ====================
@@ -79,6 +81,7 @@ async function switchTab(tab) {
     }
 
     if (tab === 'applications') loadApplications();
+    else if (tab === 'review') loadReviewApplications();
     else if (tab === 'responses') loadReceivedResponses();
     else if (tab === 'interviews') loadUpcomingInterviews();
     else if (tab === 'followups') loadFollowUps();
@@ -123,6 +126,7 @@ function getStatusBadge(status) {
     const colors = {
         draft: 'bg-gray-100 text-gray-700',
         pending: 'bg-yellow-100 text-yellow-800',
+        awaiting_review: 'bg-amber-100 text-amber-800',
         failed: 'bg-red-100 text-red-800',
         processing: 'bg-blue-100 text-blue-700',
         submitted: 'bg-blue-100 text-blue-700',

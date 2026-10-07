@@ -160,6 +160,10 @@ class UserPreferences(BaseModel):
     application_reminders: bool = True
     job_alerts: bool = True
     weekly_reports: bool = True
+    default_template: str = "professional"
+    default_tone: str = "professional"
+    auto_generate_cover: bool = False
+    notify_generation: bool = False
     language: str = "en"
     theme: str = "light"  # light, dark
     dashboard_layout: str = "default"

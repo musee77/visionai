@@ -69,11 +69,8 @@ class NotificationService:
             if "email" in channels:
                 await self._send_email_notification(notification)
             
-            if "sms" in channels:
-                await self._send_sms_notification(notification)
-            
-            if "push" in channels:
-                await self._send_push_notification(notification)
+            if "sms" in channels or "push" in channels:
+                logger.debug("SMS and push are not connected. The in-app notification is the message the user receives.")
             
             # Update sent_at timestamp
             await self.notifications.update_one(

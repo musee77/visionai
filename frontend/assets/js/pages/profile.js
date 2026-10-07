@@ -177,6 +177,12 @@ async function loadUserProfile() {
                 document.getElementById('defaultTone').value = preferences.default_tone || 'professional';
                 document.getElementById('autoGenerateCover').checked = preferences.auto_generate_cover || false;
                 document.getElementById('notifyGeneration').checked = preferences.notify_generation || false;
+                const jobMatches = document.getElementById('emailJobMatches');
+                const appUpdates = document.getElementById('emailApplications');
+                const weekly = document.getElementById('emailWeekly');
+                if (jobMatches) jobMatches.checked = preferences.job_alerts !== false;
+                if (appUpdates) appUpdates.checked = preferences.application_reminders !== false;
+                if (weekly) weekly.checked = preferences.weekly_reports !== false;
             }
         } catch (prefsError) {
             console.warn('Could not load preferences:', prefsError);
@@ -215,8 +221,8 @@ function quotaWidth(used, limit) {
 async function loadPlanDetails(tier) {
     const fallback = {
         free: { plan: 'Free', price_cents: 0, billing_interval: 'monthly', limits: { manual_applications: 3, auto_applications: 0 }, current_usage: {} },
-        basic: { plan: 'Basic', price_cents: 299, billing_interval: 'monthly', limits: { manual_applications: 999999, auto_applications: 0 }, current_usage: {} },
-        premium: { plan: 'Premium', price_cents: 2999, billing_interval: 'monthly', limits: { manual_applications: 9999, auto_applications: 9999 }, current_usage: {} }
+        basic: { plan: 'Basic', price_cents: 499, billing_interval: 'monthly', limits: { manual_applications: 999999, auto_applications: 0 }, current_usage: {} },
+        premium: { plan: 'Premium', price_cents: 4999, billing_interval: 'monthly', limits: { manual_applications: 9999, auto_applications: 9999 }, current_usage: {} }
     };
     let data = fallback[tier] || fallback.free;
     try {
@@ -257,12 +263,14 @@ async function loadPlanDetails(tier) {
 
 async function loadRecentGenerations() {
     try {
-        // TODO: Implement generation history API
-        // const history = await CVision.API.request('/generation/history?page=1');
-        // if (history && history.documents && history.documents.length > 0) {
-        //     displayRecentGenerations(history.documents.slice(0, 5));
-        // }
-        console.log('[INFO] Generation history not yet implemented');
+        const response = await fetch(`${CONFIG.API_BASE_URL}${CONFIG.API_PREFIX}/generation/history?page=1&size=5`, {
+            headers: { 'Authorization': `Bearer ${CVision.Utils.getToken()}` }
+        });
+        if (!response.ok) return;
+        const history = await response.json();
+        if (history && history.documents && history.documents.length > 0) {
+            displayRecentGenerations(history.documents.slice(0, 5));
+        }
     } catch (error) {
         console.error('Error loading generations:', error);
     }
@@ -283,10 +291,7 @@ function displayRecentGenerations(generations) {
                         <p class="text-xs text-gray-500">${formatDate(gen.generated_at)}</p>
                     </div>
                 </div>
-                <button onclick="GenerationModule.downloadDocument('${gen._id}', '${gen.type}')" 
-                    class="px-3 py-1 text-xs font-medium text-primary-600 bg-primary-100 hover:bg-primary-200 rounded-md transition-colors">
-                    Download
-                </button>
+                <a href="./documents.html" class="px-3 py-1 text-xs font-medium text-primary-600 bg-primary-100 hover:bg-primary-200 rounded-md transition-colors">Open</a>
             </div>
         </div>
     `).join('');
@@ -461,6 +466,28 @@ function setupForms() {
         } catch (error) {
             console.error('[PREFERENCES] Error:', error);
             CVision.Utils.showAlert(error.message || 'Failed to save preferences', 'error');
+        }
+    });
+
+    document.getElementById('saveEmailNotifications')?.addEventListener('click', async () => {
+        const preferencesData = {
+            job_alerts: document.getElementById('emailJobMatches').checked,
+            application_reminders: document.getElementById('emailApplications').checked,
+            weekly_reports: document.getElementById('emailWeekly').checked
+        };
+        try {
+            const response = await fetch(`${CONFIG.API_BASE_URL}${CONFIG.API_PREFIX}/users/me/preferences`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${CVision.Utils.getToken()}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(preferencesData)
+            });
+            if (!response.ok) throw new Error('Failed to save notifications');
+            CVision.Utils.showAlert('Notification settings saved', 'success');
+        } catch (error) {
+            CVision.Utils.showAlert(error.message || 'Failed to save notifications', 'error');
         }
     });
 }

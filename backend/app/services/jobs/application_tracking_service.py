@@ -712,8 +712,10 @@ class ApplicationTrackingService:
                     "communications_count": len(app.get("communications", [])),
                     "interviews_count": len(app.get("interviews", [])),
                     "tasks_count": len(app.get("tasks", [])),
-                    "has_custom_cv": bool(app.get("custom_cv_content")),
-                    "has_cover_letter": bool(app.get("cover_letter_content")),
+                    "has_custom_cv": bool(app.get("custom_cv_content") or app.get("cv_document_id")),
+                    "has_cover_letter": bool(app.get("cover_letter_content") or app.get("cover_letter_document_id")),
+                    "match_score": app.get("match_score"),
+                    "review_channel": (app.get("review") or {}).get("channel"),
                     "last_activity": app.get("updated_at"),
                     "created_at": app["created_at"],
                     "updated_at": app["updated_at"]

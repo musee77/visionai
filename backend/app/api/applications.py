@@ -79,12 +79,12 @@ async def create_application(
         # Determine event type (manual vs auto)
         event_type = "manual_application" if app_data.get("source", "manual") == "manual" else "auto_application"
         
-        can_apply = await subscription_service.check_usage_limit(
+        allowed, _, _ = await subscription_service.check_usage_limit(
             str(current_user["_id"]), 
             event_type
         )
         
-        if not can_apply:
+        if not allowed:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Usage limit reached for {event_type.replace('_', ' ')}s. Please upgrade your plan."
@@ -295,6 +295,9 @@ async def list_applications(
                 # However, simplifying to just excluding known markers is safer to match the "else" of the above.
                 filters["status"] = {"$nin": response_statuses}
         
+        if "status" not in filters:
+            filters["status"] = {"$ne": "awaiting_review"}
+
         # Log the filter for debugging
         if has_response is not None:
             logger.info(f"has_response filter applied: has_response={has_response}, filters=$or={filters.get('$or', 'N/A')}")
@@ -669,6 +672,246 @@ async def delete_application(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete application"
         )
+
+
+# ==================== REVIEW BEFORE SUBMISSION ====================
+
+def _document_preview(document: Optional[Dict[str, Any]]) -> str:
+    if not document:
+        return ""
+    content = document.get("content")
+    if isinstance(content, str) and content.strip():
+        return content.strip()[:6000]
+    if isinstance(content, dict):
+        nested = content.get("content") if isinstance(content.get("content"), dict) else {}
+        full_text = nested.get("full_text") or content.get("summary") or content.get("professional_summary")
+        if full_text:
+            return str(full_text).strip()[:6000]
+    text = document.get("text_content") or ""
+    cv_data = document.get("cv_data") if isinstance(document.get("cv_data"), dict) else {}
+    if not text and cv_data:
+        text = cv_data.get("summary") or cv_data.get("professional_summary") or ""
+    return str(text or "").strip()[:6000]
+
+
+async def _owned_document(db, document_id: Optional[str], user_id: str):
+    if not document_id or not ObjectId.is_valid(str(document_id)):
+        return None
+    document = await db.documents.find_one({"_id": ObjectId(str(document_id))})
+    if not document:
+        return None
+    owner = str(document.get("user_id") or "")
+    if owner and owner != str(user_id):
+        return None
+    return document
+
+
+@router.get("/{application_id}/review")
+async def get_application_review(
+    application_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_active_user),
+    db = Depends(get_database)
+):
+    """Job documents and the submission waiting for review."""
+    try:
+        ObjectId(application_id)
+    except Exception:
+        raise HTTPException(status_code=fastapi_status.HTTP_400_BAD_REQUEST, detail="Invalid application ID")
+
+    application = await db.applications.find_one({"_id": ObjectId(application_id), "deleted_at": None})
+    if not application:
+        raise HTTPException(status_code=fastapi_status.HTTP_404_NOT_FOUND, detail="Application not found")
+    if str(application.get("user_id")) != str(current_user["_id"]):
+        raise HTTPException(status_code=fastapi_status.HTTP_403_FORBIDDEN, detail="Not allowed")
+    if application.get("status") != "awaiting_review":
+        raise HTTPException(status_code=fastapi_status.HTTP_400_BAD_REQUEST, detail="This application is not waiting for review")
+
+    user_id = str(current_user["_id"])
+    review = application.get("review") or {}
+    job = None
+    job_id = application.get("job_id")
+    if job_id and ObjectId.is_valid(str(job_id)):
+        job = await db.jobs.find_one({"_id": ObjectId(str(job_id))})
+    description = ""
+    if job:
+        raw_description = job.get("description") or ""
+        description = raw_description if isinstance(raw_description, str) else str(raw_description)
+        description = description.strip()[:6000]
+
+    documents = []
+    cv_document = await _owned_document(db, application.get("cv_document_id"), user_id)
+    if cv_document:
+        file_info = cv_document.get("file_info") or {}
+        documents.append({
+            "label": "CV",
+            "name": file_info.get("original_filename") or "CV",
+            "text": _document_preview(cv_document) or "No CV text is stored for this file."
+        })
+    letter = await _owned_document(db, application.get("cover_letter_document_id"), user_id)
+    if letter:
+        documents.append({
+            "label": "Cover letter",
+            "name": "Cover letter",
+            "text": _document_preview(letter) or "No cover letter text is stored."
+        })
+    elif application.get("additional_message") or (application.get("form_data") or {}).get("cover_letter"):
+        documents.append({
+            "label": "Cover letter",
+            "name": "Cover letter",
+            "text": application.get("additional_message") or application.get("form_data", {}).get("cover_letter")
+        })
+
+    return {
+        "id": application_id,
+        "job_title": application.get("job_title"),
+        "company_name": application.get("company_name"),
+        "location": application.get("location"),
+        "match_score": application.get("match_score"),
+        "job_description": description,
+        "documents": documents,
+        "submission": {
+            "channel": review.get("channel"),
+            "recipient_email": review.get("recipient_email"),
+            "apply_url": review.get("apply_url"),
+            "message": review.get("message") or ""
+        }
+    }
+
+
+@router.post("/{application_id}/submit")
+async def submit_reviewed_application(
+    application_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_active_user),
+    db = Depends(get_database)
+):
+    """Send an automated application after the user reviews it."""
+    try:
+        ObjectId(application_id)
+    except Exception:
+        raise HTTPException(status_code=fastapi_status.HTTP_400_BAD_REQUEST, detail="Invalid application ID")
+
+    application = await db.applications.find_one({"_id": ObjectId(application_id), "deleted_at": None})
+    if not application:
+        raise HTTPException(status_code=fastapi_status.HTTP_404_NOT_FOUND, detail="Application not found")
+    if str(application.get("user_id")) != str(current_user["_id"]):
+        raise HTTPException(status_code=fastapi_status.HTTP_403_FORBIDDEN, detail="Not allowed")
+    if application.get("status") != "awaiting_review":
+        raise HTTPException(status_code=fastapi_status.HTTP_400_BAD_REQUEST, detail="This application is not waiting for review")
+
+    review = application.get("review") or {}
+    channel = review.get("channel")
+    user_id = str(current_user["_id"])
+    now = datetime.utcnow()
+
+    if channel == "email":
+        recipient = review.get("recipient_email")
+        if not recipient:
+            raise HTTPException(status_code=fastapi_status.HTTP_400_BAD_REQUEST, detail="This application has no recipient email")
+        usage_type = application.get("usage_type") or "auto_application"
+        if not application.get("usage_reserved"):
+            allowed, _, _ = await SubscriptionService(db).check_usage_limit(user_id, usage_type)
+            if not allowed:
+                raise HTTPException(status_code=fastapi_status.HTTP_403_FORBIDDEN, detail="You have no applications left on this plan")
+        from app.services.emails.email_agent_service import email_agent_service
+        from app.workers.email_sender import send_application_email
+        stored_form = application.get("form_data") if isinstance(application.get("form_data"), dict) else None
+        form_data = dict(stored_form) if stored_form else await email_agent_service.extract_form_data_from_cv(user_id, db=db)
+        form_data["message"] = review.get("message") or f"Please find attached my CV and cover letter for the {application.get('job_title')} position."
+        send_application_email.delay(
+            user_id=user_id,
+            job_id=str(application.get("job_id")),
+            application_id=application_id,
+            recipient_email=recipient,
+            form_data=form_data,
+            cv_document_id=application.get("cv_document_id"),
+            cover_letter_document_id=application.get("cover_letter_document_id"),
+            additional_message=None
+        )
+        await db.applications.update_one(
+            {"_id": application["_id"]},
+            {
+                "$set": {
+                    "status": "submitted",
+                    "email_status": "queued",
+                    "email_monitoring_enabled": True,
+                    "applied_date": now,
+                    "updated_at": now
+                },
+                "$push": {"timeline": {"status": "submitted", "timestamp": now, "note": "Submitted after review"}}
+            }
+        )
+        if not application.get("usage_reserved"):
+            await SubscriptionService(db).track_usage(user_id, application.get("usage_type") or "auto_application")
+        return {"success": True, "status": "submitted"}
+
+    if channel == "browser":
+        from app.services.automation.browser_automation_service import BrowserAutomationService
+        browser_result = await BrowserAutomationService.auto_apply_to_job(
+            user_id=user_id,
+            application_id=application_id,
+            job_id=str(application.get("job_id")),
+            cv_id=application.get("cv_document_id")
+        )
+        result_status = (browser_result or {}).get("status")
+        sent = bool(browser_result and browser_result.get("success") and result_status == "completed")
+        if not sent:
+            error = (browser_result or {}).get("error") or "The application was not submitted"
+            await db.applications.update_one(
+                {"_id": application["_id"]},
+                {"$set": {
+                    "status": "awaiting_review",
+                    "automation_status": "failed",
+                    "automation_error": error,
+                    "updated_at": now
+                }}
+            )
+            raise HTTPException(status_code=fastapi_status.HTTP_400_BAD_REQUEST, detail=error)
+        await db.applications.update_one(
+            {"_id": application["_id"]},
+            {
+                "$set": {"status": "submitted", "applied_date": now, "updated_at": now},
+                "$push": {"timeline": {"status": "submitted", "timestamp": now, "note": "Submitted after review"}}
+            }
+        )
+        return {"success": True, "status": "submitted"}
+
+    raise HTTPException(status_code=fastapi_status.HTTP_400_BAD_REQUEST, detail="This application has no send method")
+
+
+@router.post("/{application_id}/skip-review")
+async def skip_reviewed_application(
+    application_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_active_user),
+    db = Depends(get_database)
+):
+    """Leave an automated application unsent."""
+    try:
+        ObjectId(application_id)
+    except Exception:
+        raise HTTPException(status_code=fastapi_status.HTTP_400_BAD_REQUEST, detail="Invalid application ID")
+
+    application = await db.applications.find_one({"_id": ObjectId(application_id), "deleted_at": None})
+    if not application:
+        raise HTTPException(status_code=fastapi_status.HTTP_404_NOT_FOUND, detail="Application not found")
+    if str(application.get("user_id")) != str(current_user["_id"]):
+        raise HTTPException(status_code=fastapi_status.HTTP_403_FORBIDDEN, detail="Not allowed")
+    if application.get("status") != "awaiting_review":
+        raise HTTPException(status_code=fastapi_status.HTTP_400_BAD_REQUEST, detail="This application is not waiting for review")
+
+    now = datetime.utcnow()
+    await db.applications.update_one(
+        {"_id": application["_id"]},
+        {
+            "$set": {"status": "withdrawn", "updated_at": now},
+            "$push": {"timeline": {"status": "withdrawn", "timestamp": now, "note": "Skipped during review"}}
+        }
+    )
+    if application.get("usage_reserved"):
+        await SubscriptionService(db).release_usage(
+            str(current_user["_id"]),
+            application.get("usage_type") or "auto_application"
+        )
+    return {"success": True, "status": "withdrawn"}
 
 
 # ==================== STATUS & TRACKING ENDPOINTS ====================

@@ -66,6 +66,16 @@ class AutofillEngine {
         
         for (const field of form.fields) {
             try {
+                if (field.type === 'file') {
+                    const filePath = flat.resume || flat.resume_file_path || data.resume_file_path || '';
+                    if (filePath) {
+                        const uploaded = await this.fillField(field, filePath);
+                        if (uploaded) {
+                            filledFields.push({ selector: field.selector, type: 'resume', value: filePath });
+                        }
+                    }
+                    continue;
+                }
                 // Classify field type using ML
                 const fieldType = this.fieldClassifier.classifyField(field);
                 
@@ -94,14 +104,19 @@ class AutofillEngine {
     async fillField(field, value) {
         try {
             const locator = this.page.locator(field.selector).first();
+
+            if (field.type === 'file') {
+                const fs = require('fs');
+                if (!value || !fs.existsSync(String(value))) return false;
+                await locator.setInputFiles(String(value));
+                return true;
+            }
             await locator.waitFor({ state: 'visible', timeout: 5000 });
 
             if (field.type === 'select') {
                 await locator.selectOption({ label: String(value) }).catch(() => locator.selectOption(String(value)));
             } else if (field.type === 'checkbox' || field.type === 'radio') {
                 if (value) await locator.check().catch(() => locator.click());
-            } else if (field.type === 'file') {
-                return false;
             } else {
                 await locator.fill(String(value));
             }
@@ -128,7 +143,8 @@ class AutofillEngine {
             'linkedin': data.linkedin,
             'portfolio': data.portfolio,
             'github': data.github,
-            'cover_letter': data.coverLetter || data.cover_letter
+            'cover_letter': data.coverLetter || data.cover_letter,
+            'resume': data.resume || data.resume_file_path
         };
         
         const value = mapping[fieldType];

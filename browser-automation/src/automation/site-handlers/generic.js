@@ -127,7 +127,7 @@ class GenericHandler {
             portfolio: personalInfo.portfolio || cvData.portfolio || user.portfolio || '',
 
             // Resume/Cover Letter
-            resume: cvData.resume_path || '',
+            resume: autofillData.resume_file_path || cvData.resume_path || cvData.resume_file_path || '',
             coverLetter: autofillData.cover_letter || '',
 
             // Job Info (for reference)

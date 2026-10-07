@@ -88,6 +88,30 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+_maintenance_cache = {"checked": 0.0, "on": False}
+
+
+@app.middleware("http")
+async def maintenance_gate(request: Request, call_next):
+    """Block the API while an admin has maintenance mode on."""
+    path = request.url.path
+    if path.startswith("/api/v1/admin") or path.startswith("/docs") or path.startswith("/redoc") or path == "/health":
+        return await call_next(request)
+    now = time.time()
+    if now - _maintenance_cache["checked"] > 15:
+        try:
+            from app.database import get_database
+            db = await get_database()
+            document = await db.app_settings.find_one({"_id": "system"})
+            _maintenance_cache["on"] = bool((document or {}).get("maintenance_mode"))
+        except Exception:
+            _maintenance_cache["on"] = False
+        _maintenance_cache["checked"] = now
+    if _maintenance_cache["on"] and path.startswith("/api/"):
+        return JSONResponse(status_code=423, content={"detail": "Synovae is down for maintenance."})
+    return await call_next(request)
+
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -168,8 +192,8 @@ async def root():
         ],
         "subscription_tiers": {
             "free": f"{settings.FREE_TIER_MONTHLY_ATTEMPTS} search, {settings.FREE_TIER_JOBS_PER_ATTEMPT} jobs per search",
-            "basic": f"${settings.BASIC_TIER_PRICE/100}/month - {settings.BASIC_TIER_MONTHLY_ATTEMPTS} searches, advanced features",
-            "premium": f"${settings.PREMIUM_TIER_PRICE/100}/month - {settings.PREMIUM_TIER_MONTHLY_ATTEMPTS} searches, full automation"
+            "basic": f"${settings.BASIC_TIER_PRICE}/month - {settings.BASIC_TIER_MONTHLY_ATTEMPTS} searches, advanced features",
+            "premium": f"${settings.PREMIUM_TIER_PRICE}/month - {settings.PREMIUM_TIER_MONTHLY_ATTEMPTS} searches, full automation"
         },
         "docs": "/docs",
         "health": "/health",

@@ -37,8 +37,8 @@ const PricingPlans = (function () {
             name: 'Basic',
             tier: 'basic',
             description: 'Basic plan, billed monthly',
-            monthlyPrice: 299,
-            yearlyPrice: 2990,
+            monthlyPrice: 499,
+            yearlyPrice: 4990,
             isPopular: false,
             features: [
                 'Manual applications with no monthly cap',
@@ -55,8 +55,8 @@ const PricingPlans = (function () {
             name: 'Premium',
             tier: 'premium',
             description: 'Monthly Premium plan',
-            monthlyPrice: 2999,
-            yearlyPrice: 2999,
+            monthlyPrice: 4999,
+            yearlyPrice: 49990,
             isPopular: true,
             features: [
                 'Auto-apply included',
@@ -246,15 +246,7 @@ const PricingPlans = (function () {
         }
 
         // Get plans in order
-        const plans = [PLAN_CONFIG.free, PLAN_CONFIG.basic, PLAN_CONFIG.premium];
-
-        // For yearly billing, update plan IDs
-        const displayPlans = plans.map(plan => {
-            if (currentBillingInterval === 'yearly' && plan.tier !== 'free' && !plan.oneTime) {
-                return { ...plan, id: `${plan.id}_annual` };
-            }
-            return plan;
-        });
+        const displayPlans = [PLAN_CONFIG.free, PLAN_CONFIG.basic, PLAN_CONFIG.premium];
 
         // Render header and toggle
         const headerHtml = `
@@ -305,7 +297,7 @@ const PricingPlans = (function () {
         containerSelector = options.container || '#pricing-plans-container';
         currentSubscription = options.currentSubscription || null;
         onSelectPlan = options.onSelectPlan || null;
-        currentBillingInterval = options.defaultInterval || 'monthly';
+        currentBillingInterval = 'monthly';
 
         render();
     }

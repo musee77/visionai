@@ -12,7 +12,7 @@ const PremiumGuard = {
         COVER_LETTER: 'basic',      // Select or generate a cover letter
         ADVANCED_ANALYTICS: 'premium',
         RUN_TEST: 'basic',          // Basic or Premium (with 1 free trial)
-        GMAIL_CONNECT: 'premium'    // Premium only
+        GMAIL_CONNECT: 'free'       // Every plan can connect Gmail
     },
 
     /**

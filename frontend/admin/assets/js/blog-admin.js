@@ -154,7 +154,7 @@
                         ${publishDate}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <a href="../pages/blog-post.html?slug=${post.slug}" target="_blank" class="text-gray-600 hover:text-gray-900 mr-3">View</a>
+                        <a href="/info/blog-post.html?slug=${post.slug}" target="_blank" class="text-gray-600 hover:text-gray-900 mr-3">View</a>
                         <button onclick="window.blogAdmin.editPost('${post.id}')" class="text-primary-600 hover:text-primary-900 mr-3">Edit</button>
                         <button onclick="window.blogAdmin.deletePost('${post.id}')" class="text-red-600 hover:text-red-900">Delete</button>
                     </td>

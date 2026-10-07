@@ -122,6 +122,12 @@ class ResendVerificationRequest(BaseModel):
 async def register(user_data: UserRegister, request: Request):
     """Register new user in CVision"""
     try:
+        from app.database import get_database
+        settings_db = await get_database()
+        app_settings = await settings_db.app_settings.find_one({"_id": "system"})
+        if app_settings and app_settings.get("user_registration") is False:
+            return APIResponse(success=False, message="New accounts are closed right now.")
+
         users_collection = await get_users_collection()
         
         # Check if user exists
@@ -700,7 +706,8 @@ async def connect_gmail(current_user: dict = Depends(get_current_active_user)):
     """Initiate Gmail connection flow"""
     try:
         # Pass user ID in state to verify on callback
-        state = str(current_user["_id"])
+        from app.core.security import sign_oauth_state
+        state = sign_oauth_state(str(current_user["_id"]))
         auth_url = gmail_service.get_authorization_url(state=state)
         
         return APIResponse(
@@ -734,7 +741,11 @@ async def gmail_callback(code: str, state: Optional[str] = None):
         if not state:
              return RedirectResponse(url=f"{settings.FRONTEND_URL}/dashboard.html?error=invalid_state")
 
-        user_id = state
+        from app.core.security import read_oauth_state
+        try:
+            user_id = read_oauth_state(state)
+        except ValueError:
+            return RedirectResponse(url=f"{settings.FRONTEND_URL}/dashboard.html?error=invalid_state")
         users_collection = await get_users_collection()
         
         # Update user with gmail_auth

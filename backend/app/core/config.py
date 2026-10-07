@@ -184,12 +184,12 @@ class Settings(BaseSettings):
     BASIC_TIER_DAILY_ATTEMPTS: int = Field(default=3, env="BASIC_TIER_DAILY_ATTEMPTS")
     BASIC_TIER_MONTHLY_ATTEMPTS: int = Field(default=50, env="BASIC_TIER_MONTHLY_ATTEMPTS")
     BASIC_TIER_JOBS_PER_ATTEMPT: int = Field(default=50, env="BASIC_TIER_JOBS_PER_ATTEMPT")
-    BASIC_TIER_PRICE: float = Field(default=9.99, env="BASIC_TIER_PRICE")
+    BASIC_TIER_PRICE: float = Field(default=4.99, env="BASIC_TIER_PRICE")
     
     # Subscription limits - Premium Tier
     PREMIUM_TIER_MONTHLY_ATTEMPTS: int = Field(default=500, env="PREMIUM_TIER_MONTHLY_ATTEMPTS")
     PREMIUM_TIER_JOBS_PER_ATTEMPT: int = Field(default=200, env="PREMIUM_TIER_JOBS_PER_ATTEMPT")
-    PREMIUM_TIER_PRICE: float = Field(default=29.99, env="PREMIUM_TIER_PRICE")
+    PREMIUM_TIER_PRICE: float = Field(default=49.99, env="PREMIUM_TIER_PRICE")
     
     # Referral system
     REFERRALS_FOR_FREE_ATTEMPT: int = Field(default=3, env="REFERRALS_FOR_FREE_ATTEMPT")

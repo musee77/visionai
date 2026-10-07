@@ -21,8 +21,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                 <div>
                     <h1 class="text-4xl font-bold mb-4">Earn Rewards by Referring Friends</h1>
-                    <p class="text-xl text-blue-100 mb-6">Share CVision AI with your network and get rewarded with bonus
-                        applications!</p>
+                    <p class="text-xl text-blue-100 mb-6">Share CVision AI with your network. Ten friends on Premium move you to Basic.</p>
                     <ul class="space-y-3 text-blue-50">
                         <li class="flex items-start">
                             <svg class="w-6 h-6 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -30,7 +29,7 @@
                                     d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
                                     clip-rule="evenodd" />
                             </svg>
-                            <span>Get 5 automated applications for every 5 friends on Basic or Premium</span>
+                            <span>10 friends on Premium move you to the Basic plan</span>
                         </li>
                         <li class="flex items-start">
                             <svg class="w-6 h-6 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -38,7 +37,7 @@
                                     d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
                                     clip-rule="evenodd" />
                             </svg>
-                            <span>Friends count after they subscribe to Basic or Premium</span>
+                            <span>Only a Premium subscription counts. Basic and Free do not</span>
                         </li>
                         <li class="flex items-start">
                             <svg class="w-6 h-6 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -51,21 +50,7 @@
                     </ul>
                 </div>
                 <div class="bg-white bg-opacity-10 backdrop-blur-lg rounded-xl p-6">
-                    <h3 class="text-2xl font-bold mb-4">Your Referral Code</h3>
-                    <div class="bg-white rounded-lg p-6 mb-4">
-                        <div class="flex items-center justify-between">
-                            <code id="referralCodeMain" class="text-3xl font-bold text-blue-600">LOADING...</code>
-                            <button type="button" onclick="copyReferralCode(this)"
-                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 hover:text-white transition-colors flex items-center">
-                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                </svg>
-                                Copy code
-                            </button>
-                        </div>
-                    </div>
-                    <p class="text-sm text-blue-100 mb-2">Your referral link</p>
+                    <h3 class="text-2xl font-bold mb-4">Your referral link</h3>
                     <div class="flex items-center gap-2 bg-white rounded-lg p-2 mb-4">
                         <input id="referralLinkMain" type="text" readonly
                             class="flex-1 min-w-0 px-3 py-2 text-sm text-gray-800 bg-transparent outline-none"
@@ -120,7 +105,7 @@
                     </div>
                 </div>
                 <p id="activeReferrals" class="text-3xl font-bold text-gray-900">0</p>
-                <p class="text-sm text-gray-500 mt-1">Currently subscribed</p>
+                <p class="text-sm text-gray-500 mt-1">On Premium</p>
             </div>
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -148,7 +133,7 @@
                     </div>
                 </div>
                 <p id="pendingRewards" class="text-3xl font-bold text-gray-900">0</p>
-                <p class="text-sm text-gray-500 mt-1">Paid friends until the next 5</p>
+                <p class="text-sm text-gray-500 mt-1">Premium friends until Basic</p>
             </div>
         </div>
 
@@ -161,7 +146,7 @@
                 <div class="flex items-center justify-between mb-6">
                     <div>
                         <h2 class="text-2xl font-bold text-gray-900">Your Referral Journey</h2>
-                        <p class="text-gray-600 mt-1">Earn rewards for every 5 paid referrals</p>
+                        <p class="text-gray-600 mt-1">10 Premium friends unlock the Basic plan</p>
                     </div>
                     <div class="hidden md:flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-full text-sm font-medium">
                         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -175,7 +160,7 @@
                 <div class="mb-8">
                     <div class="flex justify-between items-center mb-2">
                         <span class="text-sm font-medium text-gray-600">Progress to next reward</span>
-                        <span id="progressText" class="text-sm font-bold text-purple-600">0 / 5 paid referrals</span>
+                        <span id="progressText" class="text-sm font-bold text-purple-600">0 / 10 premium referrals</span>
                     </div>
                     <div class="relative h-4 bg-gray-100 rounded-full overflow-hidden">
                         <div id="progressBar" class="absolute left-0 top-0 h-full bg-gradient-to-r from-purple-500 via-blue-500 to-purple-600 rounded-full transition-all duration-1000 ease-out" style="width: 0%">
@@ -202,13 +187,13 @@
                     </div>
                     <div class="flex justify-between mt-6 text-xs text-gray-500">
                         <span>Start</span>
-                        <span>1</span>
                         <span>2</span>
-                        <span>3</span>
                         <span>4</span>
-                        <span class="flex items-center gap-1 text-purple-600 font-semibold">5</span>
+                        <span>6</span>
+                        <span>8</span>
+                        <span class="flex items-center gap-1 text-purple-600 font-semibold">10</span>
                     </div>
-                    <p id="cycleNote" class="hidden mt-3 text-sm text-purple-700">This set of 5 is complete. The next 5 paid friends start another reward.</p>
+                    <p id="cycleNote" class="hidden mt-3 text-sm text-purple-700">Basic is unlocked. Friends after these 10 do not start another plan.</p>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -219,7 +204,7 @@
                             </div>
                             <div>
                                 <p class="text-sm font-medium text-gray-600">Referrals Needed</p>
-                                <p id="referralsNeeded" class="text-2xl font-bold text-gray-900">5</p>
+                                <p id="referralsNeeded" class="text-2xl font-bold text-gray-900">10</p>
                             </div>
                         </div>
                         <p class="text-xs text-gray-500">Until your next reward</p>
@@ -231,10 +216,10 @@
                             </div>
                             <div>
                                 <p class="text-sm font-medium text-gray-600">Next Reward</p>
-                                <p class="text-2xl font-bold text-gray-900">5 Apps</p>
+                                <p class="text-2xl font-bold text-gray-900">Basic</p>
                             </div>
                         </div>
-                        <p class="text-xs text-gray-500">5 automated applications</p>
+                        <p class="text-xs text-gray-500">Your plan after 10 Premium friends</p>
                     </div>
                     <div class="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100">
                         <div class="flex items-center gap-3 mb-3">
@@ -243,10 +228,10 @@
                             </div>
                             <div>
                                 <p class="text-sm font-medium text-gray-600">Total Earned</p>
-                                <p id="totalEarnedApps" class="text-2xl font-bold text-gray-900">0</p>
+                                <p id="totalEarnedApps" class="text-2xl font-bold text-gray-900">Not yet</p>
                             </div>
                         </div>
-                        <p class="text-xs text-gray-500">Automated applications earned</p>
+                        <p class="text-xs text-gray-500">Basic plan from 10 Premium friends</p>
                     </div>
                 </div>
 
@@ -271,14 +256,14 @@
                             <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 text-green-600 font-bold text-sm">3</div>
                             <div>
                                 <p class="font-medium text-gray-900">They subscribe</p>
-                                <p class="text-sm text-gray-500">Basic or Premium counts toward the 5</p>
+                                <p class="text-sm text-gray-500">Only Premium counts toward the 10</p>
                             </div>
                         </div>
                         <div class="flex items-start gap-3">
                             <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 text-amber-600 font-bold text-sm">4</div>
                             <div>
-                                <p class="font-medium text-gray-900">Earn 5 applications</p>
-                                <p class="text-sm text-gray-500">Every 5 paid friends adds 5 automated applications</p>
+                                <p class="font-medium text-gray-900">You move to Basic</p>
+                                <p class="text-sm text-gray-500">10 Premium friends unlock the Basic plan</p>
                             </div>
                         </div>
                     </div>
@@ -413,7 +398,7 @@
 
     <script src="/assets/js/inline-messages.js"></script>
     <script src="/assets/js/main.js"></script>
-    <script src="/assets/js/pages/referrals.js?v=2.0"></script>
+    <script src="/assets/js/pages/referrals.js?v=2.1"></script>
     <script src="/assets/js/components/navbar.js?v=1.6" defer></script>
 
     <script defer>

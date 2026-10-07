@@ -132,6 +132,11 @@
                     <span class="md:hidden">Apps</span>
                     <span class="hidden md:inline">Applications</span>
                 </button>
+                <button onclick="switchTab('review')" id="tab-review"
+                    class="tab-button border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 py-4 px-1 text-sm font-medium whitespace-nowrap">
+                    <span class="md:hidden">Review</span>
+                    <span class="hidden md:inline">In Review</span>
+                </button>
                 <button onclick="switchTab('responses')" id="tab-responses"
                     class="tab-button border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 py-4 px-1 text-sm font-medium whitespace-nowrap">
                     <span class="md:hidden">Responses</span>
@@ -156,6 +161,7 @@
         </div>
 
         <div id="content-applications" class="tab-content"></div>
+        <div id="content-review" class="tab-content hidden"></div>
 
         <!-- Responses Tab (New) -->
         <div id="content-responses" class="tab-content hidden"></div>
@@ -194,7 +200,7 @@
 
     <script src="/assets/js/main.js" defer></script>
     <script src="/assets/js/inline-messages.js" defer></script>
-    <script src="/assets/js/quick-apply.js" defer></script>
+    <script src="/assets/js/quick-apply.js?v=2" defer></script>
     <script src="/assets/js/generation.js" defer></script>
     <script src="/assets/js/progress-tracker.js" defer></script>
     <script src="/assets/js/components/ui/DocumentViewer.js" defer></script>
@@ -206,7 +212,7 @@
     <script src="/assets/js/components/EmailAnalysis.js" defer></script>
     <script src="/assets/js/components/JobModal.js?v=1.4" defer></script>
     <script src="/assets/js/components/JobCard.js?v=1.3" defer></script>
-    <script src="/assets/js/pages/applications.js?v=9" defer></script>
+    <script src="/assets/js/pages/applications.js?v=11" defer></script>
     <script src="/assets/js/components/navbar.js?v=1.6" defer></script>
 
     <script defer>

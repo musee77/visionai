@@ -14,6 +14,7 @@ from .common import TimeStampedModel, SoftDeleteModel, FileInfo, Priority
 class ApplicationStatus(str, Enum):
     DRAFT = "draft"
     PENDING = "pending"  # Used by automation service
+    AWAITING_REVIEW = "awaiting_review"
     SUBMITTED = "submitted"
     APPLIED = "applied"
     UNDER_REVIEW = "under_review"
@@ -361,6 +362,8 @@ class ApplicationResponse(BaseModel):
     tasks_count: int
     has_custom_cv: bool
     has_cover_letter: bool
+    match_score: Optional[float] = None
+    review_channel: Optional[str] = None
     last_activity: Optional[datetime]
     created_at: datetime
     updated_at: datetime

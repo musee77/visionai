@@ -239,7 +239,7 @@ async def get_auto_apply_stats(
     today_applications = await applications_collection.count_documents({
         "user_id": user_id,
         "auto_applied": True,
-        "status": {"$nin": ["failed"]},
+        "status": {"$nin": ["failed", "withdrawn", "awaiting_review"]},
         "created_at": {"$gte": today_start}
     })
     

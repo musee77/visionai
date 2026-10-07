@@ -251,7 +251,7 @@ class QuickApplyManager {
             const result = await response.json();
 
             if (result.success) {
-                this.showSuccess('Application sent successfully! Check your Gmail sent folder.');
+                this.showSuccess(result.message || 'Application is ready for review. Open Applications and choose In Review to send it.');
 
                 if (window.JobActions) {
                     window.JobActions.markAsApplied(this.currentJobId);

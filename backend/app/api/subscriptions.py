@@ -324,7 +324,7 @@ async def get_referral_stats_detailed(
         "active_referrals": active_referrals,
         "pending_referrals": pending_referrals,
         "total_rewards_earned": int(user.get("referral_auto_earned") or 0),
-        "pending_rewards": stats.get("next_reward_in", 5)
+        "pending_rewards": stats.get("next_reward_in", 10)
     }
 
 @router.get("/referral/list")
@@ -552,8 +552,9 @@ async def paystack_webhook(request: Request, db = Depends(get_database)):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid signature")
     
     try:
-        event = await request.json()
-    except:
+        import json
+        event = json.loads(payload)
+    except Exception:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON")
         
     event_type = event.get("event")
@@ -562,23 +563,54 @@ async def paystack_webhook(request: Request, db = Depends(get_database)):
     
     try:
         if event_type == "charge.success":
-            # Successful payment
             reference = event_data.get("reference")
+            metadata = event_data.get("metadata") or {}
+            user_id = metadata.get("user_id")
+            plan_id = metadata.get("plan_id")
             logger.info(f"Payment success for reference: {reference}")
-            # Can be used to activate subscription if not already active
+            if reference and user_id and plan_id:
+                service = SubscriptionService(db)
+                try:
+                    await service.create_subscription(str(user_id), str(plan_id), reference)
+                except ValueError as payment_error:
+                    logger.warning(f"Webhook could not activate {reference}: {payment_error}")
             
         elif event_type == "subscription.create":
-            # Subscription created
-            logger.info(f"Subscription created: {event_data.get('subscription_code')}")
+            code = event_data.get("subscription_code")
+            customer = (event_data.get("customer") or {}).get("customer_code")
+            logger.info(f"Subscription created: {code}")
+            if code and customer:
+                await db.subscriptions.update_one(
+                    {"paystack_customer_code": customer, "status": "active"},
+                    {"$set": {"paystack_subscription_code": code, "updated_at": datetime.utcnow()}}
+                )
             
         elif event_type == "subscription.disable":
-            # Subscription cancelled or expired
-            logger.info(f"Subscription disabled: {event_data.get('subscription_code')}")
-            # Find and update local subscription status if needed
+            code = event_data.get("subscription_code")
+            logger.info(f"Subscription disabled: {code}")
+            if code:
+                local = await db.subscriptions.find_one({"paystack_subscription_code": code})
+                if local:
+                    await db.subscriptions.update_one(
+                        {"_id": local["_id"]},
+                        {"$set": {
+                            "status": "cancelled",
+                            "cancelled_at": datetime.utcnow(),
+                            "updated_at": datetime.utcnow()
+                        }}
+                    )
+                    user_id = local.get("user_id")
+                    user_query = {"_id": ObjectId(str(user_id))} if ObjectId.is_valid(str(user_id)) else {"_id": user_id}
+                    await db.users.update_one(user_query, {"$set": {"subscription_tier": "free"}})
             
         elif event_type == "invoice.payment_failed":
-            # Payment failed
-            logger.info(f"Invoice payment failed")
+            code = event_data.get("subscription", {}).get("subscription_code") if isinstance(event_data.get("subscription"), dict) else None
+            logger.info(f"Invoice payment failed for {code}")
+            if code:
+                await db.subscriptions.update_one(
+                    {"paystack_subscription_code": code},
+                    {"$set": {"status": "past_due", "updated_at": datetime.utcnow()}}
+                )
         
         return {"status": "success"}
         

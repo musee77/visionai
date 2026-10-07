@@ -357,7 +357,7 @@ async def get_user_preferences(
 
 @router.put("/me/preferences", response_model=UserPreferences)
 async def update_user_preferences(
-    preferences_update: UserPreferences,
+    preferences_update: Dict[str, Any],
     current_user: Dict[str, Any] = Depends(get_current_active_user)
 ):
     """
@@ -365,11 +365,16 @@ async def update_user_preferences(
     """
     try:
         await track_api_usage("update_preferences", current_user)
-        
-        # Update preferences
+        allowed = set(getattr(UserPreferences, "model_fields", None) or UserPreferences.__fields__)
+        incoming = {key: value for key, value in preferences_update.items() if key in allowed}
+        existing = current_user.get("preferences") or {}
+        if not isinstance(existing, dict):
+            existing = {}
+        merged = UserPreferences(**{**existing, **incoming})
+
         success = await AuthService.update_user_profile(
             str(current_user["_id"]),
-            {"preferences": preferences_update.dict()}
+            {"preferences": merged.dict()}
         )
         
         if not success:
@@ -378,7 +383,7 @@ async def update_user_preferences(
                 detail="Failed to update preferences"
             )
         
-        return preferences_update
+        return merged
         
     except HTTPException:
         raise

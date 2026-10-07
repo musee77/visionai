@@ -9,6 +9,7 @@ const { FormDetector } = require('./automation/form-detector');
 const { SiteHandlerFactory } = require('./automation/site-handlers/factory');
 const { AuthHandler } = require('./automation/auth-handler');
 const { PageClassifier } = require('./automation/page-classifier');
+const { checkStatus } = require('./automation/status-checker');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -93,10 +94,18 @@ app.get('/api/automation/status/:session_id', authenticate, (req, res) => {
         session_id,
         status: session.status,
         filled_fields: session.filled_fields || [],
+        submitted: session.submitted === true,
         errors: session.errors || [],
         new_credentials: session.portal_credentials || null,
         verification_domain: session.portal_credentials?.domain || null
     });
+});
+
+app.post('/api/automation/check-status', authenticate, async (req, res) => {
+    const url = req.body && req.body.url;
+    if (!url) return res.status(400).json({ success: false, error: 'url is required' });
+    const result = await checkStatus(url);
+    res.json(result);
 });
 
 app.post('/api/automation/close/:session_id', authenticate, async (req, res) => {
@@ -232,17 +241,16 @@ async function performAutofill(session_id, url, autofillData, jobSource, page) {
                 filledFields.push(...result);
                 session.filled_fields = filledFields;
 
-                // Try to SUBMIT or Click NEXT
                 console.log('[Autofill] Attempting to submit/proceed to next page...');
                 const subBtn = activePage.locator('button[type="submit"], input[type="submit"], #submit_app, button:has-text("Submit application"), button:has-text("Submit")').first();
                 if (await subBtn.count() && await subBtn.isVisible().catch(() => false)) {
                     await subBtn.click();
+                    session.submitted = true;
                     await activePage.waitForTimeout(5000);
                     continue;
-                } else {
-                    console.log('[Autofill] No submit button found. Presuming completion.');
-                    break;
                 }
+                updateSessionStatus(session_id, 'error', 'The form was filled but the submit button was not found.');
+                return;
             }
 
             // 4. Default / Stuck
@@ -252,6 +260,10 @@ async function performAutofill(session_id, url, autofillData, jobSource, page) {
         }
 
         if (filledFields.length === 0) throw new Error('No form found or filled after multiple attempts.');
+        if (!session.submitted) {
+            updateSessionStatus(session_id, 'error', 'The form was filled but the submit button was not found.');
+            return;
+        }
 
         updateSessionStatus(session_id, 'completed', null, filledFields);
         await activePage.screenshot({ path: `/tmp/done-${session_id}.png` }).catch(() => { });

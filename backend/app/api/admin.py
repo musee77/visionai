@@ -556,3 +556,78 @@ async def list_all_referrals(
         "page": page,
         "pages": (total + limit - 1) 
     }
+
+
+class SystemSettingsUpdate(BaseModel):
+    maintenance_mode: bool = False
+    user_registration: bool = True
+    email_notifications: bool = True
+
+
+def _settings_view(document: Optional[dict]) -> dict:
+    document = document or {}
+    return {
+        "maintenance_mode": bool(document.get("maintenance_mode")),
+        "user_registration": document.get("user_registration", True) is not False,
+        "email_notifications": document.get("email_notifications", True) is not False,
+    }
+
+
+@router.get("/settings")
+async def get_system_settings(
+    current_admin = Depends(require_admin),
+    db = Depends(get_database)
+):
+    document = await db.app_settings.find_one({"_id": "system"})
+    return _settings_view(document)
+
+
+@router.put("/settings")
+async def update_system_settings(
+    update: SystemSettingsUpdate,
+    current_admin = Depends(require_admin),
+    db = Depends(get_database)
+):
+    stored = {
+        "maintenance_mode": update.maintenance_mode,
+        "user_registration": update.user_registration,
+        "email_notifications": update.email_notifications,
+        "updated_at": datetime.utcnow(),
+    }
+    await db.app_settings.update_one({"_id": "system"}, {"$set": stored}, upsert=True)
+    return _settings_view(stored)
+
+
+@router.get("/support-tickets")
+async def list_support_tickets(
+    current_admin = Depends(require_admin),
+    db = Depends(get_database)
+):
+    tickets = await db.support_tickets.find({}).sort("created_at", -1).to_list(length=200)
+    for ticket in tickets:
+        ticket["id"] = str(ticket.pop("_id"))
+    return {"tickets": tickets}
+
+
+class TicketStatusUpdate(BaseModel):
+    status: str
+
+
+@router.patch("/support-tickets/{ticket_id}")
+async def update_support_ticket(
+    ticket_id: str,
+    update: TicketStatusUpdate,
+    current_admin = Depends(require_admin),
+    db = Depends(get_database)
+):
+    if update.status not in ("open", "resolved"):
+        raise HTTPException(status_code=400, detail="Status must be open or resolved")
+    if not ObjectId.is_valid(ticket_id):
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    result = await db.support_tickets.update_one(
+        {"_id": ObjectId(ticket_id)},
+        {"$set": {"status": update.status, "updated_at": datetime.utcnow()}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    return {"success": True, "status": update.status}

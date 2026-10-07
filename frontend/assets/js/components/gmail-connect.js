@@ -27,12 +27,7 @@ class GmailConnect {
                 }
             }
 
-            // Verify Premium Access + Connection Status
-            const hasPremiumAccess = (typeof PremiumGuard !== 'undefined')
-                ? PremiumGuard.hasAccess('GMAIL_CONNECT')
-                : true;
-
-            if (user && user.gmail_connected && hasPremiumAccess) {
+            if (user && user.gmail_connected) {
                 this.renderConnected(user);
             } else {
                 this.renderConnect();
@@ -80,9 +75,6 @@ class GmailConnect {
                         </div>
                     </div>
                     <div class="flex items-center gap-3">
-                        <div id="freeSimulateContainer">
-                            <div class="h-10 w-24 bg-gray-200 rounded-lg animate-pulse"></div>
-                        </div>
                         <button id="btnConnectGmail" class="btn-gradient text-white px-6 py-2.5 rounded-lg font-medium shadow-sm hover:shadow transition-all flex items-center gap-2">
                              <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd" />
@@ -95,27 +87,7 @@ class GmailConnect {
         `;
 
         const connectBtn = this.container.querySelector('#btnConnectGmail');
-        const connectLabel = this.container.querySelector('#gmailConnectLabel');
-        if (connectLabel && window.PremiumGuard && !PremiumGuard.hasAccess('GMAIL_CONNECT')) {
-            connectLabel.textContent = 'Upgrade to Connect Gmail';
-        }
         connectBtn.addEventListener('click', () => this.connect());
-
-        // Initialize RunTestButton for free users (component handles tier limits)
-        if (typeof RunTestButton !== 'undefined') {
-            const freeTestBtn = new RunTestButton({
-                containerId: 'freeSimulateContainer',
-                apiUrl: `${this.apiUrl}/api/v1/auto-apply`,
-                label: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>Simulate</span>`,
-                styleClass: 'flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg border border-gray-200 transition-colors font-medium text-sm',
-                onComplete: (data) => {
-                    if (data.applications_sent > 0) {
-                        CVision.Utils.showAlert(`Simulation complete! ${data.applications_sent} applications would be sent.`, 'success');
-                    }
-                }
-            });
-            freeTestBtn.init();
-        }
     }
 
     renderConnected(user) {
@@ -142,20 +114,7 @@ class GmailConnect {
                     </div>
                     
                     <div class="flex flex-wrap items-center justify-end gap-4 w-full xl:w-auto">
-                        <div class="h-8 w-px bg-gray-200 hidden xl:block"></div>
-                        
-                        <div class="flex items-center gap-3">
-                            <button id="quickRunTestBtn" class="flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg border border-gray-200 transition-colors font-medium text-sm">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                Simulate
-                            </button>
-                            
-                            <div id="dashboardAutoApplyContainer" class="flex items-center justify-end" style="min-height: 40px;">
-                                <!-- Button injected here -->
-                            </div>
+                        <div id="dashboardAutoApplyContainer" class="flex items-center justify-end" style="min-height: 40px;">
                         </div>
                     </div>
                 </div>
@@ -174,41 +133,9 @@ class GmailConnect {
             });
             autoApplyBtn.init();
         }
-
-        // Initialize Quick RunTestButton
-        if (typeof RunTestButton !== 'undefined') {
-            const quickTestBtn = new RunTestButton({
-                buttonId: 'quickRunTestBtn',
-                apiUrl: `${this.apiUrl}/api/v1/auto-apply`,
-                onStart: () => {
-                    CVision.Utils.showAlert('Test run started in background...', 'info');
-                },
-                onProgress: (data) => { },
-                onComplete: (data) => {
-                    if (data.applications_sent > 0) {
-                        CVision.Utils.showAlert(`Success! ${data.applications_sent} applications sent.`, 'success');
-                    }
-                    if (window.loadAutomationStatus) window.loadAutomationStatus();
-                },
-                onError: (error) => {
-                    CVision.Utils.showAlert(`Test Failed: ${error.message}`, 'error');
-                }
-            });
-            quickTestBtn.init();
-        }
     }
 
     async connect() {
-        // Enforce Premium Access
-        if (typeof PremiumGuard !== 'undefined') {
-            const allowed = PremiumGuard.enforce(
-                'GMAIL_CONNECT',
-                'Premium Feature: Email Agent',
-                'Connecting your Gmail requires a Premium subscription. Upgrade to automate your email applications!'
-            );
-            if (!allowed) return;
-        }
-
         try {
             const response = await fetch(`${this.apiUrl}/api/v1/auth/gmail/connect`, {
                 headers: {
