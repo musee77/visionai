@@ -33,6 +33,110 @@ class EmailAgentService:
     """
     
     @staticmethod
+    def profile_facts(user: Dict[str, Any]) -> Dict[str, str]:
+        """Facts that should come from the profile, not from an AI rewrite."""
+        profile = (user or {}).get("profile") or {}
+        personal = profile.get("personal_info") or {}
+        location_prefs = profile.get("location_preferences") or {}
+        country = personal.get("country") or ""
+        pref_country = location_prefs.get("country")
+        if not country and isinstance(pref_country, dict):
+            country = pref_country.get("name") or ""
+        elif not country and isinstance(pref_country, str):
+            country = pref_country
+        city = (personal.get("city") or location_prefs.get("city") or "").strip()
+        state = (personal.get("state") or location_prefs.get("state") or "").strip()
+        if not city:
+            location_text = (personal.get("location") or "").strip()
+            location_parts = [part.strip() for part in location_text.split(",") if part.strip()]
+            if location_parts:
+                city = location_parts[0]
+            if len(location_parts) > 1 and not state:
+                state = location_parts[1]
+        first_name = (personal.get("first_name") or user.get("first_name") or "").strip()
+        last_name = (personal.get("last_name") or user.get("last_name") or "").strip()
+        if not first_name and not last_name:
+            full_name = (user.get("full_name") or personal.get("name") or "").strip()
+            parts = [part for part in full_name.split() if part]
+            if parts:
+                first_name = parts[0]
+                last_name = " ".join(parts[1:])
+        linkedin = personal.get("linkedin") or personal.get("linkedin_url") or ""
+        github = personal.get("github") or personal.get("github_url") or ""
+        portfolio = personal.get("portfolio") or personal.get("portfolio_url") or ""
+        location = personal.get("location") or ", ".join(part for part in (city, state, country) if part)
+        return {
+            "first_name": first_name,
+            "last_name": last_name,
+            "name": " ".join(part for part in (first_name, last_name) if part),
+            "email": user.get("email") or "",
+            "phone": personal.get("phone") or user.get("phone") or "",
+            "address": personal.get("address") or "",
+            "city": city,
+            "state": state,
+            "country": country if isinstance(country, str) else "",
+            "postal_code": personal.get("postal_code") or "",
+            "location": location,
+            "linkedin": linkedin,
+            "linkedin_url": linkedin,
+            "github": github,
+            "github_url": github,
+            "portfolio": portfolio,
+            "portfolio_url": portfolio,
+        }
+
+    @staticmethod
+    async def cover_text_for_job(cv_data: Dict[str, Any], job: Dict[str, Any]) -> str:
+        """AI text for a cover letter or other open-ended application answer."""
+        try:
+            from app.services.documents.cover_letter_service import cover_letter_service
+            result = await cover_letter_service.generate_cover_letter(
+                cv_data=cv_data or {},
+                job_data={
+                    "title": job.get("title", ""),
+                    "company_name": job.get("company_name") or job.get("company") or "",
+                    "description": (job.get("description") or "")[:4000],
+                    "requirements": job.get("requirements") or [],
+                },
+                tone="professional",
+            )
+            letter = (result or {}).get("cover_letter") or {}
+            text = (letter.get("content") or {}).get("full_text") or ""
+            if text.strip():
+                return text.strip()
+        except Exception as error:
+            logger.warning(f"Cover letter generation failed: {error}")
+        name = ((cv_data or {}).get("personal_info") or {}).get("name") or "Applicant"
+        title = job.get("title") or "this role"
+        company = job.get("company_name") or job.get("company") or "your team"
+        return f"Dear hiring team,\n\nI am applying for the {title} role at {company}.\n\nThank you,\n{name}"
+
+    @staticmethod
+    async def answer_open_question(user: Dict[str, Any], job: Dict[str, Any], question: str, cv_data: Optional[Dict] = None) -> str:
+        facts = EmailAgentService.profile_facts(user)
+        prompt = (
+            "Answer this job application question in 2 to 4 sentences. "
+            "Use the profile facts as given. Do not invent a different name, phone, email, or location.\n\n"
+            f"Name: {facts['name']}\nLocation: {facts['location']}\n"
+            f"Role: {job.get('title') or ''}\nCompany: {job.get('company_name') or job.get('company') or ''}\n"
+            f"Job description: {(job.get('description') or '')[:1500]}\n"
+            f"Question: {question}"
+        )
+        try:
+            answer = await openai_client.chat_completion(
+                messages=[
+                    {"role": "system", "content": "You write short, specific answers for job application forms."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.4,
+                max_tokens=220,
+            )
+            if isinstance(answer, str) and answer.strip():
+                return answer.strip()
+        except Exception as error:
+            logger.warning(f"Open question answer failed: {error}")
+        return await EmailAgentService.cover_text_for_job(cv_data or {}, job)
+
     @staticmethod
     async def extract_form_data_from_cv(user_id: str, cv_data: Optional[Dict] = None, db = None) -> Dict[str, Any]:
         """
@@ -74,113 +178,42 @@ class EmailAgentService:
                 else:
                     logger.warning(f"No CV document found for user {user_id}")
             
-            # Extract personal info from CV or user profile
             personal_info = cv_data.get("personal_info", {}) if cv_data else {}
             profile = user.get("profile", {}) or {}
-            profile_personal = profile.get("personal_info", {}) if profile else {}
-            
-            logger.debug(f"CV personal_info: {personal_info}")
-            logger.debug(f"Profile personal_info: {profile_personal}")
-            
-            # Extract name - OpenAI returns "name" field, not first_name/last_name
-            cv_name = personal_info.get("name", "")
-            
-            # Try to split CV name into first/last
-            first_name = ""
-            last_name = ""
-            
-            if cv_name:
-                name_parts = cv_name.strip().split()
+            facts = EmailAgentService.profile_facts(user)
+            first_name = facts["first_name"]
+            last_name = facts["last_name"]
+            if not first_name and not last_name:
+                cv_name = (personal_info.get("name") or "").strip()
+                name_parts = cv_name.split()
                 if len(name_parts) >= 2:
                     first_name = name_parts[0]
                     last_name = " ".join(name_parts[1:])
-                elif len(name_parts) == 1:
+                elif name_parts:
                     first_name = name_parts[0]
-                logger.info(f"Extracted name from CV: {first_name} {last_name}")
-            
-            # Fallback to profile or user fields
-            if not first_name and not last_name:
-                first_name = (
-                    profile_personal.get("first_name") or 
-                    user.get("first_name", "")
-                )
-                last_name = (
-                    profile_personal.get("last_name") or 
-                    user.get("last_name", "")
-                )
-            
-            # If still empty, try to extract from full_name
-            if not first_name and not last_name:
-                full_name = user.get("full_name", "")
-                if full_name:
-                    name_parts = full_name.strip().split()
-                    if len(name_parts) >= 2:
-                        first_name = name_parts[0]
-                        last_name = " ".join(name_parts[1:])
-                    elif len(name_parts) == 1:
-                        first_name = name_parts[0]
-                    logger.info(f"Extracted name from full_name: {first_name} {last_name}")
-            
-            # If still empty, try to extract from email
-            if not first_name and not last_name:
-                email = user.get("email", "")
-                if email and "@" in email:
-                    email_name = email.split("@")[0]
-                    # Try to split common email patterns like firstname.lastname or firstname_lastname
-                    if "." in email_name:
-                        parts = email_name.split(".")
-                        first_name = parts[0].capitalize()
-                        last_name = parts[1].capitalize() if len(parts) > 1 else ""
-                    elif "_" in email_name:
-                        parts = email_name.split("_")
-                        first_name = parts[0].capitalize()
-                        last_name = parts[1].capitalize() if len(parts) > 1 else ""
-                    else:
-                        first_name = email_name.capitalize()
-                    logger.info(f"Extracted name from email: {first_name} {last_name}")
-            
-            # Extract location - OpenAI returns "location" field like "City, State/Country"
-            cv_location = personal_info.get("location", "")
-            city = ""
-            state = ""
-            
-            if cv_location:
-                # Try to parse location like "San Francisco, CA" or "New York, NY, USA"
-                location_parts = [p.strip() for p in cv_location.split(",")]
-                if len(location_parts) >= 2:
+            city = facts["city"]
+            state = facts["state"]
+            if not city:
+                cv_location = personal_info.get("location") or ""
+                location_parts = [part.strip() for part in cv_location.split(",") if part.strip()]
+                if location_parts:
                     city = location_parts[0]
+                if len(location_parts) >= 2 and not state:
                     state = location_parts[1]
-                elif len(location_parts) == 1:
-                    city = location_parts[0]
-                logger.info(f"Extracted location from CV: city={city}, state={state}")
-            
-            # Build form data with fallbacks
+
             form_data = {
                 "first_name": first_name,
                 "last_name": last_name,
-                "email": user.get("email", ""),
-                "phone": (
-                    personal_info.get("phone") or 
-                    profile_personal.get("phone") or 
-                    user.get("phone", "")
-                ),
-                "address": profile_personal.get("address", ""),  # Not in OpenAI output
-                "city": city or profile_personal.get("city", ""),
-                "state": state or profile_personal.get("state", ""),
-                "country": profile_personal.get("country", ""),  # Not in OpenAI output
-                "postal_code": profile_personal.get("postal_code", ""),  # Not in OpenAI output
-                "linkedin_url": (
-                    personal_info.get("linkedin") or  # OpenAI uses "linkedin" not "linkedin_url"
-                    profile_personal.get("linkedin_url", "")
-                ),
-                "portfolio_url": (
-                    personal_info.get("portfolio") or  # OpenAI uses "portfolio" not "portfolio_url"
-                    profile_personal.get("portfolio_url", "")
-                ),
-                "github_url": (
-                    personal_info.get("github") or  # OpenAI uses "github" not "github_url"
-                    profile_personal.get("github_url", "")
-                ),
+                "email": facts["email"],
+                "phone": facts["phone"] or personal_info.get("phone") or "",
+                "address": facts["address"],
+                "city": city,
+                "state": state,
+                "country": facts["country"],
+                "postal_code": facts["postal_code"],
+                "linkedin_url": facts["linkedin_url"] or personal_info.get("linkedin") or "",
+                "portfolio_url": facts["portfolio_url"] or personal_info.get("portfolio") or "",
+                "github_url": facts["github_url"] or personal_info.get("github") or "",
             }
             
             # Add experience summary if available

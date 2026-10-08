@@ -99,7 +99,7 @@ class JobModalComponent {
                     <button id="modalCustomize" class="flex-1 w-full sm:w-auto px-6 py-3 rounded-xl border-2 border-primary-100 bg-white text-primary-700 font-extrabold hover:bg-primary-50 transition-all flex items-center justify-center gap-2">
                         Customize Documents
                     </button>
-                    <button id="modalApply" class="flex-[1.5] w-full sm:w-auto px-8 py-3 rounded-xl bg-primary-600 text-white font-extrabold shadow-lg shadow-primary-200 hover:bg-primary-700 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2">
+                    <button id="modalApply" class="flex-[1.5] w-full sm:w-auto px-8 py-3 rounded-xl btn-gradient text-white font-extrabold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff;">
                         Apply
                     </button>
                 </div>
@@ -486,15 +486,18 @@ class JobModalComponent {
                 applyBtn.disabled = true;
                 applyBtn.innerHTML = `<svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Already Applied`;
                 applyBtn.className = 'flex-[1.5] w-full sm:w-auto px-8 py-3 rounded-xl bg-emerald-100 text-emerald-700 font-extrabold border-2 border-emerald-200 opacity-80 cursor-not-allowed flex items-center justify-center gap-2';
+                applyBtn.style.background = '';
+                applyBtn.style.color = '';
             } else {
                 applyBtn.disabled = false;
                 applyBtn.innerHTML = `<svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg> Apply`;
-                applyBtn.className = 'flex-[1.5] w-full sm:w-auto px-8 py-3 rounded-xl bg-primary-600 text-white font-extrabold shadow-lg shadow-primary-200 hover:bg-primary-700 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2';
+                applyBtn.className = 'flex-[1.5] w-full sm:w-auto px-8 py-3 rounded-xl btn-gradient text-white font-extrabold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2';
+                applyBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                applyBtn.style.color = '#ffffff';
                 applyBtn.onclick = (e) => {
                     e.stopPropagation();
-                    const companyUrl = job.application_url || originalUrl;
-                    if (window.JobApply?.applyByOpeningLink) window.JobApply.applyByOpeningLink(jobId, companyUrl);
-                    else if (companyUrl) window.open(companyUrl, '_blank', 'noopener,noreferrer');
+                    if (window.JobModal && window.JobModal.hide) window.JobModal.hide();
+                    if (window.JobApply && window.JobApply.openApplyModal) window.JobApply.openApplyModal(jobId, job);
                 };
             }
         }

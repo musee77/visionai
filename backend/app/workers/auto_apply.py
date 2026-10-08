@@ -317,6 +317,12 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
         if tier != "premium" and bonus_left <= 0:
             stats["reason"] = "Auto-apply is included on Premium."
             return {"success": True, "applications_sent": 0, "message": stats["reason"], "stats": stats}
+
+        from app.api.auto_apply import profile_gaps
+        missing_profile = profile_gaps(user)
+        if missing_profile:
+            stats["reason"] = "Complete your profile before auto-apply can run. Still needed: " + ", ".join(missing_profile) + "."
+            return {"success": True, "applications_sent": 0, "message": stats["reason"], "stats": stats}
         
         # DEBUG: Inspect user object structure
         logger.info(f"DEBUG: Processing user {user_id}")

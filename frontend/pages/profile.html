@@ -58,6 +58,84 @@
         <!-- Alert Container -->
         <div id="alerts" class="mb-4 sm:mb-6"></div>
 
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-8 mb-8 overflow-hidden relative">
+            <div class="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full -translate-y-32 translate-x-32 opacity-50"></div>
+            <div class="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-green-100 to-blue-100 rounded-full translate-y-24 -translate-x-24 opacity-50"></div>
+            <div class="relative">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-900">Your Profile Journey</h2>
+                        <p class="text-gray-600 mt-1">Finish every field to turn on auto-apply</p>
+                    </div>
+                    <div class="hidden md:flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-full text-sm font-medium">
+                        <span id="profileFieldsDone">0</span>
+                        <span>of 6 complete</span>
+                    </div>
+                </div>
+                <div class="mb-8">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-sm font-medium text-gray-600">Profile completeness</span>
+                        <span id="profileProgressText" class="text-sm font-bold text-purple-600">0 / 6 fields</span>
+                    </div>
+                    <div class="relative h-4 bg-gray-100 rounded-full overflow-hidden">
+                        <div id="profileProgressBar" class="absolute left-0 top-0 h-full bg-gradient-to-r from-purple-500 via-blue-500 to-purple-600 rounded-full transition-all duration-1000 ease-out" style="width: 0%"></div>
+                    </div>
+                    <div class="flex flex-wrap justify-between gap-2 mt-4 text-xs text-gray-500" id="profileFieldMarkers"></div>
+                    <p id="profileCompleteNote" class="hidden mt-3 text-sm text-purple-700">Your profile is complete. You can turn on auto-apply.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl p-4 border border-purple-100">
+                        <p class="text-sm font-medium text-gray-600">Fields left</p>
+                        <p id="profileFieldsLeft" class="text-2xl font-bold text-gray-900">6</p>
+                        <p class="text-xs text-gray-500 mt-2">Until your profile is complete</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
+                        <p class="text-sm font-medium text-gray-600">Next unlock</p>
+                        <p class="text-2xl font-bold text-gray-900">Auto-apply</p>
+                        <p class="text-xs text-gray-500 mt-2">Available when the profile is at 100%</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100">
+                        <p class="text-sm font-medium text-gray-600">Status</p>
+                        <p id="profileJourneyStatus" class="text-2xl font-bold text-gray-900">Not yet</p>
+                        <p class="text-xs text-gray-500 mt-2">Complete the fields below</p>
+                    </div>
+                </div>
+                <div class="border-t border-gray-100 pt-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">How it works</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 text-blue-600 font-bold text-sm">1</div>
+                            <div>
+                                <p class="font-medium text-gray-900">Add your name</p>
+                                <p class="text-sm text-gray-500">Use your full name on the profile</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0 text-purple-600 font-bold text-sm">2</div>
+                            <div>
+                                <p class="font-medium text-gray-900">Add contact details</p>
+                                <p class="text-sm text-gray-500">Phone, job location, and country. Street address is optional</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 text-green-600 font-bold text-sm">3</div>
+                            <div>
+                                <p class="font-medium text-gray-900">Add LinkedIn</p>
+                                <p class="text-sm text-gray-500">Paste your LinkedIn profile link</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 text-amber-600 font-bold text-sm">4</div>
+                            <div>
+                                <p class="font-medium text-gray-900">Turn on auto-apply</p>
+                                <p class="text-sm text-gray-500">The switch unlocks at 100%</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="grid lg:grid-cols-3 gap-6 sm:gap-8">
             <!-- Left Column - Profile Info -->
             <div class="lg:col-span-1 space-y-6">
@@ -178,7 +256,7 @@
             <!-- Right Column - Settings & Preferences -->
             <div class="lg:col-span-2 space-y-6">
                 <!-- Personal Information -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div id="personal" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                     <h3 class="text-lg font-semibold text-gray-900 mb-6">Personal Information</h3>
                     <form id="personalInfoForm" class="space-y-4">
                         <div class="grid md:grid-cols-2 gap-4">
@@ -215,6 +293,13 @@
                                     placeholder="Used to filter jobs" readonly>
                                 <p class="text-xs text-gray-500 mt-2">This location filters jobs. Plan prices stay in USD.</p>
                             </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Street address <span class="text-gray-400 font-normal">Optional</span></label>
+                            <input type="text" id="streetAddress"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                placeholder="123 Main Street">
                         </div>
 
                         <div>
@@ -417,14 +502,14 @@
     <script src="/assets/js/components/premium-guard.js?v=1.2" defer></script>
     <script src="/assets/js/utils/cv-loader.js?v=1.0" defer></script>
     <script src="/assets/js/components/cv-uploader.js?v=2.3" defer></script>
-    <script src="/assets/js/components/auto-apply-button.js?v=1.9" defer></script>
+    <script src="/assets/js/components/auto-apply-button.js?v=2.1" defer></script>
     <script src="../assets/js/pages/auto-apply.js?v=2.2" defer></script>
     <script src="../assets/js/utils/geolocation.js" defer></script>
     <script src="../assets/js/components/change-password-modal.js" defer></script>
     <script src="../assets/js/components/delete-account-modal.js" defer></script>
     <script src="../assets/js/main.js" defer></script>
     <script src="../assets/js/generation.js" defer></script>
-    <script src="../assets/js/pages/profile.js?v=5" defer></script>
+    <script src="../assets/js/pages/profile.js?v=7" defer></script>
     <script src="../assets/js/components/navbar.js?v=1.6" defer></script>
 
     <script>

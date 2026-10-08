@@ -37,6 +37,39 @@ class AutoApplySettingsUpdate(BaseModel):
     min_match_score: Optional[float] = Field(default=None, ge=0.5, le=0.9)
 
 
+def profile_gaps(user: dict) -> list:
+    """Personal information fields that must be filled before auto-apply."""
+    profile = (user or {}).get("profile") or {}
+    personal = profile.get("personal_info") or {}
+    location_prefs = profile.get("location_preferences") or {}
+    first_name = (personal.get("first_name") or user.get("first_name") or "").strip()
+    last_name = (personal.get("last_name") or user.get("last_name") or "").strip()
+    full_name = (user.get("full_name") or f"{first_name} {last_name}").strip()
+    country = personal.get("country") or ""
+    pref_country = location_prefs.get("country")
+    if not country and isinstance(pref_country, dict):
+        country = pref_country.get("name") or ""
+    elif not country and isinstance(pref_country, str):
+        country = pref_country
+    city = (personal.get("city") or personal.get("location") or location_prefs.get("city") or "").strip()
+    phone = (personal.get("phone") or user.get("phone") or "").strip()
+    linkedin = (personal.get("linkedin") or personal.get("linkedin_url") or "").strip()
+    missing = []
+    if not (first_name and last_name) and len(full_name.split()) < 2:
+        missing.append("full name")
+    if not (user.get("email") or "").strip():
+        missing.append("email")
+    if not phone:
+        missing.append("phone")
+    if not city:
+        missing.append("job location")
+    if not str(country).strip():
+        missing.append("country")
+    if not linkedin:
+        missing.append("LinkedIn profile")
+    return missing
+
+
 def require_premium(user: dict) -> bool:
     """Auto-apply is included with Premium, or with unused referral applications."""
     subscription_tier = user.get("subscription_tier", "free")
@@ -58,9 +91,12 @@ async def get_auto_apply_status(
     Get auto-apply status and settings for current user
     """
     preferences = current_user.get("preferences", {})
+    missing = profile_gaps(current_user)
     
     return {
         "enabled": preferences.get("auto_apply_enabled", False),
+        "profile_complete": not missing,
+        "missing_fields": missing,
         "max_daily_applications": preferences.get("max_daily_applications", 5),
         "min_match_score": preferences.get("min_match_score", 0.7),
         "subscription_tier": current_user.get("subscription_tier", "free"),
@@ -78,6 +114,12 @@ async def enable_auto_apply(
     Enable auto-apply for current user (paid automated plan only)
     """
     require_premium(current_user)
+    missing = profile_gaps(current_user)
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Complete your profile to 100% before turning on auto-apply. Still needed: " + ", ".join(missing) + "."
+        )
 
     max_daily_applications = settings.max_daily_applications
     min_match_score = settings.min_match_score

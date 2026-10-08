@@ -54,9 +54,8 @@ const GenerationModule = (() => {
                 </div>
                 
                 <div class="space-y-3">
-                    ${data.cv_document_id && data.cv_pdf_url ? `
-                        <a href="${API_BASE_URL}${data.cv_pdf_url}" 
-                        download
+                    ${data.cv_pdf_url ? `
+                        <button type="button" onclick="GenerationModule.downloadFile('${data.cv_pdf_url}', 'Customized-CV.pdf')"
                         class="flex items-center justify-between w-full px-4 py-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
                             <div class="flex items-center gap-3">
                                 <span class="text-2xl">📄</span>
@@ -68,12 +67,11 @@ const GenerationModule = (() => {
                             <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                             </svg>
-                        </a>
+                        </button>
                     ` : ''}
                     
-                    ${data.cover_letter_id && data.cover_letter_pdf_url ? `
-                        <a href="${API_BASE_URL}${data.cover_letter_pdf_url}" 
-                        download
+                    ${data.cover_letter_pdf_url ? `
+                        <button type="button" onclick="GenerationModule.downloadFile('${data.cover_letter_pdf_url}', 'Cover-Letter.pdf')"
                         class="flex items-center justify-between w-full px-4 py-3 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
                             <div class="flex items-center gap-3">
                                 <span class="text-2xl">✉️</span>
@@ -85,7 +83,7 @@ const GenerationModule = (() => {
                             <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                             </svg>
-                        </a>
+                        </button>
                     ` : ''}
                 </div>
 
@@ -255,11 +253,20 @@ const GenerationModule = (() => {
         }
     };
 
+    const downloadFile = (url, filename) => {
+        if (window.DocumentViewer) {
+            return window.DocumentViewer.downloadDocument(url, filename);
+        }
+        const full = String(url).startsWith('http') ? url : `${API_BASE_URL}${String(url).startsWith('/') ? '' : '/'}${url}`;
+        window.open(full, '_blank', 'noopener,noreferrer');
+    };
+
     // Return public API
     return {
         customizeForJob,
         batchCustomize,
         showGenerationModal,
+        downloadFile,
         closeModal
     };
 })();

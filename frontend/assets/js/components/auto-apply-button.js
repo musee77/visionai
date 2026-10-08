@@ -32,13 +32,25 @@ class AutoApplyButton {
         const label = locked ? 'Upgrade to Auto-Apply' : (this.label || '');
 
         container.innerHTML = `
-            <div class="flex items-center gap-3">
-                ${label ? `<span class="${this.textColor} font-medium whitespace-nowrap">${label}</span>` : ''}
-                <div class="aa-toggle-component relative w-[60px] h-[30px] ${switchBg} rounded-full cursor-pointer transition-all duration-300" id="${this.containerId}-switch" role="switch" aria-checked="${this.isEnabled ? 'true' : 'false'}" aria-label="${label || 'Automated applications'}">
-                    <div class="aa-toggle-slider absolute top-[3px] left-[3px] w-[24px] h-[24px] bg-white rounded-full transition-all duration-300 shadow-sm" style="transform: ${this.isEnabled ? 'translateX(30px)' : 'translateX(0)'}" id="${this.containerId}-slider"></div>
+            <div class="flex flex-col items-end gap-2">
+                <div class="flex items-center gap-3">
+                    ${label ? `<span class="${this.textColor} font-medium whitespace-nowrap">${label}</span>` : ''}
+                    <div class="aa-toggle-component relative w-[60px] h-[30px] ${switchBg} rounded-full cursor-pointer transition-all duration-300" id="${this.containerId}-switch" role="switch" aria-checked="${this.isEnabled ? 'true' : 'false'}" aria-label="${label || 'Automated applications'}">
+                        <div class="aa-toggle-slider absolute top-[3px] left-[3px] w-[24px] h-[24px] bg-white rounded-full transition-all duration-300 shadow-sm" style="transform: ${this.isEnabled ? 'translateX(30px)' : 'translateX(0)'}" id="${this.containerId}-slider"></div>
+                    </div>
                 </div>
+                ${this.profileNotice()}
             </div>
         `;
+    }
+
+    profileNotice() {
+        if (!this.settings || this.settings.profile_complete !== false) return '';
+        const missing = (this.settings.missing_fields || []).join(', ');
+        const onProfile = window.location.pathname.includes('profile');
+        const href = onProfile ? '#personal' : '/pages/profile.html#personal';
+        const needed = missing ? ` Still needed: ${missing}.` : '';
+        return `<p class="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 max-w-xs text-left">Complete your profile before turning on auto-apply.${needed} <a href="${href}" class="font-semibold underline">Complete profile</a></p>`;
     }
 
     async fetchState() {
@@ -76,6 +88,17 @@ class AutoApplyButton {
                     return;
                 }
             }
+            const missing = (this.settings && this.settings.missing_fields) || [];
+            if (this.settings && this.settings.profile_complete === false) {
+                const needed = missing.length ? missing.join(', ') : 'the remaining profile fields';
+                const message = `Complete your profile before turning on auto-apply. Still needed: ${needed}.`;
+                if (window.CVision && window.CVision.Utils) {
+                    CVision.Utils.showAlert(message, 'warning');
+                } else {
+                    alert(message);
+                }
+                return;
+            }
         }
 
         this.isProcessing = true;
@@ -104,13 +127,23 @@ class AutoApplyButton {
                 body: JSON.stringify(body)
             });
 
-            if (!response.ok) throw new Error('Failed to update status');
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                const detail = data.detail;
+                const message = typeof detail === 'string' ? detail : 'Failed to update status';
+                throw new Error(message);
+            }
 
             // CVision.Utils.showAlert(newState ? 'Auto-apply enabled!' : 'Auto-apply disabled', 'success');
 
         } catch (error) {
             console.error('Error toggling auto-apply:', error);
-            CVision.Utils.showAlert('Error updating auto-apply status', 'error');
+            const message = error.message || 'Error updating auto-apply status';
+            if (window.CVision && window.CVision.Utils) {
+                CVision.Utils.showAlert(message, 'error');
+            } else {
+                alert(message);
+            }
 
             // Revert state on error
             this.isEnabled = !newState;

@@ -4,7 +4,7 @@ Quick Apply / Email Agent API
 Handles intelligent form prefilling and email-based application submission
 """
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Header
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
 import logging
@@ -31,6 +31,39 @@ class BrowserAutomationStart(BaseModel):
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+class OpenAnswerRequest(BaseModel):
+    user_id: str
+    job_id: str
+    question: str
+
+
+@router.post("/open-answer")
+async def answer_open_question(
+    body: OpenAnswerRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """Answer an open-ended application question. Used by the browser filler."""
+    from app.core.config import settings
+    token = (authorization or "").replace("Bearer ", "", 1).strip()
+    if token != settings.BROWSER_AUTOMATION_TOKEN:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    db = await get_database()
+    user = None
+    if ObjectId.is_valid(body.user_id):
+        user = await db.users.find_one({"_id": ObjectId(body.user_id)})
+    job = await db.jobs.find_one({"_id": ObjectId(body.job_id)}) if ObjectId.is_valid(body.job_id) else None
+    if not user or not job:
+        raise HTTPException(status_code=404, detail="User or job not found")
+    cv_doc = await db.documents.find_one(
+        {"user_id": body.user_id, "document_type": "cv"},
+        sort=[("created_at", -1)]
+    )
+    answer = await email_agent_service.answer_open_question(
+        user, job, body.question, (cv_doc or {}).get("cv_data") or {}
+    )
+    return {"answer": answer}
 
 
 def get_user_id(user: dict) -> str:
@@ -96,6 +129,35 @@ async def prefill_quick_apply_form(
                     logger.warning(f"Invalid generated_cover_letter_id format: {gen_cl_id}")
         except Exception as e:
             logger.warning(f"Failed to lookup generated cover letter: {e}")
+
+        if not form_data.get("cover_letter"):
+            try:
+                cv_doc = await db.documents.find_one(
+                    {"user_id": user_id, "document_type": "cv"},
+                    sort=[("created_at", -1)]
+                )
+                form_data["cover_letter"] = await email_agent_service.cover_text_for_job(
+                    (cv_doc or {}).get("cv_data") or {},
+                    job,
+                )
+            except Exception as cover_error:
+                logger.warning(f"Cover letter prefill skipped: {cover_error}")
+
+        skills = form_data.get("skills")
+        if isinstance(skills, list):
+            form_data["skills"] = [str(skill) for skill in skills if skill]
+        else:
+            form_data["skills"] = []
+        years = form_data.get("years_of_experience")
+        if years is not None:
+            try:
+                form_data["years_of_experience"] = int(years)
+            except (TypeError, ValueError):
+                form_data.pop("years_of_experience", None)
+        phone = form_data.get("phone") or ""
+        form_data["phone"] = phone[:20] or None
+        if not form_data.get("email"):
+            form_data["email"] = current_user.get("email") or ""
 
         logger.info(f"Extracted form data keys: {list(form_data.keys())}")
         logger.debug(f"Form data values: {form_data}")

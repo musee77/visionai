@@ -46,7 +46,7 @@ class JobActionComponent {
     injectModals() {
         if (!document.getElementById('customizeModal')) {
             const customizeModalHTML = `
-                <div id="customizeModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+                <div id="customizeModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-[110] p-4">
                     <div class="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                         <div class="p-6">
                             <div class="flex justify-between items-start mb-6">
@@ -215,6 +215,8 @@ class JobActionComponent {
 
         // Reset state
         if (window.resetProgressBar) window.resetProgressBar();
+        document.body.appendChild(modal);
+        modal.style.zIndex = '110';
         modal.classList.remove('hidden');
         modal.classList.add('flex');
 
@@ -462,7 +464,7 @@ class JobActionComponent {
                          Applied
                     </button>
                 ` : `
-                    <button type="button" data-job-id="${this.escapeAttr(jobId)}" data-apply-url="${this.escapeAttr(job.application_url || job.external_url || job.apply_url || '')}" onclick="event.stopPropagation(); window.JobApply.applyByOpeningLink(this.dataset.jobId, this.dataset.applyUrl)"
+                    <button type="button" data-job-id="${this.escapeAttr(jobId)}" onclick="event.stopPropagation(); window.JobApply.openApplyModal(this.dataset.jobId)"
                         class="flex-1 btn-gradient text-white rounded-lg px-4 py-2 text-sm font-semibold hover:shadow-lg transition-all shadow-md flex items-center justify-center gap-2">
                          Apply
                     </button>

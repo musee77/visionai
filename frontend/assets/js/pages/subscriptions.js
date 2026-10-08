@@ -502,8 +502,6 @@ async function handlePaymentSubmit(e) {
     submitButton.disabled = true;
     submitButton.textContent = 'Processing...';
 
-    const referralCode = document.getElementById('referralCodeInput').value.trim();
-
     // Validation
     if (!USER_EMAIL) {
         console.error('User email not found for payment');
@@ -601,7 +599,7 @@ async function handlePaymentSubmit(e) {
                         throw new Error('SubscriptionManager component not loaded');
                     }
 
-                    await SubscriptionManager.handlePaymentSuccess(result, selectedPlan, referralCode, () => {
+                    await SubscriptionManager.handlePaymentSuccess(result, selectedPlan, '', () => {
                         closeSubscriptionModal();
                     });
 

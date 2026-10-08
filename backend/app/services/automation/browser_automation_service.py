@@ -173,8 +173,10 @@ class BrowserAutomationService:
                     "education": cv_data.get("education", []),
                     "skills": cv_data.get("skills", {}),
                     "connected_email": connected_email,
-                    "cover_letter": cover_letter,
+                    "cover_letter": cover_letter or await BrowserAutomationService._cover_text(cv_data, job),
                     "resume_file_path": resume_file_path or "",
+                    "user_id": user_id,
+                    "job_id": job_id,
                 },
                 job_data={
                     "title": job.get("title"),
@@ -461,12 +463,36 @@ class BrowserAutomationService:
 
     @staticmethod
     def _personal_info(cv_data: Dict[str, Any], user: Dict[str, Any]) -> Dict[str, Any]:
-        personal = dict(cv_data.get("personal_info") or {})
-        personal.setdefault("name", cv_data.get("name") or cv_data.get("full_name") or user.get("full_name") or "")
-        personal.setdefault("email", cv_data.get("email") or user.get("email") or "")
-        personal.setdefault("phone", cv_data.get("phone") or user.get("phone") or "")
-        personal.setdefault("location", cv_data.get("location") or "")
-        return personal
+        from app.services.emails.email_agent_service import EmailAgentService
+        facts = EmailAgentService.profile_facts(user)
+        cv_data = cv_data or {}
+        cv_personal = cv_data.get("personal_info") or {}
+        if not facts["name"]:
+            cv_name = (cv_personal.get("name") or cv_data.get("full_name") or "").strip()
+            parts = cv_name.split()
+            facts["name"] = cv_name
+            if parts and not facts["first_name"]:
+                facts["first_name"] = parts[0]
+                facts["last_name"] = " ".join(parts[1:])
+        if not facts["phone"]:
+            facts["phone"] = cv_personal.get("phone") or ""
+        if not facts["location"]:
+            facts["location"] = cv_personal.get("location") or ""
+        if not facts["linkedin"]:
+            facts["linkedin"] = cv_personal.get("linkedin") or ""
+            facts["linkedin_url"] = facts["linkedin"]
+        if not facts["github"]:
+            facts["github"] = cv_personal.get("github") or ""
+            facts["github_url"] = facts["github"]
+        if not facts["portfolio"]:
+            facts["portfolio"] = cv_personal.get("portfolio") or ""
+            facts["portfolio_url"] = facts["portfolio"]
+        return facts
+
+    @staticmethod
+    async def _cover_text(cv_data: Dict[str, Any], job: Dict[str, Any]) -> str:
+        from app.services.emails.email_agent_service import EmailAgentService
+        return await EmailAgentService.cover_text_for_job(cv_data or {}, job or {})
 
     @staticmethod
     async def _wait_for_browser_result(session_id: str) -> Dict[str, Any]:
@@ -627,6 +653,10 @@ class BrowserAutomationService:
                     "education": user_data.get("education", []),
                     "skills": user_data.get("skills", {}),
                     "connected_email": user_data.get("connected_email") or "",
+                    "cover_letter": user_data.get("cover_letter") or "",
+                    "resume_file_path": user_data.get("resume_file_path") or "",
+                    "user_id": user_data.get("user_id") or "",
+                    "job_id": user_data.get("job_id") or "",
                     "auto_create_account": auto_create_account,
                     "portal_credentials": credentials,
                 },

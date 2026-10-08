@@ -139,6 +139,12 @@ async def update_current_user_profile(
         
         # Get the update data
         update_data = user_update.dict(exclude_unset=True)
+        full_name = (update_data.get("full_name") or "").strip()
+        if full_name:
+            name_parts = [part for part in full_name.split() if part]
+            update_data["full_name"] = full_name
+            update_data["first_name"] = name_parts[0]
+            update_data["last_name"] = " ".join(name_parts[1:])
         logger.info(f"Fields to update: {list(update_data.keys())}")
         
         # Update user profile

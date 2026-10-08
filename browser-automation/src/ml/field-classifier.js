@@ -80,6 +80,15 @@ class FieldClassifier {
                 /why[\s_-]?you/i,
                 /about[\s_-]?yourself/i
             ],
+            open_question: [
+                /why\b/i,
+                /describe/i,
+                /tell us/i,
+                /additional[\s_-]?(information|comments|details)/i,
+                /anything else/i,
+                /comments/i,
+                /\bquestion\b/i
+            ],
             resume: [
                 /resume/i,
                 /cv/i,
@@ -102,6 +111,7 @@ class FieldClassifier {
             return learned.type;
         }
         if (ruled !== 'unknown') return ruled;
+        if (field.type === 'textarea') return 'open_question';
         if (learned && learned.confidence >= 0.4 && learned.support >= 1) {
             console.log(`[ML] ${this.describe(field)} -> ${learned.type} (${learned.confidence.toFixed(2)}, ${learned.support} examples)`);
             return learned.type;

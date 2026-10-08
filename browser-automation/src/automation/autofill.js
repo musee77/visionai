@@ -79,8 +79,11 @@ class AutofillEngine {
                 // Classify field type using ML
                 const fieldType = this.fieldClassifier.classifyField(field);
                 
-                // Get appropriate value
-                const value = this.getValueForField(fieldType, flat);
+                // Profile facts fill fixed fields. Open questions are answered with AI.
+                let value = this.getValueForField(fieldType, flat);
+                if (!value && (fieldType === 'open_question' || fieldType === 'cover_letter' || field.type === 'textarea')) {
+                    value = await this.answerOpenQuestion(data, field, flat);
+                }
                 
                 if (value) {
                     const filled = await this.fillField(field, value);
@@ -144,11 +147,47 @@ class AutofillEngine {
             'portfolio': data.portfolio,
             'github': data.github,
             'cover_letter': data.coverLetter || data.cover_letter,
+            'open_question': data.coverLetter || data.cover_letter,
             'resume': data.resume || data.resume_file_path
         };
         
         const value = mapping[fieldType];
         return value ? String(value).trim() : null;
+    }
+
+    async answerOpenQuestion(data, field, flat) {
+        const question = [field.label, field.placeholder, field.name].filter(Boolean).join(' ').trim();
+        const fallback = flat.coverLetter || flat.cover_letter || data.cover_letter || '';
+        const cache = data._openAnswers || (data._openAnswers = {});
+        if (question && cache[question]) return cache[question];
+        const backend = process.env.BACKEND_URL || 'http://backend:8000';
+        const token = process.env.BROWSER_AUTOMATION_TOKEN || 'dev-automation-token';
+        if (data.user_id && data.job_id && question) {
+            try {
+                const response = await fetch(`${backend}/api/v1/browser-automation/open-answer`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        user_id: data.user_id,
+                        job_id: data.job_id,
+                        question,
+                    }),
+                });
+                if (response.ok) {
+                    const payload = await response.json();
+                    if (payload.answer) {
+                        cache[question] = payload.answer;
+                        return payload.answer;
+                    }
+                }
+            } catch (error) {
+                console.error('Open question answer failed:', error.message);
+            }
+        }
+        return fallback;
     }
     
     async uploadFile(fileInputSelector, filePath) {

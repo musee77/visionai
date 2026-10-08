@@ -327,7 +327,7 @@ class AuthService:
             
             # Update allowed fields
             allowed_fields = [
-                "first_name", "last_name", "phone", "profile", 
+                "first_name", "last_name", "full_name", "phone", "profile",
                 "preferences", "newsletter_subscription"
             ]
             

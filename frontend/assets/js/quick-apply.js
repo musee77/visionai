@@ -14,27 +14,106 @@ class QuickApplyManager {
     /**
      * Open quick apply form for a job
      */
-    async openQuickApplyForm(jobId, preSelectedCvId = null, preSelectedClId = null) {
+    async openQuickApplyForm(jobId, preSelectedCvId = null, preSelectedClId = null, options = null) {
         try {
             this.currentJobId = jobId;
+            this.linkOnly = !!(options && options.linkOnly);
+            this.companyUrl = (options && options.companyUrl) || '';
 
-            // Show modal
             const modal = document.getElementById('quickApplyModal');
             if (!modal) {
                 throw new Error('Quick apply form not loaded. Please refresh the page.');
             }
+            document.body.appendChild(modal);
+            modal.style.zIndex = '140';
             modal.classList.remove('hidden');
 
-            // Load prefill data
-            await this.loadPrefillData(jobId);
-
-            // Load user documents
+            await this.fillFromProfile();
+            try {
+                await this.loadPrefillData(jobId);
+            } catch (error) {
+                console.error('Prefill request failed:', error);
+                this.showError('Your profile details are filled in. The cover letter could not be loaded.');
+            }
+            this.configureMode();
             await this.loadUserDocuments(preSelectedCvId, preSelectedClId);
 
         } catch (error) {
             console.error('Error opening quick apply form:', error);
             this.showError('Failed to load application form. Please try again.');
             this.closeQuickApplyForm();
+        }
+    }
+
+    applyFieldValues(values) {
+        const form = document.getElementById('quickApplyForm');
+        if (!form || !values) return;
+        Object.keys(values).forEach((key) => {
+            const input = form.querySelector(`[name="${key}"]`);
+            const value = values[key];
+            if (!input || value === undefined || value === null || value === '') return;
+            input.value = Array.isArray(value) ? value.join(', ') : value;
+        });
+    }
+
+    async fillFromProfile() {
+        try {
+            const token = localStorage.getItem('access_token');
+            const headers = { 'Authorization': `Bearer ${token}` };
+            const [userResponse, profileResponse] = await Promise.all([
+                fetch(`${this.API_BASE_URL}/api/v1/users/me`, { headers }),
+                fetch(`${this.API_BASE_URL}/api/v1/users/me/profile`, { headers })
+            ]);
+            const user = userResponse.ok ? await userResponse.json() : {};
+            const profile = profileResponse.ok ? await profileResponse.json() : {};
+            const personal = profile.personal_info || {};
+            const location = profile.location_preferences || {};
+            let firstName = personal.first_name || user.first_name || '';
+            let lastName = personal.last_name || user.last_name || '';
+            const fullName = (user.full_name || '').trim();
+            if (!firstName && !lastName && fullName && !fullName.startsWith('User ')) {
+                const parts = fullName.split(/\s+/);
+                firstName = parts[0] || '';
+                lastName = parts.slice(1).join(' ');
+            }
+            this.applyFieldValues({
+                first_name: firstName,
+                last_name: lastName,
+                email: user.email || '',
+                phone: personal.phone || user.phone || '',
+                address: personal.address || '',
+                city: location.city || personal.city || personal.location || '',
+                state: location.state || personal.state || '',
+                postal_code: personal.postal_code || '',
+                linkedin_url: personal.linkedin || personal.linkedin_url || '',
+                portfolio_url: personal.portfolio_url || personal.portfolio || '',
+                github_url: personal.github_url || personal.github || ''
+            });
+        } catch (error) {
+            console.error('Could not read profile for the application form:', error);
+        }
+    }
+
+    configureMode() {
+        const recipient = document.querySelector('#quickApplyForm [name="recipient_email"]');
+        const recipientWrap = recipient ? recipient.closest('div') : null;
+        const cvSelect = document.querySelector('#quickApplyForm [name="cv_document_id"]');
+        const buttonLabel = document.querySelector('#quickApplySubmitBtn span');
+        if (this.linkOnly || !(this.currentJobData && this.currentJobData.recipient_email)) {
+            if (!(this.currentJobData && this.currentJobData.recipient_email) && this.companyUrl) {
+                this.linkOnly = true;
+            }
+        }
+        if (this.linkOnly) {
+            if (recipient) recipient.required = false;
+            if (recipientWrap) recipientWrap.classList.add('hidden');
+            if (cvSelect) cvSelect.required = false;
+            if (buttonLabel) buttonLabel.textContent = 'Open application';
+        } else {
+            if (recipient) recipient.required = true;
+            if (recipientWrap) recipientWrap.classList.remove('hidden');
+            if (cvSelect) cvSelect.required = true;
+            if (buttonLabel) buttonLabel.textContent = 'Save for review';
         }
     }
 
@@ -71,20 +150,15 @@ class QuickApplyManager {
             // Set job ID
             document.getElementById('quickApplyJobId').value = jobId;
 
-            // Prefill form fields
-            const form = document.getElementById('quickApplyForm');
-            const formData = data.form_data;
+            // Prefill form fields from the profile response without clearing values already shown
+            this.applyFieldValues(data.form_data);
 
-            Object.keys(formData).forEach(key => {
-                const input = form.querySelector(`[name="${key}"]`);
-                if (input && formData[key]) {
-                    input.value = formData[key];
-                }
-            });
-
-            // Set recipient email if available
             if (data.recipient_email) {
-                form.querySelector('[name="recipient_email"]').value = data.recipient_email;
+                this.linkOnly = false;
+                const recipient = document.querySelector('#quickApplyForm [name="recipient_email"]');
+                if (recipient) recipient.value = data.recipient_email;
+            } else if (this.companyUrl) {
+                this.linkOnly = true;
             }
 
         } catch (error) {
@@ -191,8 +265,33 @@ class QuickApplyManager {
             submitBtn.disabled = true;
             loading.classList.remove('hidden');
 
-            // Collect form data
             const formData = new FormData(form);
+            if (this.linkOnly) {
+                const token = localStorage.getItem('access_token');
+                const response = await fetch(`${this.API_BASE_URL}/api/v1/email-applications/track`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        job_id: formData.get('job_id'),
+                        application_url: this.companyUrl || null
+                    })
+                });
+                if (!response.ok && response.status !== 409) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || 'Could not save this application.');
+                }
+                if (window.JobActions) {
+                    window.JobActions.markAsApplied(this.currentJobId);
+                    document.dispatchEvent(new CustomEvent('job:applied', { detail: { jobId: this.currentJobId } }));
+                }
+                if (this.companyUrl) window.open(this.companyUrl, '_blank', 'noopener,noreferrer');
+                this.closeQuickApplyForm();
+                return;
+            }
+
             const submission = {
                 job_id: formData.get('job_id'),
                 recipient_email: formData.get('recipient_email'),
@@ -369,8 +468,8 @@ class QuickApplyManager {
 const quickApplyManager = new QuickApplyManager();
 
 // Global functions for HTML onclick handlers
-function openQuickApplyForm(jobId, cvId = null, clId = null) {
-    quickApplyManager.openQuickApplyForm(jobId, cvId, clId);
+function openQuickApplyForm(jobId, cvId = null, clId = null, options = null) {
+    quickApplyManager.openQuickApplyForm(jobId, cvId, clId, options);
 }
 
 function closeQuickApplyForm() {

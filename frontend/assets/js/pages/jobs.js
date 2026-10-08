@@ -63,6 +63,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             generated_cv_path: result.cv_pdf_url,
             generated_cover_letter_path: result.cover_letter_pdf_url
         });
+        const details = document.getElementById('jobModal');
+        if (details && !details.classList.contains('hidden') && window.JobModal) {
+            window.JobModal.show(jobId);
+        }
     });
 
     // Listen for new applications to update buttons

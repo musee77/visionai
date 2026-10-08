@@ -151,6 +151,7 @@ async function loadUserProfile() {
                 }
 
                 document.getElementById('linkedin').value = personalInfo.linkedin || '';
+                document.getElementById('streetAddress').value = personalInfo.address || '';
             } else {
                 console.warn('Detailed profile not available (this is OK)');
             }
@@ -159,6 +160,7 @@ async function loadUserProfile() {
         }
 
         await loadPlanDetails((user.subscription_tier || 'free').toLowerCase());
+        updateProfileJourney(user);
 
         // Load preferences
         try {
@@ -297,6 +299,45 @@ function displayRecentGenerations(generations) {
     `).join('');
 }
 
+function updateProfileJourney(user) {
+    const countryValue = (document.getElementById('country')?.value || '').trim();
+    const countryReady = countryValue && countryValue !== 'Not Set' && countryValue !== 'Detecting...';
+    const fullName = (document.getElementById('fullName')?.value || user.full_name || '').trim();
+    const fields = [
+        { label: 'Name', done: fullName.split(/\s+/).filter(Boolean).length >= 2 },
+        { label: 'Email', done: !!(document.getElementById('email')?.value || user.email || '').trim() },
+        { label: 'Phone', done: !!(document.getElementById('phone')?.value || '').trim() },
+        { label: 'Location', done: !!(document.getElementById('cityState')?.value || '').trim() },
+        { label: 'Country', done: countryReady },
+        { label: 'LinkedIn', done: !!(document.getElementById('linkedin')?.value || '').trim() },
+        { label: 'Address', done: !!(document.getElementById('streetAddress')?.value || '').trim(), optional: true },
+    ];
+    const requiredFields = fields.filter((field) => !field.optional);
+    const doneCount = requiredFields.filter((field) => field.done).length;
+    const bar = document.getElementById('profileProgressBar');
+    if (bar) bar.style.width = `${Math.round((doneCount / requiredFields.length) * 100)}%`;
+    const progressText = document.getElementById('profileProgressText');
+    if (progressText) progressText.textContent = `${doneCount} / ${requiredFields.length} fields`;
+    const doneLabel = document.getElementById('profileFieldsDone');
+    if (doneLabel) doneLabel.textContent = String(doneCount);
+    const left = document.getElementById('profileFieldsLeft');
+    if (left) left.textContent = String(requiredFields.length - doneCount);
+    const status = document.getElementById('profileJourneyStatus');
+    if (status) status.textContent = doneCount === requiredFields.length ? 'Ready' : 'Not yet';
+    const note = document.getElementById('profileCompleteNote');
+    if (note) note.classList.toggle('hidden', doneCount !== requiredFields.length);
+    const markers = document.getElementById('profileFieldMarkers');
+    if (markers) {
+        markers.innerHTML = fields.map((field) => `
+            <span class="flex flex-col items-center gap-1 ${field.done ? 'text-purple-600 font-semibold' : ''}">
+                <span class="w-4 h-4 rounded-full border-2 border-white shadow ${field.done ? 'bg-gradient-to-r from-purple-500 to-blue-500' : 'bg-gray-300'}"></span>
+                ${field.label}
+                ${field.optional ? '<span class="font-normal text-gray-400">optional</span>' : ''}
+            </span>
+        `).join('');
+    }
+}
+
 function setupForms() {
     // SECTION 1: Personal Information Form (Name + Contact Info)
     document.getElementById('personalInfoForm').addEventListener('submit', async (e) => {
@@ -306,6 +347,7 @@ function setupForms() {
         const phone = document.getElementById('phone').value;
         const cityState = document.getElementById('cityState').value;
         const linkedin = document.getElementById('linkedin').value;
+        const address = document.getElementById('streetAddress').value;
 
         console.log('[PERSONAL INFO] Saving:', { fullName, phone, cityState, linkedin });
 
@@ -333,7 +375,7 @@ function setupForms() {
             }
 
             // Step 2: Update contact info - get current user data first
-            if (phone || cityState || linkedin) {
+            if (phone || cityState || linkedin || address) {
                 console.log('[PERSONAL INFO] Step 2: Getting current profile data');
 
                 // Get current profile to preserve existing data
@@ -376,6 +418,7 @@ function setupForms() {
                         first_name: userData.first_name || '',
                         last_name: userData.last_name || '',
                         phone: phone || existingProfile.personal_info?.phone || '',
+                        address: address || '',
                         location: cityState || existingProfile.personal_info?.location || '', // Legacy support
                         linkedin: linkedin || existingProfile.personal_info?.linkedin || ''
                     },
@@ -419,6 +462,7 @@ function setupForms() {
 
             console.log('[PERSONAL INFO] ✓ All fields saved successfully');
             CVision.Utils.showAlert('Personal information updated successfully', 'success');
+            updateProfileJourney(CVision.Utils.getUser() || {});
 
             // Refresh navbar to show updated name
             if (window.CVisionNavbar && window.CVisionNavbar.refreshUserInfo) {

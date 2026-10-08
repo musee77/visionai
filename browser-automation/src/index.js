@@ -118,24 +118,53 @@ app.post('/api/automation/close/:session_id', authenticate, async (req, res) => 
     res.json({ success: true });
 });
 
+const MAX_TABS = 10;
+
+function applicationForms(forms) {
+    const excludePatterns = ['search', 'filter', 'subscribe', 'newsletter'];
+    return (forms || []).filter((form) => {
+        const combinedText = (form.fields || []).map((field) => `${field.name} ${field.id} ${field.placeholder} ${field.label}`).join(' ').toLowerCase();
+        const isSearch = excludePatterns.some((pattern) => combinedText.includes(pattern));
+        const hasAppFields = ['email', 'name', 'resume', 'cv', 'apply', 'phone'].some((word) => combinedText.includes(word));
+        return !isSearch || hasAppFields;
+    });
+}
+
 async function inspectTabs(context) {
     const reports = [];
-    for (const tab of context.pages()) {
+    const tabs = context.pages().filter((tab) => {
         const url = tab.url();
-        if (!url || url === 'about:blank') continue;
+        return url && url !== 'about:blank';
+    }).slice(0, MAX_TABS);
+    for (let index = 0; index < tabs.length; index++) {
+        const tab = tabs[index];
+        const url = tab.url();
         let type = 'unknown';
         try {
             type = await new PageClassifier(tab).classify();
         } catch (error) {
             type = 'unknown';
         }
-        console.log(`[Tabs] ${type} | ${url}`);
-        reports.push({ tab, type, url });
+        console.log(`[Tabs] ${index + 1}/${tabs.length} ${type} | ${url}`);
+        reports.push({ tab, type, url, index: index + 1 });
     }
     return reports;
 }
 
-function pickTab(reports) {
+async function pickTab(reports) {
+    for (const report of reports) {
+        try {
+            const forms = applicationForms(await new FormDetector(report.tab).detectForms());
+            if (forms.length) {
+                report.type = 'application';
+                report.forms = forms;
+                console.log(`[Tabs] Application form is on tab ${report.index}`);
+                return report;
+            }
+        } catch (error) {
+            console.log(`[Tabs] Could not read tab ${report.index}`);
+        }
+    }
     const order = ['captcha', 'register', 'login', 'application', 'job_description', 'unknown'];
     for (const type of order) {
         const found = reports.find((report) => report.type === type);
@@ -150,7 +179,7 @@ async function performAutofill(session_id, url, autofillData, jobSource, page) {
     let activePage = page;
     let applyClickCount = 0;
     let attempts = 0;
-    const maxAttempts = 8;
+    const maxAttempts = 10;
     const filledFields = [];
 
     try {
@@ -162,7 +191,7 @@ async function performAutofill(session_id, url, autofillData, jobSource, page) {
         while (attempts < maxAttempts) {
             attempts++;
             const reports = await inspectTabs(session.context);
-            const chosen = pickTab(reports);
+            const chosen = await pickTab(reports);
             if (chosen) {
                 activePage = chosen.tab;
                 session.page = activePage;
@@ -223,15 +252,8 @@ async function performAutofill(session_id, url, autofillData, jobSource, page) {
             }
 
             // 3. Find and Fill Forms
-            const forms = await formDetector.detectForms();
-            const excludePatterns = ['search', 'filter', 'subscribe', 'newsletter'];
-            const appForms = forms.filter(form => {
-                const combinedText = form.fields?.map(f => `${f.name} ${f.id} ${f.placeholder} ${f.label}`).join(' ').toLowerCase();
-                const isSearch = excludePatterns.some(p => combinedText.includes(p));
-                const hasAppFields = combinedText.includes('email') || combinedText.includes('name') || combinedText.includes('resume') ||
-                    combinedText.includes('cv') || combinedText.includes('apply');
-                return !isSearch || hasAppFields;
-            });
+            const forms = chosen && chosen.forms ? chosen.forms : await formDetector.detectForms();
+            const appForms = applicationForms(forms);
 
             if (appForms.length > 0) {
                 console.log(`[Autofill] Found ${appForms.length} application forms. Filling...`);
@@ -254,9 +276,8 @@ async function performAutofill(session_id, url, autofillData, jobSource, page) {
             }
 
             // 4. Default / Stuck
-            console.log('[Autofill] No conclusive state. Waiting for changes...');
+            console.log(`[Autofill] No form on the chosen tab. Checked ${reports.length} of the first ${MAX_TABS} tabs.`);
             await activePage.waitForTimeout(4000);
-            if (attempts > 3 && appForms.length === 0) break; // Exit if stuck
         }
 
         if (filledFields.length === 0) throw new Error('No form found or filled after multiple attempts.');

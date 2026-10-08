@@ -95,36 +95,35 @@ class GenericHandler {
         const job = autofillData.job || {};
 
         // Parse name into first/last if only full name provided
-        let firstName = '';
-        let lastName = '';
         let fullName = personalInfo.name || user.full_name || cvData.full_name || '';
+        let firstName = personalInfo.first_name || user.first_name || '';
+        let lastName = personalInfo.last_name || user.last_name || '';
 
         if (fullName && !firstName) {
             const parts = fullName.split(' ');
             firstName = parts[0] || '';
             lastName = parts.slice(1).join(' ') || '';
         }
+        if (!fullName) fullName = [firstName, lastName].filter(Boolean).join(' ');
 
         const result = {
-            // Personal Information
-            firstName: user.first_name || cvData.first_name || firstName,
-            lastName: user.last_name || cvData.last_name || lastName,
-            fullName: fullName,
+            // Personal Information from the profile
+            firstName,
+            lastName,
+            fullName,
             email: personalInfo.email || user.email || cvData.email || '',
             phone: personalInfo.phone || user.phone || cvData.phone || '',
 
-            // Location - parse from personal_info.location if available
             location: personalInfo.location || '',
-            address: user.address || cvData.address || '',
-            city: user.city || cvData.city || '',
-            state: user.state || cvData.state || '',
-            zip: user.zip_code || cvData.zip_code || '',
-            country: user.country || cvData.country || '',
+            address: personalInfo.address || user.address || cvData.address || '',
+            city: personalInfo.city || user.city || cvData.city || '',
+            state: personalInfo.state || user.state || cvData.state || '',
+            zip: personalInfo.postal_code || personalInfo.zip || user.zip_code || cvData.zip_code || '',
+            country: personalInfo.country || user.country || cvData.country || '',
 
-            // Professional
-            linkedin: personalInfo.linkedin || cvData.linkedin || user.linkedin || '',
-            github: personalInfo.github || cvData.github || user.github || '',
-            portfolio: personalInfo.portfolio || cvData.portfolio || user.portfolio || '',
+            linkedin: personalInfo.linkedin || personalInfo.linkedin_url || cvData.linkedin || user.linkedin || '',
+            github: personalInfo.github || personalInfo.github_url || cvData.github || user.github || '',
+            portfolio: personalInfo.portfolio || personalInfo.portfolio_url || cvData.portfolio || user.portfolio || '',
 
             // Resume/Cover Letter
             resume: autofillData.resume_file_path || cvData.resume_path || cvData.resume_file_path || '',
@@ -167,7 +166,7 @@ class GenericHandler {
 
             // Resume/Cover Letter
             resume: ['resume', 'cv', 'curriculum-vitae'],
-            coverLetter: ['cover-letter', 'coverletter', 'cover_letter', 'letter'],
+            coverLetter: ['cover-letter', 'coverletter', 'cover_letter', 'letter', 'why', 'describe', 'tellus', 'additional', 'comments'],
 
             // Authentication
             password: ['password', 'pass', 'pwd', 'secret'],

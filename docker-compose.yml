@@ -40,6 +40,7 @@ services:
     environment:
       - PORT=3001
       - BROWSER_AUTOMATION_TOKEN=${BROWSER_AUTOMATION_TOKEN:-dev-automation-token}
+      - BACKEND_URL=http://backend:8000
       - HEADLESS=true
     volumes:
       - ./browser-automation:/app

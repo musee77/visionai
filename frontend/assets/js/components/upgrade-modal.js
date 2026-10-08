@@ -41,8 +41,10 @@ const UpgradeModal = {
             if (msgEl) msgEl.textContent = message;
         }
 
+        document.body.appendChild(modal);
+        modal.style.zIndex = '120';
         modal.style.display = 'flex';
-        modal.classList.remove('hidden'); // Just in case class based toggling is used
+        modal.classList.remove('hidden');
         modal.style.pointerEvents = 'auto';
     },
 

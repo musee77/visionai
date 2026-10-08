@@ -403,7 +403,12 @@ class JobApplyComponent {
         );
         if (!jobHasEmail) {
             this.closeApplyModal();
-            await this.applyByOpeningLink(this.currentJobId, this.companyApplyUrl(jobForLink));
+            if (typeof window.openQuickApplyForm === 'function') {
+                window.openQuickApplyForm(this.currentJobId, cvId, coverLetterId, {
+                    linkOnly: true,
+                    companyUrl: this.companyApplyUrl(jobForLink)
+                });
+            }
             return;
         }
 
@@ -436,7 +441,12 @@ class JobApplyComponent {
         const companyUrl = this.companyApplyUrl(job);
 
         if (!hasEmail) {
-            await this.applyByOpeningLink(this.currentJobId, companyUrl);
+            if (typeof window.openQuickApplyForm === 'function') {
+                window.openQuickApplyForm(this.currentJobId, cvId, coverLetterId, {
+                    linkOnly: true,
+                    companyUrl
+                });
+            }
             return;
         }
 
