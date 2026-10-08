@@ -32,6 +32,12 @@ class QuickApplyFormData(BaseModel):
     additional_info: Optional[str] = Field(None, max_length=2000)
 
 
+class CompanyFieldAnswer(BaseModel):
+    label: str = ""
+    field_type: str = "unknown"
+    value: str = ""
+
+
 class QuickApplySubmission(BaseModel):
     """Quick apply submission request"""
     job_id: str
@@ -40,6 +46,24 @@ class QuickApplySubmission(BaseModel):
     cover_letter_document_id: Optional[str] = None
     recipient_email: EmailStr
     additional_message: Optional[str] = Field(None, max_length=10000)
+    company_fields: Optional[List[CompanyFieldAnswer]] = None
+
+
+class DetectedFieldOption(BaseModel):
+    value: str = ""
+    label: str = ""
+
+
+class DetectedFormField(BaseModel):
+    """A field read from the company application page."""
+    label: str = ""
+    name: str = ""
+    field_type: str = "unknown"
+    input_type: str = "text"
+    required: bool = False
+    placeholder: str = ""
+    value: str = ""
+    options: List[DetectedFieldOption] = []
 
 
 class QuickApplyPrefillResponse(BaseModel):
@@ -49,6 +73,8 @@ class QuickApplyPrefillResponse(BaseModel):
     job_title: str
     company_name: str
     recipient_email: Optional[str] = None
+    apply_url: Optional[str] = None
+    detected_fields: List[DetectedFormField] = []
     message: Optional[str] = None
 
 

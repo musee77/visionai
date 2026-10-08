@@ -145,6 +145,7 @@ class AutofillEngine {
             'country': data.country,
             'linkedin': data.linkedin,
             'portfolio': data.portfolio,
+            'website': data.website,
             'github': data.github,
             'cover_letter': data.coverLetter || data.cover_letter,
             'open_question': data.coverLetter || data.cover_letter,

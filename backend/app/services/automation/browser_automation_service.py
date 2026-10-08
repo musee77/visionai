@@ -117,9 +117,11 @@ class BrowserAutomationService:
 
             existing_application = await db.applications.find_one({"_id": ObjectId(application_id)})
             previous_status = (existing_application or {}).get("status")
-            cover_letter = await BrowserAutomationService._document_text(
-                db, (existing_application or {}).get("cover_letter_document_id")
-            )
+            cover_letter = ""
+            if (existing_application or {}).get("auto_applied"):
+                cover_letter = await BrowserAutomationService._document_text(
+                    db, (existing_application or {}).get("cover_letter_document_id")
+                )
             resume_file_path = cv_data.get("resume_file_path") or await BrowserAutomationService._resume_file_path(
                 db, (existing_application or {}).get("cv_document_id"), user_id
             )
@@ -173,7 +175,7 @@ class BrowserAutomationService:
                     "education": cv_data.get("education", []),
                     "skills": cv_data.get("skills", {}),
                     "connected_email": connected_email,
-                    "cover_letter": cover_letter or await BrowserAutomationService._cover_text(cv_data, job),
+                    "cover_letter": cover_letter or "",
                     "resume_file_path": resume_file_path or "",
                     "user_id": user_id,
                     "job_id": job_id,
@@ -376,6 +378,11 @@ class BrowserAutomationService:
         if isinstance(content, str):
             return content
         if isinstance(content, dict):
+            nested = content.get("content")
+            if isinstance(nested, dict):
+                nested_text = nested.get("full_text") or nested.get("text") or ""
+                if str(nested_text).strip():
+                    return str(nested_text)
             return content.get("full_text") or content.get("text") or content.get("summary") or ""
         return document.get("text_content") or ""
 

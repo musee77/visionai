@@ -6,13 +6,16 @@ Handles intelligent form prefilling and email-based application submission
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Header
 from pydantic import BaseModel
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import logging
 from datetime import datetime
 from bson import ObjectId
+import httpx
+import re
 
 from app.database import get_database
 from app.api.deps import get_current_user, get_current_active_user
+from app.core.config import settings
 from app.services.emails.email_agent_service import email_agent_service
 from app.services.core.subscription_service import SubscriptionService
 from app.schemas.quick_apply import (
@@ -21,7 +24,8 @@ from app.schemas.quick_apply import (
     QuickApplySubmissionResponse,
     QuickApplyStatusResponse,
     AutofillStartResponse,
-    AutofillStatusResponse
+    AutofillStatusResponse,
+    DetectedFormField,
 )
 
 class BrowserAutomationStart(BaseModel):
@@ -31,6 +35,105 @@ class BrowserAutomationStart(BaseModel):
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+PROFILE_FIELD_KEYS = {
+    "first_name": "first_name",
+    "last_name": "last_name",
+    "email": "email",
+    "phone": "phone",
+    "address": "address",
+    "city": "city",
+    "state": "state",
+    "zip_code": "postal_code",
+    "country": "country",
+    "linkedin": "linkedin_url",
+    "portfolio": "portfolio_url",
+    "github": "github_url",
+    "website": "website",
+    "cover_letter": "cover_letter",
+}
+
+
+def _profile_value_for_field(field_type: str, form_data: Dict[str, Any], label: str = "") -> str:
+    if field_type == "cover_letter":
+        return ""
+    if field_type == "full_name":
+        return f"{form_data.get('first_name') or ''} {form_data.get('last_name') or ''}".strip()
+    key = PROFILE_FIELD_KEYS.get(field_type)
+    if key:
+        value = form_data.get(key)
+        return "" if value is None else str(value)
+    text = (label or "").lower()
+    if "email" in text or "e-mail" in text:
+        return str(form_data.get("email") or "")
+    if "phone" in text or "telephone" in text or "mobile" in text:
+        return str(form_data.get("phone") or "")
+    if "name" in text and "company" not in text and "user" not in text and "file" not in text:
+        return f"{form_data.get('first_name') or ''} {form_data.get('last_name') or ''}".strip()
+    return ""
+
+
+def _skip_detected_field(field: Dict[str, Any]) -> bool:
+    """Name and search inputs are not turned into Quick Apply fields."""
+    field_type = (field.get("field_type") or "").lower()
+    if field_type in {"first_name", "last_name", "full_name"}:
+        return True
+    if (field.get("input_type") or "").lower() == "search":
+        return True
+    label = field.get("label") or ""
+    text = " ".join([
+        label,
+        field.get("name") or "",
+        field.get("placeholder") or "",
+    ]).lower()
+    if "search" in text:
+        return True
+    if re.search(r"\b(first name|last name|full name|your name|given name|surname|family name)\b", text):
+        return True
+    if re.search(r"\bname\b", label.lower()) and not re.search(r"company|user|file", label.lower()):
+        return True
+    return False
+
+
+async def _read_company_form(url: str, form_data: Dict[str, Any]) -> List[DetectedFormField]:
+    """Open the company link and return the application fields with profile values."""
+    if not url:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            response = await client.post(
+                f"{settings.BROWSER_AUTOMATION_URL}/api/automation/inspect-form",
+                json={"url": url},
+                headers={"Authorization": f"Bearer {settings.BROWSER_AUTOMATION_TOKEN}"},
+            )
+        if response.status_code != 200:
+            logger.warning(f"Form inspect returned {response.status_code}")
+            return []
+        payload = response.json()
+        detected = []
+        for field in payload.get("fields") or []:
+            if _skip_detected_field(field):
+                continue
+            field_type = field.get("field_type") or "unknown"
+            input_type = (field.get("input_type") or "text").lower()
+            if input_type == "select-one":
+                input_type = "select"
+            choice_controls = {"checkbox", "radio", "select", "select-multiple"}
+            detected.append(DetectedFormField(
+                label=field.get("label") or "Field",
+                name=field.get("name") or "",
+                field_type=field_type,
+                input_type=input_type,
+                required=bool(field.get("required")),
+                placeholder=field.get("placeholder") or "",
+                value="" if input_type in choice_controls else _profile_value_for_field(field_type, form_data, field.get("label") or ""),
+                options=field.get("options") or [],
+            ))
+        logger.info(f"Read {len(detected)} fields from {url}")
+        return detected
+    except Exception as error:
+        logger.warning(f"Could not read company form: {error}")
+        return []
 
 
 class OpenAnswerRequest(BaseModel):
@@ -106,42 +209,7 @@ async def prefill_quick_apply_form(
         # Extract form data from CV
         logger.info(f"Extracting form data from CV for user {user_id}")
         form_data = await email_agent_service.extract_form_data_from_cv(user_id)
-        
-        # Check for generated cover letter (Robustly)
-        try:
-            saved_job = await db.saved_jobs.find_one({
-                "user_id": user_id,
-                "job_id": job_id
-            })
-            
-            if saved_job and saved_job.get("generated_cover_letter_id"):
-                gen_cl_id = saved_job.get("generated_cover_letter_id")
-                # Ensure it's a valid ObjectId
-                if ObjectId.is_valid(gen_cl_id):
-                    gen_cl = await db.generated_documents.find_one({"_id": ObjectId(gen_cl_id)})
-                    if gen_cl and "content" in gen_cl:
-                        # Structure is content -> content -> full_text based on service
-                        full_text = gen_cl.get("content", {}).get("content", {}).get("full_text")
-                        if full_text:
-                            form_data["cover_letter"] = full_text
-                            logger.info(f"Injected generated cover letter text for user {user_id}")
-                else:
-                    logger.warning(f"Invalid generated_cover_letter_id format: {gen_cl_id}")
-        except Exception as e:
-            logger.warning(f"Failed to lookup generated cover letter: {e}")
-
-        if not form_data.get("cover_letter"):
-            try:
-                cv_doc = await db.documents.find_one(
-                    {"user_id": user_id, "document_type": "cv"},
-                    sort=[("created_at", -1)]
-                )
-                form_data["cover_letter"] = await email_agent_service.cover_text_for_job(
-                    (cv_doc or {}).get("cv_data") or {},
-                    job,
-                )
-            except Exception as cover_error:
-                logger.warning(f"Cover letter prefill skipped: {cover_error}")
+        form_data["cover_letter"] = ""
 
         skills = form_data.get("skills")
         if isinstance(skills, list):
@@ -169,12 +237,17 @@ async def prefill_quick_apply_form(
             job.get("recruiter_email")
         )
         
+        apply_url = job.get("application_url") or job.get("external_url") or job.get("apply_url") or ""
+        detected_fields = await _read_company_form(apply_url, form_data)
+
         response_data = QuickApplyPrefillResponse(
             success=True,
             form_data=form_data,
             job_title=job.get("title", ""),
             company_name=job.get("company_name", ""),
             recipient_email=recipient_email,
+            apply_url=apply_url or None,
+            detected_fields=detected_fields,
             message="Form data loaded successfully"
         )
         
@@ -256,6 +329,14 @@ async def submit_quick_apply(
 
         letter = submission.additional_message or (submission.form_data.cover_letter if submission.form_data else None)
         message = letter or f"Please find attached my CV and cover letter for the {job.get('title')} position."
+        company_answers = []
+        for answer in submission.company_fields or []:
+            text = (answer.value or "").strip()
+            if not text or answer.field_type == "cover_letter":
+                continue
+            company_answers.append({"label": answer.label, "field_type": answer.field_type, "value": text})
+        if company_answers:
+            message = message + "\n\n" + "\n".join(f"{item['label']}: {item['value']}" for item in company_answers)
         now = datetime.utcnow()
         application_doc = {
             "user_id": user_id,
@@ -270,6 +351,7 @@ async def submit_quick_apply(
             "cv_document_id": submission.cv_document_id,
             "cover_letter_document_id": submission.cover_letter_document_id,
             "additional_message": submission.additional_message,
+            "company_fields": company_answers,
             "usage_type": "manual_application",
             "review": {
                 "channel": "email",
@@ -432,7 +514,7 @@ async def legacy_autofill_start(
             "company_name": job.get("company_name"),
             "location": job.get("location"),
             "cv_document_id": request.cv_id,
-            "cover_letter_document_id": request.cover_letter_id,
+            "cover_letter_document_id": None,
             "usage_type": "manual_application",
             "review": {
                 "channel": "browser",

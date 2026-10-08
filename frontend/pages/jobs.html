@@ -237,7 +237,7 @@
     <script src="../assets/js/main.js" defer></script>
     <script src="../assets/js/components/AutomationStatus.js" defer></script>
     <script src="../assets/js/components/browser-automation.js" defer></script>
-    <script src="../assets/js/quick-apply.js?v=1.1" defer></script>
+    <script src="../assets/js/quick-apply.js?v=1.6" defer></script>
     <script src="../assets/js/progress-tracker.js" defer></script>
     <script src="../assets/js/components/ui/DocumentViewer.js?v=1.1" defer></script>
     <script src="../assets/js/components/JobActions.js?v=1.6" defer></script>
@@ -272,7 +272,7 @@
             .catch(error => console.error('Jobs: Failed to load navbar:', error));
 
         // Load quick apply form component
-        fetch('../components/quick-apply-form.html')
+        fetch('../components/quick-apply-form.html?v=1.3')
             .then(response => response.text())
             .then(html => {
                 document.getElementById('quickApplyFormContainer').innerHTML = html;

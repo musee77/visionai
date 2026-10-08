@@ -124,6 +124,7 @@ class GenericHandler {
             linkedin: personalInfo.linkedin || personalInfo.linkedin_url || cvData.linkedin || user.linkedin || '',
             github: personalInfo.github || personalInfo.github_url || cvData.github || user.github || '',
             portfolio: personalInfo.portfolio || personalInfo.portfolio_url || cvData.portfolio || user.portfolio || '',
+            website: personalInfo.website || cvData.website || user.website || '',
 
             // Resume/Cover Letter
             resume: autofillData.resume_file_path || cvData.resume_path || cvData.resume_file_path || '',

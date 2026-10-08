@@ -67,8 +67,12 @@ class FieldClassifier {
             ],
             portfolio: [
                 /portfolio/i,
-                /website/i,
                 /personal[\s_-]?site/i
+            ],
+            website: [
+                /website/i,
+                /web[\s_-]?site/i,
+                /personal[\s_-]?url/i
             ],
             github: [
                 /github/i,

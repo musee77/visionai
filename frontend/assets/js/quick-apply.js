@@ -27,13 +27,15 @@ class QuickApplyManager {
             document.body.appendChild(modal);
             modal.style.zIndex = '140';
             modal.classList.remove('hidden');
+            this.setFormStatus('Reading the company form...');
 
             await this.fillFromProfile();
             try {
                 await this.loadPrefillData(jobId);
             } catch (error) {
                 console.error('Prefill request failed:', error);
-                this.showError('Your profile details are filled in. The cover letter could not be loaded.');
+                this.setFormStatus('');
+                this.showError('Your profile details are filled in. The company form could not be read.');
             }
             this.configureMode();
             await this.loadUserDocuments(preSelectedCvId, preSelectedClId);
@@ -94,6 +96,135 @@ class QuickApplyManager {
         }
     }
 
+    setFormStatus(message) {
+        const status = document.getElementById('quickApplyFormStatus');
+        if (!status) return;
+        status.textContent = message || '';
+        status.classList.toggle('hidden', !message);
+    }
+
+    escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    renderCompanyFields(fields) {
+        const section = document.getElementById('companyFieldsSection');
+        const list = document.getElementById('companyFields');
+        const standard = document.getElementById('standardApplyFields');
+        fields = (fields || []).filter((field) => !this.skipCompanyField(field));
+        if (!section || !list) return;
+        if (!fields.length) {
+            section.classList.add('hidden');
+            list.innerHTML = '';
+            if (standard) standard.classList.remove('hidden');
+            return;
+        }
+        const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+        list.innerHTML = fields.map((field, index) => {
+            const label = this.escapeHtml(field.label || 'Field');
+            const fieldType = this.escapeHtml(field.field_type || 'unknown');
+            const value = this.escapeHtml(field.value || '');
+            const placeholder = this.escapeHtml(field.placeholder || '');
+            const required = field.required ? 'required' : '';
+            const mark = field.required ? ' *' : '';
+            const inputType = String(field.input_type || 'text').toLowerCase();
+            let control;
+            if (inputType === 'textarea') {
+                control = `<textarea data-company-field data-label="${label}" data-field-type="${fieldType}" rows="4" placeholder="${placeholder}" ${required} class="${inputClass}">${value}</textarea>`;
+            } else if (inputType === 'checkbox' || inputType === 'radio') {
+                const choice = this.escapeHtml(field.choice || field.label || 'Yes');
+                control = `<input data-company-field data-label="${label}" data-field-type="${fieldType}" data-choice="${choice}" type="${inputType}" value="${choice}" ${required} class="h-4 w-4">`;
+            } else if (inputType === 'select' || inputType === 'select-multiple') {
+                const multiple = inputType === 'select-multiple' ? 'multiple' : '';
+                const options = (field.options || []).map((option) => {
+                    const optionValue = this.escapeHtml(option.value || option.label || '');
+                    const optionLabel = this.escapeHtml(option.label || option.value || '');
+                    return `<option value="${optionValue}">${optionLabel}</option>`;
+                }).join('');
+                control = `<select data-company-field data-label="${label}" data-field-type="${fieldType}" ${multiple} ${required} class="${inputClass}"><option value="">Select</option>${options}</select>`;
+            } else {
+                const allowed = ['email', 'tel', 'url', 'number', 'date', 'time', 'datetime-local'];
+                const type = allowed.includes(inputType) ? inputType : 'text';
+                control = `<input data-company-field data-label="${label}" data-field-type="${fieldType}" type="${type}" value="${value}" placeholder="${placeholder}" ${required} class="${inputClass}">`;
+            }
+            return `<div><label class="block text-sm font-medium text-gray-700 mb-1">${label}${mark}</label>${control}</div>`;
+        }).join('');
+        section.classList.remove('hidden');
+        if (standard) {
+            standard.classList.add('hidden');
+            standard.querySelectorAll('[required]').forEach((input) => {
+                input.dataset.wasRequired = 'true';
+                input.required = false;
+            });
+        }
+    }
+
+    skipCompanyField(field) {
+        const fieldType = String(field.field_type || '').toLowerCase();
+        if (['first_name', 'last_name', 'full_name'].includes(fieldType)) return true;
+        if (String(field.input_type || '').toLowerCase() === 'search') return true;
+        const label = String(field.label || '');
+        const text = `${label} ${field.name || ''} ${field.placeholder || ''}`.toLowerCase();
+        if (text.includes('search')) return true;
+        if (/\b(first name|last name|full name|your name|given name|surname|family name)\b/.test(text)) return true;
+        if (/\bname\b/.test(label.toLowerCase()) && !/company|user|file/.test(label.toLowerCase())) return true;
+        return false;
+    }
+
+    collectCompanyFields() {
+        const answers = [];
+        document.querySelectorAll('#companyFields [data-company-field]').forEach((input) => {
+            let value = '';
+            if (input.type === 'checkbox' || input.type === 'radio') {
+                value = input.checked ? (input.dataset.choice || input.value || 'Yes') : '';
+            } else if (input.multiple) {
+                value = Array.from(input.selectedOptions).map((option) => option.value).filter(Boolean).join(', ');
+            } else {
+                value = input.value;
+            }
+            answers.push({
+                label: input.dataset.label || 'Field',
+                field_type: input.dataset.fieldType || 'unknown',
+                value: value || ''
+            });
+        });
+        return answers;
+    }
+
+    applyCompanyAnswers(formData, answers) {
+        const taken = {
+            first_name: 'first_name',
+            last_name: 'last_name',
+            email: 'email',
+            phone: 'phone',
+            address: 'address',
+            city: 'city',
+            state: 'state',
+            zip_code: 'postal_code',
+            country: 'country',
+            linkedin: 'linkedin_url',
+            portfolio: 'portfolio_url',
+            github: 'github_url',
+            cover_letter: 'cover_letter'
+        };
+        answers.forEach((answer) => {
+            if (!answer.value) return;
+            if (answer.field_type === 'full_name' && !formData.first_name) {
+                const parts = answer.value.trim().split(/\s+/);
+                formData.first_name = parts[0] || '';
+                formData.last_name = parts.slice(1).join(' ');
+                return;
+            }
+            const key = taken[answer.field_type];
+            if (key) formData[key] = answer.value;
+        });
+        return formData;
+    }
+
     configureMode() {
         const recipient = document.querySelector('#quickApplyForm [name="recipient_email"]');
         const recipientWrap = recipient ? recipient.closest('div') : null;
@@ -108,12 +239,16 @@ class QuickApplyManager {
             if (recipient) recipient.required = false;
             if (recipientWrap) recipientWrap.classList.add('hidden');
             if (cvSelect) cvSelect.required = false;
-            if (buttonLabel) buttonLabel.textContent = 'Open application';
+            if (buttonLabel) buttonLabel.textContent = 'Submit';
+            const loadingText = document.getElementById('quickApplyLoadingText');
+            if (loadingText) loadingText.textContent = 'Submitting this application...';
         } else {
             if (recipient) recipient.required = true;
             if (recipientWrap) recipientWrap.classList.remove('hidden');
             if (cvSelect) cvSelect.required = true;
             if (buttonLabel) buttonLabel.textContent = 'Save for review';
+            const loadingText = document.getElementById('quickApplyLoadingText');
+            if (loadingText) loadingText.textContent = 'Saving this application for review...';
         }
     }
 
@@ -157,9 +292,12 @@ class QuickApplyManager {
                 this.linkOnly = false;
                 const recipient = document.querySelector('#quickApplyForm [name="recipient_email"]');
                 if (recipient) recipient.value = data.recipient_email;
-            } else if (this.companyUrl) {
+            } else if (data.apply_url || this.companyUrl) {
+                this.companyUrl = this.companyUrl || data.apply_url || '';
                 this.linkOnly = true;
             }
+            this.renderCompanyFields(data.detected_fields || []);
+            this.setFormStatus('');
 
         } catch (error) {
             console.error('Error loading prefill data:', error);
@@ -266,8 +404,13 @@ class QuickApplyManager {
             loading.classList.remove('hidden');
 
             const formData = new FormData(form);
+            const companyFields = this.collectCompanyFields();
             if (this.linkOnly) {
                 const token = localStorage.getItem('access_token');
+                const notes = companyFields
+                    .filter((field) => field.value)
+                    .map((field) => `${field.label}: ${field.value}`)
+                    .join('\n');
                 const response = await fetch(`${this.API_BASE_URL}/api/v1/email-applications/track`, {
                     method: 'POST',
                     headers: {
@@ -276,7 +419,8 @@ class QuickApplyManager {
                     },
                     body: JSON.stringify({
                         job_id: formData.get('job_id'),
-                        application_url: this.companyUrl || null
+                        application_url: this.companyUrl || null,
+                        notes: notes || null
                     })
                 });
                 if (!response.ok && response.status !== 409) {
@@ -287,31 +431,33 @@ class QuickApplyManager {
                     window.JobActions.markAsApplied(this.currentJobId);
                     document.dispatchEvent(new CustomEvent('job:applied', { detail: { jobId: this.currentJobId } }));
                 }
-                if (this.companyUrl) window.open(this.companyUrl, '_blank', 'noopener,noreferrer');
+                this.showSuccess('Your application has been submitted.', 'Submitted');
                 this.closeQuickApplyForm();
                 return;
             }
 
+            const answers = new FormData(form);
             const submission = {
-                job_id: formData.get('job_id'),
-                recipient_email: formData.get('recipient_email'),
-                cv_document_id: formData.get('cv_document_id'),
-                cover_letter_document_id: formData.get('cover_letter_document_id') || null,
-                additional_message: formData.get('cover_letter') || null,
-                form_data: {
-                    first_name: formData.get('first_name'),
-                    last_name: formData.get('last_name'),
-                    email: formData.get('email'),
-                    phone: formData.get('phone') || null,
-                    address: formData.get('address') || null,
-                    city: formData.get('city') || null,
-                    state: formData.get('state') || null,
-                    postal_code: formData.get('postal_code') || null,
-                    linkedin_url: formData.get('linkedin_url') || null,
-                    portfolio_url: formData.get('portfolio_url') || null,
-                    github_url: formData.get('github_url') || null,
-                    cover_letter: formData.get('cover_letter') || null
-                }
+                job_id: answers.get('job_id'),
+                recipient_email: answers.get('recipient_email'),
+                cv_document_id: answers.get('cv_document_id'),
+                cover_letter_document_id: answers.get('cover_letter_document_id') || null,
+                additional_message: answers.get('cover_letter') || null,
+                company_fields: companyFields,
+                form_data: this.applyCompanyAnswers({
+                    first_name: answers.get('first_name'),
+                    last_name: answers.get('last_name'),
+                    email: answers.get('email'),
+                    phone: answers.get('phone') || null,
+                    address: answers.get('address') || null,
+                    city: answers.get('city') || null,
+                    state: answers.get('state') || null,
+                    postal_code: answers.get('postal_code') || null,
+                    linkedin_url: answers.get('linkedin_url') || null,
+                    portfolio_url: answers.get('portfolio_url') || null,
+                    github_url: answers.get('github_url') || null,
+                    cover_letter: answers.get('cover_letter') || null
+                }, companyFields)
             };
 
             // Submit to backend
@@ -390,6 +536,13 @@ class QuickApplyManager {
 
         // Reset form
         document.getElementById('quickApplyForm').reset();
+        const companyFields = document.getElementById('companyFields');
+        const companySection = document.getElementById('companyFieldsSection');
+        const standard = document.getElementById('standardApplyFields');
+        if (companyFields) companyFields.innerHTML = '';
+        if (companySection) companySection.classList.add('hidden');
+        if (standard) standard.classList.remove('hidden');
+        this.setFormStatus('');
         this.currentJobId = null;
         this.currentJobData = null;
     }

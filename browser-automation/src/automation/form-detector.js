@@ -62,6 +62,31 @@ class FormDetector {
                 return element.placeholder || element.name || '';
             }
 
+            function readField(input) {
+                const tag = input.tagName.toLowerCase();
+                let controlType = (input.type || tag || 'text').toLowerCase();
+                if (tag === 'textarea') controlType = 'textarea';
+                if (tag === 'select') controlType = input.multiple ? 'select-multiple' : 'select';
+                const options = tag === 'select'
+                    ? Array.from(input.options).slice(0, 40).map((option) => ({
+                        value: option.value || option.text || '',
+                        label: (option.text || option.value || '').trim().slice(0, 120)
+                    })).filter((option) => option.label)
+                    : [];
+                return {
+                    selector: getUniqueSelector(input),
+                    type: controlType,
+                    name: input.name,
+                    id: input.id,
+                    label: getFieldLabel(input),
+                    placeholder: input.placeholder,
+                    required: input.required,
+                    autocomplete: input.autocomplete,
+                    choice: input.value || '',
+                    options
+                };
+            }
+
             // Main detection logic
             const forms = [];
             const formElements = document.querySelectorAll('form');
@@ -82,17 +107,7 @@ class FormDetector {
                 );
 
                 inputs.forEach((input) => {
-                    const field = {
-                        selector: getUniqueSelector(input),
-                        type: input.type || input.tagName.toLowerCase(),
-                        name: input.name,
-                        id: input.id,
-                        label: getFieldLabel(input),
-                        placeholder: input.placeholder,
-                        required: input.required,
-                        autocomplete: input.autocomplete
-                    };
-
+                    const field = readField(input);
                     formData.fields.push(field);
                 });
 
@@ -118,18 +133,7 @@ class FormDetector {
                 };
 
                 standaloneFields.forEach((input) => {
-                    const field = {
-                        selector: getUniqueSelector(input),
-                        type: input.type || input.tagName.toLowerCase(),
-                        name: input.name,
-                        id: input.id,
-                        label: getFieldLabel(input),
-                        placeholder: input.placeholder,
-                        required: input.required,
-                        autocomplete: input.autocomplete
-                    };
-
-                    standaloneForm.fields.push(field);
+                    standaloneForm.fields.push(readField(input));
                 });
 
                 forms.push(standaloneForm);

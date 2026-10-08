@@ -152,6 +152,9 @@ async function loadUserProfile() {
 
                 document.getElementById('linkedin').value = personalInfo.linkedin || '';
                 document.getElementById('streetAddress').value = personalInfo.address || '';
+                document.getElementById('github').value = personalInfo.github || personalInfo.github_url || '';
+                document.getElementById('portfolio').value = personalInfo.portfolio || personalInfo.portfolio_url || '';
+                document.getElementById('website').value = personalInfo.website || '';
             } else {
                 console.warn('Detailed profile not available (this is OK)');
             }
@@ -309,8 +312,6 @@ function updateProfileJourney(user) {
         { label: 'Phone', done: !!(document.getElementById('phone')?.value || '').trim() },
         { label: 'Location', done: !!(document.getElementById('cityState')?.value || '').trim() },
         { label: 'Country', done: countryReady },
-        { label: 'LinkedIn', done: !!(document.getElementById('linkedin')?.value || '').trim() },
-        { label: 'Address', done: !!(document.getElementById('streetAddress')?.value || '').trim(), optional: true },
     ];
     const requiredFields = fields.filter((field) => !field.optional);
     const doneCount = requiredFields.filter((field) => field.done).length;
@@ -348,6 +349,9 @@ function setupForms() {
         const cityState = document.getElementById('cityState').value;
         const linkedin = document.getElementById('linkedin').value;
         const address = document.getElementById('streetAddress').value;
+        const github = document.getElementById('github').value;
+        const portfolio = document.getElementById('portfolio').value;
+        const website = document.getElementById('website').value;
 
         console.log('[PERSONAL INFO] Saving:', { fullName, phone, cityState, linkedin });
 
@@ -375,7 +379,7 @@ function setupForms() {
             }
 
             // Step 2: Update contact info - get current user data first
-            if (phone || cityState || linkedin || address) {
+            if (phone || cityState || linkedin || address || github || portfolio || website) {
                 console.log('[PERSONAL INFO] Step 2: Getting current profile data');
 
                 // Get current profile to preserve existing data
@@ -420,7 +424,12 @@ function setupForms() {
                         phone: phone || existingProfile.personal_info?.phone || '',
                         address: address || '',
                         location: cityState || existingProfile.personal_info?.location || '', // Legacy support
-                        linkedin: linkedin || existingProfile.personal_info?.linkedin || ''
+                        linkedin: linkedin || existingProfile.personal_info?.linkedin || '',
+                        github: github || '',
+                        github_url: github || '',
+                        portfolio: portfolio || '',
+                        portfolio_url: portfolio || '',
+                        website: website || ''
                     },
 
                     // Update Location Preferences (preserve country)

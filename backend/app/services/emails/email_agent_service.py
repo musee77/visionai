@@ -64,6 +64,7 @@ class EmailAgentService:
         linkedin = personal.get("linkedin") or personal.get("linkedin_url") or ""
         github = personal.get("github") or personal.get("github_url") or ""
         portfolio = personal.get("portfolio") or personal.get("portfolio_url") or ""
+        website = personal.get("website") or ""
         location = personal.get("location") or ", ".join(part for part in (city, state, country) if part)
         return {
             "first_name": first_name,
@@ -83,6 +84,7 @@ class EmailAgentService:
             "github_url": github,
             "portfolio": portfolio,
             "portfolio_url": portfolio,
+            "website": website,
         }
 
     @staticmethod
@@ -214,6 +216,7 @@ class EmailAgentService:
                 "linkedin_url": facts["linkedin_url"] or personal_info.get("linkedin") or "",
                 "portfolio_url": facts["portfolio_url"] or personal_info.get("portfolio") or "",
                 "github_url": facts["github_url"] or personal_info.get("github") or "",
+                "website": facts.get("website") or "",
             }
             
             # Add experience summary if available

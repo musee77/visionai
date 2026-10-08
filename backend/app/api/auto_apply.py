@@ -53,7 +53,6 @@ def profile_gaps(user: dict) -> list:
         country = pref_country
     city = (personal.get("city") or personal.get("location") or location_prefs.get("city") or "").strip()
     phone = (personal.get("phone") or user.get("phone") or "").strip()
-    linkedin = (personal.get("linkedin") or personal.get("linkedin_url") or "").strip()
     missing = []
     if not (first_name and last_name) and len(full_name.split()) < 2:
         missing.append("full name")
@@ -65,8 +64,6 @@ def profile_gaps(user: dict) -> list:
         missing.append("job location")
     if not str(country).strip():
         missing.append("country")
-    if not linkedin:
-        missing.append("LinkedIn profile")
     return missing
 
 

@@ -10,6 +10,7 @@ const { SiteHandlerFactory } = require('./automation/site-handlers/factory');
 const { AuthHandler } = require('./automation/auth-handler');
 const { PageClassifier } = require('./automation/page-classifier');
 const { checkStatus } = require('./automation/status-checker');
+const { FieldClassifier } = require('./ml/field-classifier');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -101,6 +102,78 @@ app.get('/api/automation/status/:session_id', authenticate, (req, res) => {
     });
 });
 
+app.post('/api/automation/inspect-form', authenticate, async (req, res) => {
+    const url = req.body && req.body.url;
+    if (!url) return res.status(400).json({ success: false, error: 'url is required', fields: [] });
+    let browser;
+    try {
+        const headlessEnv = process.env.HEADLESS ? process.env.HEADLESS.toLowerCase().trim() : 'true';
+        browser = await chromium.launch({
+            headless: headlessEnv !== 'false',
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled'],
+        });
+        const context = await browser.newContext({
+            viewport: { width: 1280, height: 800 },
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        });
+        const page = await context.newPage();
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForTimeout(2000);
+
+        let reports = await inspectTabs(context);
+        let chosen = await pickTab(reports);
+        if (!chosen || !chosen.forms) {
+            const handler = SiteHandlerFactory.getHandler(url);
+            const active = chosen ? chosen.tab : page;
+            const nextPage = await handler.preparePage(active);
+            if (nextPage) await nextPage.waitForTimeout(2000);
+            reports = await inspectTabs(context);
+            chosen = await pickTab(reports);
+        }
+
+        const classifier = new FieldClassifier();
+        const fields = [];
+        const seen = new Set();
+        const skipTypes = new Set(['hidden', 'submit', 'button', 'password', 'file', 'image']);
+        for (const form of (chosen && chosen.forms) || []) {
+            for (const field of form.fields || []) {
+                const inputType = normalizeControlType(field.type);
+                if (skipTypes.has(inputType)) continue;
+                const fieldType = classifier.classifyField(field);
+                const label = String(field.label || field.placeholder || field.name || 'Field').replace(/\s+/g, ' ').trim().slice(0, 180);
+                if (skippedFormField(field, fieldType, label)) continue;
+                const choice = String(field.choice || '').slice(0, 180);
+                const key = `${inputType}|${label}|${field.name || ''}|${choice}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                fields.push({
+                    label,
+                    name: field.name || field.id || '',
+                    field_type: fieldType,
+                    input_type: inputType,
+                    required: Boolean(field.required),
+                    placeholder: String(field.placeholder || '').slice(0, 180),
+                    choice,
+                    options: Array.isArray(field.options) ? field.options.slice(0, 40) : [],
+                });
+                if (fields.length >= 30) break;
+            }
+            if (fields.length >= 30) break;
+        }
+        res.json({
+            success: true,
+            url: chosen ? chosen.url : url,
+            tab: chosen ? chosen.index : 1,
+            fields,
+        });
+    } catch (error) {
+        console.error('[Inspect] Failed to read form:', error.message);
+        res.json({ success: false, fields: [], error: 'The company form could not be read' });
+    } finally {
+        if (browser) await browser.close().catch(() => {});
+    }
+});
+
 app.post('/api/automation/check-status', authenticate, async (req, res) => {
     const url = req.body && req.body.url;
     if (!url) return res.status(400).json({ success: false, error: 'url is required' });
@@ -119,6 +192,23 @@ app.post('/api/automation/close/:session_id', authenticate, async (req, res) => 
 });
 
 const MAX_TABS = 10;
+
+function normalizeControlType(type) {
+    const value = String(type || 'text').toLowerCase();
+    if (value === 'select-one') return 'select';
+    return value;
+}
+
+function skippedFormField(field, fieldType, label) {
+    if (['first_name', 'last_name', 'full_name'].includes(fieldType)) return true;
+    if (String(field.type || '').toLowerCase() === 'search') return true;
+    const text = `${label} ${field.name || ''} ${field.id || ''} ${field.placeholder || ''}`.toLowerCase();
+    if (text.includes('search')) return true;
+    if (/\b(first name|last name|full name|your name|given name|surname|family name)\b/.test(text)) return true;
+    const labelText = String(label || '').toLowerCase();
+    if (/\bname\b/.test(labelText) && !/company|user|file/.test(labelText)) return true;
+    return false;
+}
 
 function applicationForms(forms) {
     const excludePatterns = ['search', 'filter', 'subscribe', 'newsletter'];

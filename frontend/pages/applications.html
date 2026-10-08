@@ -200,7 +200,7 @@
 
     <script src="/assets/js/main.js" defer></script>
     <script src="/assets/js/inline-messages.js" defer></script>
-    <script src="/assets/js/quick-apply.js?v=1.1" defer></script>
+    <script src="/assets/js/quick-apply.js?v=1.6" defer></script>
     <script src="/assets/js/generation.js?v=1.1" defer></script>
     <script src="/assets/js/progress-tracker.js" defer></script>
     <script src="/assets/js/components/ui/DocumentViewer.js?v=1.1" defer></script>
@@ -241,7 +241,7 @@
 
 
         // Load quick apply form component (Required for Step 2 of application)
-        fetch('/components/quick-apply-form.html')
+        fetch('/components/quick-apply-form.html?v=1.3')
             .then(response => response.text())
             .then(html => {
                 document.getElementById('quickApplyFormContainer').innerHTML = html;

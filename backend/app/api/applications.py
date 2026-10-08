@@ -850,7 +850,7 @@ async def submit_reviewed_application(
             recipient_email=recipient,
             form_data=form_data,
             cv_document_id=application.get("cv_document_id"),
-            cover_letter_document_id=application.get("cover_letter_document_id"),
+            cover_letter_document_id=application.get("cover_letter_document_id") if application.get("auto_applied") else None,
             additional_message=None
         )
         await db.applications.update_one(

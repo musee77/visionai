@@ -64,6 +64,7 @@ class PersonalInfo(BaseModel):
     linkedin_url: Optional[str] = None
     portfolio_url: Optional[str] = None
     github_url: Optional[str] = None
+    website: Optional[str] = None
 
 
 class UserProfile(BaseModel):
