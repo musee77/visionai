@@ -633,9 +633,9 @@ async function copyReferralLink(button) {
  * Share via email
  */
 function shareViaEmail() {
-    const subject = encodeURIComponent('Join me on CVision AI - AI-Powered Job Applications');
+    const subject = encodeURIComponent('Join me on JobsApply - AI-Powered Job Applications');
     const body = encodeURIComponent(
-        `Hey! I've been using CVision AI for my job search and it's amazing. It uses AI to automatically find and apply to jobs that match my profile.\n\n` +
+        `Hey! I've been using JobsApply for my job search and it's amazing. It uses AI to automatically find and apply to jobs that match my profile.\n\n` +
         `Use my referral code ${userReferralCode} when you sign up:\n\n` +
         `Sign up here: ${window.location.origin}/register?ref=${userReferralCode}`
     );
@@ -647,7 +647,7 @@ function shareViaEmail() {
  */
 function shareViaTwitter() {
     const text = encodeURIComponent(
-        `I'm using CVision AI for job applications. Join me with code ${userReferralCode}.`
+        `I'm using JobsApply for job applications. Join me with code ${userReferralCode}.`
     );
     const url = encodeURIComponent(`${window.location.origin}/register?ref=${userReferralCode}`);
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
@@ -666,7 +666,7 @@ function shareViaLinkedIn() {
  */
 function shareViaWhatsApp() {
     const text = encodeURIComponent(
-        `Hey! Check out CVision AI - it uses AI to automate job applications. Use my code ${userReferralCode} when signing up: ${window.location.origin}/register?ref=${userReferralCode}`
+        `Hey! Check out JobsApply - it uses AI to automate job applications. Use my code ${userReferralCode} when signing up: ${window.location.origin}/register?ref=${userReferralCode}`
     );
     window.open(`https://wa.me/?text=${text}`, '_blank');
 }

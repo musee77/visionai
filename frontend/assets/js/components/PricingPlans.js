@@ -19,7 +19,7 @@ const PricingPlans = (function () {
             id: 'plan_free',
             name: 'Free',
             tier: 'free',
-            description: 'Perfect for trying out Synovae',
+            description: 'Perfect for trying out JobsApply',
             monthlyPrice: 0,
             yearlyPrice: 0,
             isPopular: false,

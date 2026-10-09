@@ -282,8 +282,10 @@ const CVisionNavbar = (function () {
             } else {
                 console.warn('CVisionNavbar: Failed to load notifications:', response.status);
             }
+            await loadInboxCount();
         } catch (error) {
             console.error('CVisionNavbar: Error loading notifications:', error);
+            await loadInboxCount();
         }
     }
 
@@ -324,6 +326,34 @@ const CVisionNavbar = (function () {
                 </div>
             `;
         }).join('');
+    }
+
+    function updateInboxBadge(count) {
+        const badge = document.getElementById('inboxBadge');
+        if (!badge) return;
+        const unreadCount = Number(count) || 0;
+        if (unreadCount > 0) {
+            badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+
+    async function loadInboxCount() {
+        const token = getToken();
+        const badge = document.getElementById('inboxBadge');
+        if (!token || !badge) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/v1/support/inbox`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!response.ok) return;
+            const data = await response.json();
+            updateInboxBadge(data.unread_count || 0);
+        } catch (error) {
+            console.error('CVisionNavbar: Error loading inbox:', error);
+        }
     }
 
     // Update notification badge

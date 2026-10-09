@@ -110,7 +110,7 @@ class NotificationService:
                 <p>{notification["message"]}</p>
                 <hr>
                 <p style="color: gray; font-size: 12px;">
-                  This is an automated notification from CVision AI Job Application Platform.
+                  This is an automated notification from JobsApply.
                 </p>
               </body>
             </html>

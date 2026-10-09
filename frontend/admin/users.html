@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Users - synovae admin</title>
+    <title>Users - JobsApply admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="/admin/assets/admin.css?v=2">
 </head>
@@ -21,10 +21,10 @@
                 <div class="px-4 sm:px-6 py-4 flex justify-between items-center">
                     <h2 class="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">Users</h2>
                     <div class="flex items-center gap-4">
-                        <button onclick="openCreateModal()"
+                        <a href="user.html"
                             class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
                             New User
-                        </button>
+                        </a>
                         <button onclick="logout()" class="text-sm text-gray-600 hover:text-gray-900">Logout</button>
                     </div>
                 </div>
@@ -279,8 +279,8 @@
         </div>
     </div>
 
-    <script src="/admin/assets/js/admin-sidebar.js"></script>
-    <script src="/assets/js/main.js"></script>
+    <script src="/admin/assets/js/admin-sidebar.js?v=4"></script>
+    <script src="/assets/js/main.js?v=1.3"></script>
     <script>
         let currentPage = 1;
         let currentUserId = null;
@@ -372,9 +372,7 @@
                     </td>
                     <td class="px-4 sm:px-6 py-4 text-xs sm:text-sm font-medium">
                         <div class="flex flex-wrap gap-x-3 gap-y-1">
-                            <button onclick="viewProfile('${esc(user.id)}')" class="text-gray-700 hover:text-gray-900">View</button>
-                            ${user.is_verified ? '' : `<button onclick="setVerified('${esc(user.id)}', true)" class="text-emerald-700 hover:text-emerald-900">Verify</button>`}
-                            <button onclick="editUser('${esc(user.id)}')" class="text-blue-600 hover:text-blue-900">Edit</button>
+                            <a href="user.html?id=${esc(user.id)}" class="text-blue-600 hover:text-blue-900">Details</a>
                             <button onclick="deleteUser('${esc(user.id)}')" class="text-red-600 hover:text-red-900">Delete</button>
                         </div>
                     </td>

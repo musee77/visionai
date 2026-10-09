@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Referrals & Rewards - CVision AI</title>
+    <title>Referrals & Rewards - JobsApply</title>
     <script src="/assets/js/auth-guard.js?v=1.2"></script>
     <link rel="stylesheet" href="/assets/css/global.css?v=1.1">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -21,7 +21,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                 <div>
                     <h1 class="text-4xl font-bold mb-4">Earn Rewards by Referring Friends</h1>
-                    <p class="text-xl text-blue-100 mb-6">Share CVision AI with your network. Ten friends on Premium move you to Basic.</p>
+                    <p class="text-xl text-blue-100 mb-6">Share JobsApply with your network. Ten friends on Premium move you to Basic.</p>
                     <ul class="space-y-3 text-blue-50">
                         <li class="flex items-start">
                             <svg class="w-6 h-6 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -397,13 +397,13 @@
     </div>
 
     <script src="/assets/js/inline-messages.js"></script>
-    <script src="/assets/js/main.js"></script>
+    <script src="/assets/js/main.js?v=1.3"></script>
     <script src="/assets/js/pages/referrals.js?v=2.1"></script>
-    <script src="/assets/js/components/navbar.js?v=1.6" defer></script>
+    <script src="/assets/js/components/navbar.js?v=1.7" defer></script>
 
     <script defer>
         // Load navbar component with proper initialization
-        fetch('/components/navbar.html?v=1.6')
+        fetch('/components/navbar.html?v=1.9')
             .then(response => response.text())
             .then(html => {
                 const container = document.getElementById('navbar-container');

@@ -7,7 +7,7 @@
         const sidebarContainer = document.getElementById('admin-sidebar');
         if (sidebarContainer) {
             try {
-                const response = await fetch('../components/sidebar.html');
+                const response = await fetch('../components/sidebar.html?v=3');
                 if (response.ok) {
                     const html = await response.text();
                     sidebarContainer.innerHTML = html;
@@ -23,7 +23,9 @@
 
     // Highlight the current active page in sidebar
     function highlightActivePage() {
-        const currentPage = window.location.pathname.split('/').pop().replace('.html', '');
+        const rawPage = window.location.pathname.split('/').pop().replace('.html', '');
+        const parents = { user: 'users', ticket: 'tickets', subscription: 'subscriptions', post: 'blog-admin' };
+        const currentPage = parents[rawPage] || rawPage;
         const links = document.querySelectorAll('#admin-sidebar nav a[data-page]');
 
         links.forEach(link => {

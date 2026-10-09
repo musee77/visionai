@@ -273,6 +273,45 @@ main button.bg-emerald-700:hover {
     background: #4c51bf !important;
 }
 
+.admin-shell > main {
+    min-width: 0;
+}
+
+.admin-shell h2,
+.admin-shell p,
+.admin-shell label,
+.admin-shell td,
+.admin-shell a {
+    overflow-wrap: anywhere;
+}
+
+.admin-detail-table {
+    width: 100%;
+}
+
+@media (max-width: 640px) {
+    .admin-detail-table thead {
+        display: none;
+    }
+
+    .admin-detail-table,
+    .admin-detail-table tbody,
+    .admin-detail-table tr,
+    .admin-detail-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .admin-detail-table tr {
+        padding: 0.75rem 0;
+        border-top: 1px solid #e7e5e4;
+    }
+
+    .admin-detail-table td {
+        padding: 0.15rem 0;
+    }
+}
+
 @media (max-width: 768px) {
     #admin-sidebar {
         width: 4.5rem;

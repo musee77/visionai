@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
-    logger.info("Starting Synovae - AI Job Application Platform...")
+    logger.info("Starting JobsApply...")
     
     Path(settings.UPLOAD_DIR).mkdir(exist_ok=True)
     Path("logs").mkdir(exist_ok=True)
@@ -108,7 +108,7 @@ async def maintenance_gate(request: Request, call_next):
             _maintenance_cache["on"] = False
         _maintenance_cache["checked"] = now
     if _maintenance_cache["on"] and path.startswith("/api/"):
-        return JSONResponse(status_code=423, content={"detail": "Synovae is down for maintenance."})
+        return JSONResponse(status_code=423, content={"detail": "JobsApply is down for maintenance."})
     return await call_next(request)
 
 

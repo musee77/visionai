@@ -1,4 +1,4 @@
-# robots.txt for Synovae
+# robots.txt for JobsApply
 # https://www.synovae.io
 
 # Allow all search engines to crawl public pages

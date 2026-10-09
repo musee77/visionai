@@ -6,7 +6,7 @@ let currentPage = 1;
 const itemsPerPage = 20;
 
 // Load navbar
-fetch('../components/navbar.html?v=1.6')
+fetch('../components/navbar.html?v=1.9')
     .then(response => response.text())
     .then(html => {
         document.getElementById('navbar-container').innerHTML = html;

@@ -497,7 +497,7 @@ async function loadFooter() {
     const footerContainer = document.getElementById('footer-container');
     if (footerContainer) {
         try {
-            const response = await fetch('/components/footer.html');
+            const response = await fetch('/components/footer.html?v=2');
             if (response.ok) {
                 const html = await response.text();
                 footerContainer.innerHTML = html;

@@ -19,6 +19,7 @@ class QuickApplyManager {
             this.currentJobId = jobId;
             this.linkOnly = !!(options && options.linkOnly);
             this.companyUrl = (options && options.companyUrl) || '';
+            this.companyFormReady = false;
 
             const modal = document.getElementById('quickApplyModal');
             if (!modal) {
@@ -26,19 +27,25 @@ class QuickApplyManager {
             }
             document.body.appendChild(modal);
             modal.style.zIndex = '140';
+            this.showSkeleton();
             modal.classList.remove('hidden');
-            this.setFormStatus('Reading the company form...');
 
             await this.fillFromProfile();
             try {
                 await this.loadPrefillData(jobId);
             } catch (error) {
                 console.error('Prefill request failed:', error);
+                this.companyFormReady = false;
+            }
+            if (!this.companyFormReady) {
+                if (this.openCompanyPage()) return;
+                this.showStandardFields();
                 this.setFormStatus('');
                 this.showError('Your profile details are filled in. The company form could not be read.');
             }
             this.configureMode();
             await this.loadUserDocuments(preSelectedCvId, preSelectedClId);
+            this.hideSkeleton();
 
         } catch (error) {
             console.error('Error opening quick apply form:', error);
@@ -96,6 +103,65 @@ class QuickApplyManager {
         }
     }
 
+    showSkeleton() {
+        const form = document.getElementById('quickApplyForm');
+        const skeleton = document.getElementById('quickApplySkeleton');
+        const review = document.getElementById('quickApplyReview');
+        const standard = document.getElementById('standardApplyFields');
+        const company = document.getElementById('companyFieldsSection');
+        const companyFields = document.getElementById('companyFields');
+        const linkFallback = document.getElementById('quickApplyLinkFallback');
+        if (form) form.classList.add('hidden');
+        if (linkFallback) linkFallback.classList.add('hidden');
+        if (review) review.classList.add('hidden');
+        if (standard) standard.classList.add('hidden');
+        if (company) company.classList.add('hidden');
+        if (companyFields) companyFields.innerHTML = '';
+        if (skeleton) skeleton.classList.remove('hidden');
+        this.reviewReady = false;
+        this.setFormStatus('');
+    }
+
+    hideSkeleton() {
+        const form = document.getElementById('quickApplyForm');
+        const skeleton = document.getElementById('quickApplySkeleton');
+        if (skeleton) skeleton.classList.add('hidden');
+        if (form) form.classList.remove('hidden');
+    }
+
+    openCompanyPage() {
+        const url = this.companyUrl || (this.currentJobData && this.currentJobData.apply_url) || '';
+        if (!url) return false;
+        this.companyUrl = url;
+        const opened = window.open(url, '_blank');
+        if (opened) {
+            opened.opener = null;
+            this.closeQuickApplyForm();
+            return true;
+        }
+        const panel = document.getElementById('quickApplyLinkFallback');
+        const link = document.getElementById('quickApplyOpenLink');
+        const form = document.getElementById('quickApplyForm');
+        this.hideSkeleton();
+        if (form) form.classList.add('hidden');
+        if (link) link.href = url;
+        if (panel) panel.classList.remove('hidden');
+        return true;
+    }
+
+    showStandardFields() {
+        const section = document.getElementById('companyFieldsSection');
+        const list = document.getElementById('companyFields');
+        const standard = document.getElementById('standardApplyFields');
+        if (section) section.classList.add('hidden');
+        if (list) list.innerHTML = '';
+        if (!standard) return;
+        standard.classList.remove('hidden');
+        standard.querySelectorAll('[data-was-required]').forEach((input) => {
+            input.required = true;
+        });
+    }
+
     setFormStatus(message) {
         const status = document.getElementById('quickApplyFormStatus');
         if (!status) return;
@@ -118,11 +184,10 @@ class QuickApplyManager {
         fields = (fields || []).filter((field) => !this.skipCompanyField(field));
         if (!section || !list) return;
         if (!fields.length) {
-            section.classList.add('hidden');
-            list.innerHTML = '';
-            if (standard) standard.classList.remove('hidden');
+            this.companyFormReady = false;
             return;
         }
+        this.companyFormReady = true;
         const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent';
         list.innerHTML = fields.map((field, index) => {
             const label = this.escapeHtml(field.label || 'Field');
@@ -239,17 +304,18 @@ class QuickApplyManager {
             if (recipient) recipient.required = false;
             if (recipientWrap) recipientWrap.classList.add('hidden');
             if (cvSelect) cvSelect.required = false;
-            if (buttonLabel) buttonLabel.textContent = 'Submit';
             const loadingText = document.getElementById('quickApplyLoadingText');
             if (loadingText) loadingText.textContent = 'Submitting this application...';
         } else {
             if (recipient) recipient.required = true;
             if (recipientWrap) recipientWrap.classList.remove('hidden');
             if (cvSelect) cvSelect.required = true;
-            if (buttonLabel) buttonLabel.textContent = 'Save for review';
             const loadingText = document.getElementById('quickApplyLoadingText');
             if (loadingText) loadingText.textContent = 'Saving this application for review...';
         }
+        if (buttonLabel) buttonLabel.textContent = 'Review';
+        const confirmLabel = document.querySelector('#quickApplyConfirmBtn span');
+        if (confirmLabel) confirmLabel.textContent = this.linkOnly ? 'Submit' : 'Save for review';
     }
 
     /**
@@ -385,22 +451,117 @@ class QuickApplyManager {
     /**
      * Submit quick apply form
      */
+    reviewRows() {
+        const rows = [];
+        const companySection = document.getElementById('companyFieldsSection');
+        const companyVisible = companySection && !companySection.classList.contains('hidden');
+        if (companyVisible) {
+            document.querySelectorAll('#companyFields [data-company-field]').forEach((input) => {
+                if (input.type === 'checkbox' || input.type === 'radio') {
+                    if (!input.checked) return;
+                    rows.push({
+                        label: input.dataset.label || 'Field',
+                        value: input.dataset.choice || input.value || 'Yes'
+                    });
+                    return;
+                }
+                const value = input.multiple
+                    ? Array.from(input.selectedOptions).map((option) => option.text || option.value).filter((option) => option && option !== 'Select').join(', ')
+                    : (input.tagName === 'SELECT'
+                        ? ((input.selectedOptions[0] && input.selectedOptions[0].value) ? input.selectedOptions[0].text : '')
+                        : input.value);
+                if (input.dataset.fieldType === 'cover_letter' && !value) return;
+                rows.push({ label: input.dataset.label || 'Field', value: value || '' });
+            });
+        } else {
+            const labels = {
+                first_name: 'First name',
+                last_name: 'Last name',
+                email: 'Email',
+                phone: 'Phone',
+                address: 'Street address',
+                city: 'City',
+                state: 'State',
+                postal_code: 'Postal code',
+                linkedin_url: 'LinkedIn',
+                portfolio_url: 'Portfolio',
+                github_url: 'GitHub',
+                cover_letter: 'Cover letter'
+            };
+            Object.keys(labels).forEach((name) => {
+                const input = document.querySelector(`#standardApplyFields [name="${name}"]`);
+                if (!input) return;
+                if (name === 'cover_letter' && !input.value) return;
+                rows.push({ label: labels[name], value: input.value || '' });
+            });
+        }
+        const cv = document.querySelector('#quickApplyForm [name="cv_document_id"]');
+        if (cv && cv.value) {
+            const selected = cv.options[cv.selectedIndex];
+            rows.push({ label: 'CV', value: selected ? selected.text : cv.value });
+        }
+        const recipient = document.querySelector('#quickApplyForm [name="recipient_email"]');
+        const recipientWrap = recipient ? recipient.closest('div') : null;
+        if (recipient && recipientWrap && !recipientWrap.classList.contains('hidden')) {
+            rows.push({ label: 'Recipient email', value: recipient.value || '' });
+        }
+        return rows;
+    }
+
+    showReview() {
+        const list = document.getElementById('quickApplyReviewList');
+        const review = document.getElementById('quickApplyReview');
+        const form = document.getElementById('quickApplyForm');
+        const heading = document.getElementById('quickApplyHeading');
+        if (!list || !review || !form) return;
+        const rows = this.reviewRows();
+        list.innerHTML = rows.map((row) => `
+            <div class="flex items-start justify-between gap-4 py-3">
+                <span class="text-sm text-gray-500">${this.escapeHtml(row.label)}</span>
+                <span class="text-sm text-gray-900 text-right whitespace-pre-wrap">${this.escapeHtml(row.value || 'Not answered')}</span>
+            </div>
+        `).join('') || '<p class="text-sm text-gray-500 py-3">No answers yet.</p>';
+        form.classList.add('hidden');
+        review.classList.remove('hidden');
+        if (heading) heading.textContent = 'Review';
+        this.reviewReady = true;
+    }
+
+    showEdit() {
+        const review = document.getElementById('quickApplyReview');
+        const form = document.getElementById('quickApplyForm');
+        const heading = document.getElementById('quickApplyHeading');
+        if (review) review.classList.add('hidden');
+        if (form) form.classList.remove('hidden');
+        if (heading) heading.textContent = 'Quick Apply';
+        this.reviewReady = false;
+    }
+
+    confirmReview() {
+        const form = document.getElementById('quickApplyForm');
+        if (!form) return;
+        this.submitApplication({ preventDefault() {}, target: form });
+    }
+
     async submitApplication(event) {
         event.preventDefault();
 
         try {
-            const form = event.target;
-            const submitBtn = document.getElementById('quickApplySubmitBtn');
-            const loading = document.getElementById('quickApplyLoading');
-
-            // Validate form
-            if (!form.checkValidity()) {
-                form.reportValidity();
+            const form = event.target || document.getElementById('quickApplyForm');
+            if (!this.reviewReady) {
+                if (!form.checkValidity()) {
+                    form.reportValidity();
+                    return;
+                }
+                this.showReview();
                 return;
             }
+            const submitBtn = document.getElementById('quickApplySubmitBtn');
+            const confirmBtn = document.getElementById('quickApplyConfirmBtn');
+            const loading = document.getElementById('quickApplyLoading');
 
-            // Show loading state
-            submitBtn.disabled = true;
+            if (submitBtn) submitBtn.disabled = true;
+            if (confirmBtn) confirmBtn.disabled = true;
             loading.classList.remove('hidden');
 
             const formData = new FormData(form);
@@ -521,9 +682,11 @@ class QuickApplyManager {
             this.showError(error.message || 'Failed to send application. Please try again.');
         } finally {
             const submitBtn = document.getElementById('quickApplySubmitBtn');
+            const confirmBtn = document.getElementById('quickApplyConfirmBtn');
             const loading = document.getElementById('quickApplyLoading');
-            submitBtn.disabled = false;
-            loading.classList.add('hidden');
+            if (submitBtn) submitBtn.disabled = false;
+            if (confirmBtn) confirmBtn.disabled = false;
+            if (loading) loading.classList.add('hidden');
         }
     }
 
@@ -538,10 +701,16 @@ class QuickApplyManager {
         document.getElementById('quickApplyForm').reset();
         const companyFields = document.getElementById('companyFields');
         const companySection = document.getElementById('companyFieldsSection');
-        const standard = document.getElementById('standardApplyFields');
         if (companyFields) companyFields.innerHTML = '';
         if (companySection) companySection.classList.add('hidden');
-        if (standard) standard.classList.remove('hidden');
+        const linkFallback = document.getElementById('quickApplyLinkFallback');
+        if (linkFallback) linkFallback.classList.add('hidden');
+        this.showStandardFields();
+        const skeleton = document.getElementById('quickApplySkeleton');
+        if (skeleton) skeleton.classList.add('hidden');
+        const form = document.getElementById('quickApplyForm');
+        if (form) form.classList.remove('hidden');
+        this.showEdit();
         this.setFormStatus('');
         this.currentJobId = null;
         this.currentJobData = null;
@@ -633,6 +802,15 @@ function closeQuickApplyForm() {
 document.addEventListener('submit', (e) => {
     if (e.target && e.target.id === 'quickApplyForm') {
         quickApplyManager.submitApplication(e);
+    }
+});
+
+document.addEventListener('click', (e) => {
+    if (e.target.closest && e.target.closest('#quickApplyEditBtn')) {
+        quickApplyManager.showEdit();
+    }
+    if (e.target.closest && e.target.closest('#quickApplyConfirmBtn')) {
+        quickApplyManager.confirmReview();
     }
 });
 

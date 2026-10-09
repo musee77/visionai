@@ -209,7 +209,7 @@ async def create_test_notification(
             user_id=str(current_user["_id"]),
             notification_type="test",
             title="Test Notification",
-            message="This is a test notification from the CVision platform.",
+            message="This is a test notification from JobsApply.",
             data={"test": True},
             channels=["in_app", "email"]
         )

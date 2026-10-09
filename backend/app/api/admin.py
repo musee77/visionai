@@ -6,6 +6,7 @@ from app.models.subscription import SubscriptionStats
 from typing import List, Optional
 from datetime import datetime, timedelta
 from bson import ObjectId
+import re
 
 router = APIRouter()
 
@@ -92,6 +93,19 @@ async def get_platform_stats(
     
     total_applications = await db.applications.count_documents({})
     total_referrals = await db.referrals.count_documents({})
+    cv_documents = await db.documents.count_documents({"document_type": {"$in": ["cv", "resume"]}})
+    cover_letters = await db.documents.count_documents({"document_type": "cover_letter"})
+    applications_in_review = await db.applications.count_documents({
+        "status": {"$in": ["awaiting_review", "under_review", "pending"]}
+    })
+    interviews = await db.applications.count_documents({
+        "status": {"$in": ["interview_scheduled", "interview_completed", "second_round", "final_round"]}
+    })
+    offers = await db.applications.count_documents({
+        "status": {"$in": ["offer_received", "offer_accepted", "offer_declined"]}
+    })
+    completed_referrals = await db.referrals.count_documents({"status": "completed"})
+    rewards_paid = await db.referrals.count_documents({"referrer_reward_paid": True})
 
     # Users by tier
     pipeline = [
@@ -103,8 +117,16 @@ async def get_platform_stats(
         "total_users": total_users,
         "active_users": active_users,
         "total_documents": total_documents,
+        "cv_documents": cv_documents,
+        "cover_letters": cover_letters,
         "total_applications": total_applications,
+        "applications_in_review": applications_in_review,
+        "interviews": interviews,
+        "offers": offers,
         "total_referrals": total_referrals,
+        "completed_referrals": completed_referrals,
+        "pending_referrals": max(total_referrals - completed_referrals, 0),
+        "rewards_paid": rewards_paid,
         "users_by_tier": {item["_id"]: item["count"] for item in tier_counts}
     }
 
@@ -203,7 +225,8 @@ async def _profile_payload(db, user: dict) -> dict:
             "status": ref.get("status") or "pending",
             "referred_at": ref.get("referred_at"),
             "completed_at": ref.get("completed_at"),
-            "subscription_tier": (referee or {}).get("subscription_tier")
+            "subscription_tier": (referee or {}).get("subscription_tier"),
+            "referee_id": (referee or {}).get("id") or ""
         })
 
     pending = await db.referrals.count_documents({"referrer_user_id": user_id, "status": "pending"})
@@ -327,7 +350,7 @@ async def update_user_status(
         {"$set": {"is_active": status_update.is_active, "updated_at": datetime.utcnow()}}
     )
     
-    if result.modified_count == 0:
+    if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
     
     return {"message": f"User {'activated' if status_update.is_active else 'deactivated'}"}
@@ -346,10 +369,35 @@ async def update_user_tier(
         {"$set": {"subscription_tier": tier_update.tier, "updated_at": datetime.utcnow()}}
     )
     
-    if result.modified_count == 0:
+    if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
     
     return {"message": "Subscription tier updated"}
+
+class UserRoleUpdate(BaseModel):
+    role: str
+
+
+@router.patch("/users/{user_id}/role")
+async def update_user_role(
+    user_id: str,
+    role_update: UserRoleUpdate,
+    current_admin = Depends(require_admin),
+    db = Depends(get_database)
+):
+    """Set a user's role."""
+    if role_update.role not in ("user", "admin", "moderator"):
+        raise HTTPException(status_code=400, detail="Role must be user, admin, or moderator")
+    if not ObjectId.is_valid(user_id):
+        raise HTTPException(status_code=404, detail="User not found")
+    result = await db.users.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"role": role_update.role, "updated_at": datetime.utcnow()}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"message": "Role updated", "role": role_update.role}
+
 
 @router.delete("/users/{user_id}")
 async def delete_user(
@@ -609,8 +657,136 @@ async def list_support_tickets(
     return {"tickets": tickets}
 
 
+def _ticket_view(ticket: dict) -> dict:
+    ticket = dict(ticket)
+    ticket["id"] = str(ticket.pop("_id"))
+    return ticket
+
+
+class TicketCreate(BaseModel):
+    email: EmailStr
+    message: str
+
+
+@router.get("/support-tickets/{ticket_id}")
+async def get_support_ticket(
+    ticket_id: str,
+    current_admin = Depends(require_admin),
+    db = Depends(get_database)
+):
+    if not ObjectId.is_valid(ticket_id):
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    ticket = await db.support_tickets.find_one({"_id": ObjectId(ticket_id)})
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    return _ticket_view(ticket)
+
+
+@router.post("/support-tickets")
+async def create_support_ticket(
+    payload: TicketCreate,
+    current_admin = Depends(require_admin),
+    db = Depends(get_database)
+):
+    """Start an inbox conversation with a user."""
+    body = (payload.message or "").strip()
+    if len(body) < 1:
+        raise HTTPException(status_code=400, detail="Message is required")
+    email = str(payload.email).strip().lower()
+    user = await db.users.find_one({"email": {"$regex": f"^{re.escape(email)}$", "$options": "i"}})
+    now = datetime.utcnow()
+    result = await db.support_tickets.insert_one({
+        "email": email,
+        "user_id": str(user["_id"]) if user else None,
+        "message": body,
+        "status": "open",
+        "messages": [{
+            "sender": "admin",
+            "body": body,
+            "created_at": now,
+            "read": False,
+        }],
+        "created_at": now,
+        "updated_at": now,
+    })
+    return {"id": str(result.inserted_id), "email": email}
+
+
+@router.delete("/support-tickets/{ticket_id}")
+async def delete_support_ticket(
+    ticket_id: str,
+    current_admin = Depends(require_admin),
+    db = Depends(get_database)
+):
+    if not ObjectId.is_valid(ticket_id):
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    result = await db.support_tickets.delete_one({"_id": ObjectId(ticket_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    return {"success": True}
+
+
 class TicketStatusUpdate(BaseModel):
     status: str
+
+
+class TicketReply(BaseModel):
+    message: str
+
+
+def _ticket_messages(ticket: dict) -> list:
+    stored = ticket.get("messages") or []
+    if stored:
+        return stored
+    if ticket.get("message"):
+        return [{
+            "sender": "user",
+            "body": ticket.get("message"),
+            "created_at": ticket.get("created_at"),
+            "read": True,
+        }]
+    return []
+
+
+@router.post("/support-tickets/{ticket_id}/reply")
+async def reply_to_support_ticket(
+    ticket_id: str,
+    reply: TicketReply,
+    current_admin=Depends(require_admin),
+    db=Depends(get_database),
+):
+    """Send a support reply into the user's inbox."""
+    body = (reply.message or "").strip()
+    if len(body) < 1:
+        raise HTTPException(status_code=400, detail="Message is required")
+    if not ObjectId.is_valid(ticket_id):
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    ticket = await db.support_tickets.find_one({"_id": ObjectId(ticket_id)})
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    now = datetime.utcnow()
+    messages = _ticket_messages(ticket)
+    messages.append({
+        "sender": "admin",
+        "body": body,
+        "created_at": now,
+        "read": False,
+    })
+    for item in messages:
+        if item.get("sender") == "user":
+            item["seen_by_admin"] = True
+    await db.support_tickets.update_one(
+        {"_id": ticket["_id"]},
+        {"$set": {"messages": messages, "updated_at": now, "status": "open"}},
+    )
+    return {"success": True, "id": ticket_id, "messages": [
+        {
+            "sender": item.get("sender") or "user",
+            "body": item.get("body") or "",
+            "created_at": item.get("created_at"),
+        }
+        for item in messages
+    ]}
 
 
 @router.patch("/support-tickets/{ticket_id}")

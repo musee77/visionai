@@ -52,9 +52,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     loadStats();
     const openReview = window.location.hash === '#review';
-    await loadTabComponent(openReview ? 'review' : 'applications');
-    if (openReview) switchTab('review');
-    else loadApplications();
+    const openInbox = window.location.hash === '#responses' || window.location.hash === '#inbox';
+    const startTab = openReview ? 'review' : (openInbox ? 'responses' : 'applications');
+    await loadTabComponent(startTab);
+    if (startTab === 'applications') loadApplications();
+    else switchTab(startTab);
 });
 
 // ==================== APPLICATION PAGE FUNCTIONS ====================

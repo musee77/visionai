@@ -66,7 +66,10 @@
 
     // Setup event listeners
     function setupEventListeners() {
-        newPostBtn.addEventListener('click', openNewPostModal);
+        newPostBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            window.location.href = 'post.html';
+        });
         closeModalBtn.addEventListener('click', closeModal);
         cancelBtn.addEventListener('click', closeModal);
         saveBtn.addEventListener('click', savePost);
@@ -132,7 +135,7 @@
             return `
                 <tr>
                     <td class="px-6 py-4 whitespace-nowrap">
-                        <a href="#" onclick="window.blogAdmin.editPost('${post.id}'); return false;" class="text-sm font-medium text-blue-600 hover:text-blue-900 hover:underline">
+                        <a href="post.html?id=${encodeURIComponent(post.id)}" class="text-sm font-medium text-blue-600 hover:text-blue-900 hover:underline">
                             ${post.title}
                         </a>
                         <div class="text-xs text-gray-500 mt-0.5">
@@ -155,7 +158,7 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <a href="/info/blog-post.html?slug=${post.slug}" target="_blank" class="text-gray-600 hover:text-gray-900 mr-3">View</a>
-                        <button onclick="window.blogAdmin.editPost('${post.id}')" class="text-primary-600 hover:text-primary-900 mr-3">Edit</button>
+                        <a href="post.html?id=${encodeURIComponent(post.id)}" class="text-primary-600 hover:text-primary-900 mr-3">Details</a>
                         <button onclick="window.blogAdmin.deletePost('${post.id}')" class="text-red-600 hover:text-red-900">Delete</button>
                     </td>
                 </tr>

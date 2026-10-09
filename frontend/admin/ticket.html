@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Message - JobsApply admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/admin/assets/admin.css?v=3">
+</head>
+
+<body class="bg-gray-50">
+    <div class="admin-shell flex h-screen overflow-hidden">
+        <div id="admin-sidebar"></div>
+        <main class="flex-1 overflow-y-auto">
+            <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
+                <div class="px-4 sm:px-6 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="min-w-0">
+                        <a href="tickets" class="text-sm text-blue-600 hover:text-blue-800">Inbox</a>
+                        <h2 class="text-xl sm:text-2xl font-bold text-gray-900 break-words" id="pageTitle">Message</h2>
+                    </div>
+                    <button type="button" id="deleteBtn" class="hidden self-start sm:self-auto shrink-0 px-4 py-2 text-sm text-red-700 border border-red-200 rounded-lg hover:bg-red-50">Delete</button>
+                </div>
+            </header>
+            <div class="p-4 sm:p-6 max-w-3xl space-y-4">
+                <p id="pageError" class="hidden rounded-lg bg-red-50 text-red-700 px-4 py-3 text-sm"></p>
+                <form id="createForm" class="hidden bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 space-y-4">
+                    <label class="block text-sm">User email
+                        <input id="createEmail" type="email" required class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    </label>
+                    <label class="block text-sm">Message
+                        <textarea id="createMessage" rows="5" required class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg"></textarea>
+                    </label>
+                    <button type="submit" class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Send</button>
+                </form>
+                <section id="detail" class="hidden space-y-4">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <div class="text-xs uppercase tracking-wide text-gray-400">Email</div>
+                                <div id="ticketEmail" class="mt-1 text-gray-900"></div>
+                            </div>
+                            <label class="block">Status
+                                <select id="ticketStatus" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                    <option value="open">Open</option>
+                                    <option value="resolved">Resolved</option>
+                                </select>
+                            </label>
+                        </div>
+                        <button type="button" id="saveStatus" class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save status</button>
+                    </div>
+                    <div id="messages" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 space-y-3 max-h-[28rem] overflow-y-auto"></div>
+                    <form id="replyForm" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 space-y-3">
+                        <textarea id="reply" rows="3" required placeholder="Reply in the user's inbox" class="w-full px-3 py-2 border border-gray-300 rounded-lg"></textarea>
+                        <button type="submit" class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Send reply</button>
+                    </form>
+                </section>
+            </div>
+        </main>
+    </div>
+    <script src="/admin/assets/js/admin-sidebar.js?v=4"></script>
+    <script src="/assets/js/main.js?v=1.3"></script>
+    <script>
+        if (!CVision.Utils.isAuthenticated()) window.location.href = 'login.html';
+        const ticketId = new URLSearchParams(window.location.search).get('id');
+
+        function showError(error) {
+            const box = document.getElementById('pageError');
+            box.textContent = error.detail || error.message || 'Something went wrong';
+            box.classList.remove('hidden');
+        }
+
+        function escapeHtml(value) {
+            return String(value || '').replace(/[&<>"']/g, (char) => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[char]));
+        }
+
+        function messagesOf(ticket) {
+            if (ticket.messages && ticket.messages.length) return ticket.messages;
+            if (ticket.message) return [{ sender: 'user', body: ticket.message }];
+            return [];
+        }
+
+        function render(ticket) {
+            document.getElementById('pageTitle').textContent = ticket.email || 'Message';
+            document.getElementById('ticketEmail').textContent = ticket.email || '—';
+            document.getElementById('ticketStatus').value = ticket.status === 'resolved' ? 'resolved' : 'open';
+            document.getElementById('messages').innerHTML = messagesOf(ticket).map((message) => {
+                const fromUser = message.sender !== 'admin';
+                return `<article class="flex ${fromUser ? 'justify-start' : 'justify-end'}"><div class="max-w-[80%] rounded-xl px-4 py-3 ${fromUser ? 'bg-gray-100 text-gray-900' : 'bg-blue-600 text-white'}"><p class="text-xs font-medium ${fromUser ? 'text-gray-500' : 'text-blue-100'}">${fromUser ? 'User' : 'Admin'}</p><p class="text-sm mt-1 whitespace-pre-wrap">${escapeHtml(message.body)}</p></div></article>`;
+            }).join('');
+        }
+
+        async function loadTicket() {
+            render(await CVision.API.request(`/admin/support-tickets/${ticketId}`));
+        }
+
+        document.getElementById('createForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            try {
+                const created = await CVision.API.request('/admin/support-tickets', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        email: document.getElementById('createEmail').value,
+                        message: document.getElementById('createMessage').value
+                    })
+                });
+                window.location.href = `ticket.html?id=${encodeURIComponent(created.id)}`;
+            } catch (error) {
+                showError(error);
+            }
+        });
+
+        document.getElementById('saveStatus').addEventListener('click', async () => {
+            try {
+                await CVision.API.request(`/admin/support-tickets/${ticketId}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ status: document.getElementById('ticketStatus').value })
+                });
+                await loadTicket();
+            } catch (error) {
+                showError(error);
+            }
+        });
+
+        document.getElementById('replyForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const input = document.getElementById('reply');
+            try {
+                await CVision.API.request(`/admin/support-tickets/${ticketId}/reply`, {
+                    method: 'POST',
+                    body: JSON.stringify({ message: input.value.trim() })
+                });
+                input.value = '';
+                await loadTicket();
+            } catch (error) {
+                showError(error);
+            }
+        });
+
+        document.getElementById('deleteBtn').addEventListener('click', async () => {
+            if (!confirm('Delete this conversation?')) return;
+            try {
+                await CVision.API.request(`/admin/support-tickets/${ticketId}`, { method: 'DELETE' });
+                window.location.href = 'tickets';
+            } catch (error) {
+                showError(error);
+            }
+        });
+
+        if (!ticketId) {
+            document.getElementById('pageTitle').textContent = 'New message';
+            document.getElementById('createForm').classList.remove('hidden');
+        } else {
+            document.getElementById('detail').classList.remove('hidden');
+            document.getElementById('deleteBtn').classList.remove('hidden');
+            loadTicket().catch(showError);
+        }
+    </script>
+</body>
+
+</html>

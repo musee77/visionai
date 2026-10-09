@@ -299,7 +299,7 @@ async def get_rss_feed(
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
     xml += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n'
     xml += '  <channel>\n'
-    xml += '    <title>Synovae Blog</title>\n'
+    xml += '    <title>JobsApply Blog</title>\n'
     xml += '    <link>https://synovae.io/info/blog</link>\n'
     xml += '    <description>AI-Powered Job Application Platform - Blog</description>\n'
     xml += '    <language>en-us</language>\n'

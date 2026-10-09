@@ -14,8 +14,8 @@
     // SEO Configuration for all pages
     const seoConfig = {
         baseUrl: 'https://www.synovae.io',
-        siteName: 'Synovae',
-        author: 'Synovae',
+        siteName: 'JobsApply',
+        author: 'JobsApply',
         twitterHandle: '@synovae',
         locale: 'en_US',
 
@@ -29,62 +29,69 @@
 
         // Default fallback values
         defaultImage: 'https://www.synovae.io/assets/images/og/og-default.png',
-        defaultTitle: 'Synovae - AI-Powered Job Application Platform',
-        defaultDescription: 'Land your dream job faster with Synovae. Our AI-powered platform automates job applications, creates tailored CVs, and matches you with perfect opportunities.',
+        defaultTitle: 'JobsApply - Upload Your CV and Find Jobs',
+        defaultDescription: 'Upload a PDF, DOCX, or TXT CV on JobsApply. Set a job title, location, and salary, then browse matching jobs and apply.',
 
         // Page-specific configurations
         pages: {
             'index': {
-                title: 'Synovae - AI-Powered Job Application Platform | Automate Your Job Search',
-                description: 'Land your dream job faster with Synovae. Our AI-powered platform automates job applications, creates tailored CVs, and matches you with perfect opportunities. Start free today!',
-                keywords: 'job search, AI job application, automated job search, CV builder, cover letter generator, job matching, career platform, resume optimization',
+                title: 'JobsApply - Upload Your CV and Find Jobs',
+                description: 'Drop a PDF, DOCX, or TXT CV. JobsApply reads it, then you set a title, location, and salary and browse the jobs underneath.',
+                keywords: 'upload CV, find jobs, job search, job matching, apply to jobs, resume, JobsApply',
+                image: 'https://www.synovae.io/assets/images/og/og-home.png',
+                type: 'website'
+            },
+            'home': {
+                title: 'About JobsApply - A CV That Already Fits the Job',
+                description: 'JobsApply matches openings, rewrites your materials for each role, and takes the repetitive application work off your plate.',
+                keywords: 'JobsApply, AI job applications, CV matching, tailored resume, job search',
                 image: 'https://www.synovae.io/assets/images/og/og-home.png',
                 type: 'website'
             },
             'how-it-works': {
-                title: 'How It Works - Synovae | AI Job Application in 4 Simple Steps',
-                description: 'Discover how Synovae streamlines your job search in 4 simple steps. Upload your CV, find perfect matches, customize applications, and apply instantly with AI.',
-                keywords: 'how it works, job application process, automated job search, AI job matching, career automation',
+                title: 'How It Works - JobsApply',
+                description: 'Four steps: upload your CV, find matching jobs, customize each application, and apply.',
+                keywords: 'how it works, upload CV, find jobs, customize application, apply to jobs',
                 image: 'https://www.synovae.io/assets/images/og/og-how-it-works.png',
                 type: 'article'
             },
             'features': {
-                title: 'Features - Synovae | AI-Powered Job Search Tools',
-                description: 'Explore powerful features including AI-powered job matching, automated applications, custom CV generation, cover letter writing, and comprehensive application tracking.',
-                keywords: 'job search features, AI matching, automated applications, CV builder, cover letter generator, application tracking',
+                title: 'Features - JobsApply',
+                description: 'AI CV analysis, job matching, tailored applications, cover letters, and application tracking. Built to get you hired faster.',
+                keywords: 'CV analysis, job matching, cover letter, application tracking, auto apply',
                 image: 'https://www.synovae.io/assets/images/og/og-features.png',
                 type: 'website'
             },
             'pricing': {
-                title: 'Pricing - Synovae | Affordable Job Search Plans',
-                description: 'Choose the perfect plan for your job search. From free basic access to unlimited applications with our premium plans. No hidden fees, cancel anytime.',
-                keywords: 'pricing, job search plans, subscription, free trial, job application pricing',
+                title: 'Pricing - JobsApply',
+                description: 'Simple, transparent pricing. Start free and upgrade as your job search picks up. No hidden fees, cancel anytime.',
+                keywords: 'pricing, free plan, basic plan, premium plan, job application pricing',
                 image: 'https://www.synovae.io/assets/images/og/og-pricing.png',
                 type: 'website'
             },
             'info/contact': {
-                title: 'Contact Us - Synovae | Get Support for Your Job Search',
-                description: 'Get in touch with our team. We\'re here to help you succeed in your job search journey. Fast response times and dedicated support.',
+                title: 'Contact Us - JobsApply',
+                description: 'Questions about uploading a CV, matching jobs, or your account? Contact the JobsApply team.',
                 keywords: 'contact, support, help, customer service, job search help',
                 image: 'https://www.synovae.io/assets/images/og/og-contact.png',
                 type: 'website'
             },
             'register': {
-                title: 'Sign Up - Synovae | Start Your Free Trial Today',
-                description: 'Create your free Synovae account and start landing more interviews. No credit card required. Get started in under 2 minutes.',
+                title: 'Sign Up - JobsApply',
+                description: 'Create a free JobsApply account. Upload your CV, see matching jobs, and apply. Get started in a couple of minutes.',
                 keywords: 'sign up, register, create account, free trial, job search registration',
                 image: 'https://www.synovae.io/assets/images/og/og-default.png',
                 type: 'website'
             },
             'login': {
-                title: 'Login - Synovae | Access Your Job Search Dashboard',
-                description: 'Login to your Synovae account to manage your job applications, track interviews, and continue your job search journey.',
+                title: 'Login - JobsApply',
+                description: 'Log in to JobsApply to pick up your CV, saved jobs, and applications.',
                 keywords: 'login, sign in, account access, job search dashboard',
                 image: 'https://www.synovae.io/assets/images/og/og-default.png',
                 type: 'website'
             },
             'info/blog': {
-                title: 'Blog - Synovae | Job Search Tips, Career Advice & AI Insights',
+                title: 'Blog - JobsApply | Job Search Tips and Career Advice',
                 description: 'Discover expert job search strategies, career development tips, and insights on AI-powered recruitment. Stay updated with the latest trends in job hunting and career growth.',
                 keywords: 'job search tips, career advice, resume tips, interview preparation, AI recruitment, career development, job hunting strategies, professional growth',
                 image: 'https://www.synovae.io/assets/images/og/og-default.png',
@@ -93,79 +100,79 @@
             },
 
             'info/help': {
-                title: 'Help Center - Synovae | FAQs, Guides & Support',
-                description: 'Get answers to your questions about Synovae. Browse our comprehensive help center for tutorials, FAQs, troubleshooting guides, and customer support resources.',
+                title: 'Help Center - JobsApply',
+                description: 'Answers for uploading a CV, finding jobs, customizing applications, auto-apply, and your JobsApply account.',
                 keywords: 'help center, customer support, FAQ, tutorials, troubleshooting, user guide, how to use, support docs',
                 image: 'https://www.synovae.io/assets/images/og/og-default.png',
                 type: 'website',
                 canonical: 'https://www.synovae.io/info/help'
             },
             'info/legal/privacy': {
-                title: 'Privacy Policy - Synovae | Your Data Security & Privacy',
-                description: 'Learn how Synovae protects your personal information and CV data. Read our comprehensive privacy policy and data protection practices.',
+                title: 'Privacy Policy - JobsApply',
+                description: 'How JobsApply handles your account, CV, and application data.',
                 keywords: 'privacy policy, data protection, GDPR compliance, user privacy',
                 canonical: 'https://www.synovae.io/info/legal/privacy',
                 type: 'article'
             },
             'info/legal/terms': {
-                title: 'Terms of Service - Synovae | User Agreement & Legal Terms',
-                description: 'Read Synovae\'s terms of service, user agreement, and legal policies. Understand your rights and responsibilities when using our platform.',
+                title: 'Terms of Service - JobsApply',
+                description: 'The terms for using JobsApply to upload a CV, match jobs, and send applications.',
                 keywords: 'terms of service, user agreement, legal terms, terms and conditions',
                 canonical: 'https://www.synovae.io/info/legal/terms',
                 type: 'article'
             },
             'info/contact': {
-                title: 'Contact Us - Synovae | Get Support & Answers',
-                description: 'Need help? Contact Synovae\'s support team. Get answers about our AI job search platform, technical support, or partnership opportunities. We\'re here to help.',
-                keywords: 'contact synovae, customer support, job search help, technical support',
+                title: 'Contact Us - JobsApply',
+                description: 'Contact JobsApply about your CV, job matches, applications, or account.',
+                keywords: 'contact JobsApply, customer support, job search help, technical support',
                 canonical: 'https://www.synovae.io/info/contact',
                 image: 'https://www.synovae.io/assets/images/og/og-contact.png'
             },
             'dashboard': {
-                title: 'Dashboard - Synovae | Your Job Search Command Center',
-                description: 'Manage your job applications, track interviews, and monitor your job search progress all in one place.',
+                title: 'Dashboard - JobsApply',
+                description: 'Your JobsApply home for documents, matched jobs, and applications.',
                 keywords: 'job dashboard, application tracking, job search management',
                 type: 'website',
                 noindex: true
             },
             'pages/applications': {
-                title: 'Applications - Synovae | Track Your Job Applications',
-                description: 'View and manage all your job applications. Track status, responses, and follow-ups.',
+                title: 'My Applications - JobsApply',
+                description: 'See applications you saved, sent, and still need to review.',
                 keywords: 'job applications, application tracking, job status',
                 type: 'website',
                 noindex: true
             },
             'pages/documents': {
-                title: 'Documents - Synovae | Manage Your CVs & Cover Letters',
-                description: 'Upload, manage, and optimize your resume and cover letters with AI-powered insights.',
+                title: 'Documents - JobsApply',
+                description: 'Keep the CVs and cover letters you upload and generate on JobsApply.',
                 keywords: 'CV management, resume builder, cover letter generator',
                 type: 'website',
                 noindex: true
             },
             'pages/jobs': {
-                title: 'Job Search - Synovae | Find Your Perfect Role',
-                description: 'Browse and search through thousands of job opportunities matched to your skills and preferences.',
+                title: 'Find Jobs - JobsApply',
+                description: 'Search jobs by title, company, and location, then apply with your CV.',
                 keywords: 'job search, job listings, career opportunities',
                 type: 'website',
                 noindex: true
             },
             'pages/auto-apply': {
-                title: 'Auto Apply - Synovae | Automate Your Job Applications',
-                description: 'Let our AI automatically apply to jobs that match your profile while you focus on what matters.',
+                title: 'Auto Apply - JobsApply',
+                description: 'Let JobsApply apply to matching jobs for you on Premium.',
                 keywords: 'auto apply, automated job application, AI job search',
                 type: 'website',
                 noindex: true
             },
             'pages/profile': {
-                title: 'Profile - Synovae | Manage Your Account',
-                description: 'Update your profile, preferences, and account settings.',
+                title: 'Profile - JobsApply',
+                description: 'Your name, phone, location, country, and the links JobsApply uses when you apply.',
                 keywords: 'profile settings, account management',
                 type: 'website',
                 noindex: true
             },
             'pages/subscription': {
-                title: 'Subscription - Synovae | Manage Your Plan',
-                description: 'View and manage your Synovae subscription, upgrade or change your plan.',
+                title: 'Subscription - JobsApply',
+                description: 'See your JobsApply plan. Free includes manual applications. Basic adds CV and cover letter tools. Premium adds auto-apply.',
                 keywords: 'subscription management, billing, plans',
                 type: 'website',
                 noindex: true
@@ -392,28 +399,28 @@
             pageSchema = {
                 "@context": "https://schema.org",
                 "@type": "HowTo",
-                "name": "How to Use Synovae for Job Applications",
+                "name": "How to apply with JobsApply",
                 "description": seo.description,
                 "step": [
                     {
                         "@type": "HowToStep",
                         "name": "Upload Your CV",
-                        "text": "Upload your resume and our AI analyzes your skills instantly"
+                        "text": "Add a PDF, DOCX, or TXT. JobsApply reads it."
                     },
                     {
                         "@type": "HowToStep",
-                        "name": "Find Perfect Jobs",
-                        "text": "Get matched with relevant job opportunities based on your profile"
+                        "name": "Find matching jobs",
+                        "text": "Set a title, location, and salary, then browse the jobs that fit."
                     },
                     {
                         "@type": "HowToStep",
-                        "name": "Customize Applications",
-                        "text": "AI generates tailored CVs and cover letters for each application"
+                        "name": "Customize the application",
+                        "text": "Tailor the CV and cover letter for that role."
                     },
                     {
                         "@type": "HowToStep",
-                        "name": "Apply Instantly",
-                        "text": "One-click application or fully automated submission"
+                        "name": "Apply",
+                        "text": "Review the form and submit, or let auto-apply send it on Premium."
                     }
                 ]
             };

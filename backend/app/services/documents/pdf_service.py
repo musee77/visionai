@@ -546,7 +546,7 @@ class PDFService:
         canvas_obj.setFillColorRGB(0.9, 0.9, 0.9, alpha=0.3)
         canvas_obj.translate(4*inch, 5*inch)
         canvas_obj.rotate(45)
-        canvas_obj.drawCentredString(0, 0, "CVision Free")
+        canvas_obj.drawCentredString(0, 0, "JobsApply")
         canvas_obj.restoreState()
     
     async def save_pdf(

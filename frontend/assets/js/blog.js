@@ -98,7 +98,7 @@
         if (!container) return;
 
         const imageUrl = getValidImageUrl(post.featured_image);
-        const authorName = post.author ? post.author.name : 'Synovae Team';
+        const authorName = post.author ? post.author.name : 'JobsApply Team';
         const authorInitial = authorName.charAt(0);
 
         let dateStr = 'Recently';

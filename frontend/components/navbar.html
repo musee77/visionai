@@ -91,7 +91,7 @@
         <div class="flex justify-between items-center h-16">
             <div class="flex items-center">
                 <a href="/dashboard" class="flex items-center">
-                    <img src="/assets/images/logo/my-logo.png" alt="Synovae Logo" class="h-8 sm:h-10 w-auto"
+                    <img src="/assets/images/logo/my-logo.png" alt="JobsApply Logo" class="h-8 sm:h-10 w-auto"
                         style="max-width: 180px;">
                 </a>
             </div>
@@ -110,6 +110,20 @@
                 <span
                     class="hidden sm:inline-block px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full"
                     id="navUserTier">Free</span>
+
+                <!-- Inbox -->
+                <a href="/pages/inbox" id="inboxBtn" aria-label="Inbox"
+                    class="flex items-center gap-1.5 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+                    <span class="relative">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-1.414 1.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-1.414-1.414A1 1 0 006.586 13H4">
+                            </path>
+                        </svg>
+                        <span id="inboxBadge" class="notification-badge bg-red-500 text-white rounded-full hidden">0</span>
+                    </span>
+                    <span class="hidden sm:inline text-sm font-medium">Inbox</span>
+                </a>
 
                 <!-- Notifications -->
                 <div class="relative">
@@ -191,6 +205,8 @@
                 <a href="/pages/jobs" class="block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg">Jobs</a>
                 <a href="/pages/applications"
                     class="block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg">Applications</a>
+                <a href="/pages/inbox"
+                    class="block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg">Inbox</a>
                 <a href="/pages/documents"
                     class="nav-link block px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg">Documents</a>
             </div>

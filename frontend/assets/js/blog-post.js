@@ -77,7 +77,7 @@
         const seo = post.seo || { meta_description: '', keywords: [], og_title: '', og_description: '' };
 
         // Update page title and meta tags
-        document.getElementById('page-title').textContent = `${post.title} - VisionAI Blog`;
+        document.getElementById('page-title').textContent = `${post.title} - JobsApply Blog`;
         document.getElementById('meta-description').setAttribute('content', seo.meta_description || post.excerpt || '');
         document.getElementById('meta-keywords').setAttribute('content', (seo.keywords || []).join(', '));
 
@@ -126,7 +126,7 @@
         document.getElementById('article-title').textContent = post.title;
 
         // Author (Handle missing author data safely)
-        const authorName = post.author && post.author.name ? post.author.name : 'Synovae Team';
+        const authorName = post.author && post.author.name ? post.author.name : 'JobsApply Team';
         const authorAvatarUrl = post.author ? post.author.avatar_url : null;
 
         const authorAvatar = document.getElementById('author-avatar');
@@ -287,11 +287,11 @@
             "image": getValidImageUrl(post.featured_image),
             "author": {
                 "@type": "Person",
-                "name": post.author && post.author.name ? post.author.name : 'VisionAI Team'
+                "name": post.author && post.author.name ? post.author.name : 'JobsApply Team'
             },
             "publisher": {
                 "@type": "Organization",
-                "name": "VisionAI",
+                "name": "JobsApply",
                 "logo": {
                     "@type": "ImageObject",
                     "url": `https://${window.location.hostname}/logo.png`

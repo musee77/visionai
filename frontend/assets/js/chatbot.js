@@ -1,5 +1,5 @@
 /**
- * CVision AI Chatbot
+ * JobsApply Chatbot
  * Smart chatbot with keyword-based responses and human support escalation
  */
 
@@ -16,9 +16,9 @@ const CVisionChatbot = {
         greeting: {
             keywords: ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening'],
             responses: [
-                "Hi there! 👋 I'm the CVision AI assistant. How can I help you today?",
-                "Hello! Welcome to CVision. What can I assist you with?",
-                "Hey! I'm here to help. What would you like to know about CVision?"
+                "Hi there! 👋 I'm the JobsApply assistant. How can I help you today?",
+                "Hello! Welcome to JobsApply. What can I assist you with?",
+                "Hey! I'm here to help. What would you like to know about JobsApply?"
             ]
         },
         account: {
@@ -30,7 +30,7 @@ const CVisionChatbot = {
         features: {
             keywords: ['features', 'what can', 'capabilities', 'ai', 'cv analysis', 'job matching', 'auto-apply'],
             responses: [
-                "CVision offers powerful AI features:\n\n🤖 AI CV Analysis - Instant resume optimization\n🎯 Smart Job Matching - Find perfect opportunities\n📝 Custom CV Generation - Tailored for each job\n✉️ AI Cover Letters - Personalized applications\n🚀 One-Click Apply - Save hours every week\n📊 Application Tracking - Monitor all applications\n\nWant to learn more about any specific feature?"
+                "JobsApply offers:\n\n🤖 AI CV Analysis - Read your CV and suggest improvements\n🎯 Job matching - See roles that fit\n📝 Custom CV - Tailor it for each job\n✉️ Cover letters - Write one for the role\n🚀 Apply - Review the company form, then submit\n📊 Application tracking - See what you sent\n\nWant to learn more about any specific feature?"
             ]
         },
         pricing: {
@@ -42,7 +42,7 @@ const CVisionChatbot = {
         howItWorks: {
             keywords: ['how', 'work', 'process', 'steps', 'start', 'use'],
             responses: [
-                "Getting started with CVision is easy:\n\n1️⃣ Upload Your CV - We analyze your skills instantly\n2️⃣ Find Jobs - AI matches you with perfect opportunities\n3️⃣ Customize - Generate tailored CVs and cover letters\n4️⃣ Apply - One-click application or full automation\n\nReady to get started? Click 'Get Started' to begin!"
+                "Getting started with JobsApply:\n\n1️⃣ Upload your CV - PDF, DOCX, or TXT\n2️⃣ Find jobs - Set a title, location, and salary\n3️⃣ Customize - Tailor the CV and cover letter\n4️⃣ Apply - Review the form and submit\n\nReady to get started? Click 'Get Started' to begin!"
             ]
         },
         technical: {
@@ -66,7 +66,7 @@ const CVisionChatbot = {
     },
 
     quickActions: [
-        "How does CVision work?",
+        "How does JobsApply work?",
         "What are the pricing plans?",
         "How do I upload my CV?",
         "Talk to a human"
@@ -100,7 +100,7 @@ const CVisionChatbot = {
                     <div class="chat-header-info">
                         <div class="chat-avatar">🤖</div>
                         <div class="chat-header-text">
-                            <h3>CVision AI Assistant</h3>
+                            <h3>JobsApply Assistant</h3>
                             <p>Typically replies instantly</p>
                         </div>
                     </div>
@@ -166,7 +166,7 @@ const CVisionChatbot = {
 
     sendWelcomeMessage() {
         setTimeout(() => {
-            this.addMessage('bot', "👋 Hi! I'm your CVision AI assistant. I can help you with questions about our features, pricing, and how to get started. How can I help you today?");
+            this.addMessage('bot', "👋 Hi! I'm your JobsApply assistant. I can help you with questions about our features, pricing, and how to get started. How can I help you today?");
             this.showQuickActions();
             const badge = document.getElementById('chatBadge');
             if (badge) badge.style.display = 'flex';
@@ -288,7 +288,7 @@ const CVisionChatbot = {
                 response = "I'm not sure I understand. Would you like me to connect you with a human support agent who can better assist you?";
                 this.showEscalationOptions();
             } else {
-                response = "I'm not sure I understand that question. Could you rephrase it? You can also try:\n\n• How does CVision work?\n• What are the pricing plans?\n• How do I upload my CV?\n• Talk to a human";
+                response = "I'm not sure I understand that question. Could you rephrase it? You can also try:\n\n• How does JobsApply work?\n• What are the pricing plans?\n• How do I upload my CV?\n• Talk to a human";
             }
         }
 
@@ -349,9 +349,7 @@ const CVisionChatbot = {
             .then(async (response) => {
                 if (!response.ok) throw new Error('Ticket was not saved');
                 const saved = await response.json();
-                const followUp = saved.email_sent
-                    ? `A copy was sent to the support team. They will reply to **${email}**.`
-                    : `Your message is saved. The support team will reply to **${email}**.`;
+                const followUp = 'The support team will reply in your Inbox.';
                 this.addMessage('bot', `Ticket #${saved.id} is open.\n\n${followUp}`);
                 this.showQuickActions();
             })

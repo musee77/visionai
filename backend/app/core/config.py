@@ -52,7 +52,7 @@ def get_secret(secret_name: str, default: Optional[str] = None) -> Optional[str]
 
 class Settings(BaseSettings):
     # Project information
-    PROJECT_NAME: str = Field(default="Synovae", env="PROJECT_NAME")
+    PROJECT_NAME: str = Field(default="JobsApply", env="PROJECT_NAME")
     PROJECT_DESCRIPTION: str = "Comprehensive AI-powered job application automation platform"
     PROJECT_VERSION: str = Field(default="1.0.0", env="PROJECT_VERSION")
     
@@ -138,13 +138,13 @@ class Settings(BaseSettings):
     MAIL_USERNAME: Optional[str] = Field(default=None, env="MAIL_USERNAME")
     MAIL_PASSWORD: Optional[str] = Field(default=None, env="MAIL_PASSWORD")
     MAIL_FROM: str = Field(default="no-reply@synovae.io", env="MAIL_FROM")
-    MAIL_FROM_NAME: str = Field(default="Synovae", env="MAIL_FROM_NAME")
+    MAIL_FROM_NAME: str = Field(default="JobsApply", env="MAIL_FROM_NAME")
     MAIL_STARTTLS: bool = Field(default=True, env="MAIL_STARTTLS")
     MAIL_SSL_TLS: bool = Field(default=False, env="MAIL_SSL_TLS")
     
     # Additional email settings
     SUPPORT_EMAIL: str = Field(default="support@synovae.io", env="SUPPORT_EMAIL")
-    COMPANY_NAME: str = Field(default="Synovae", env="COMPANY_NAME")
+    COMPANY_NAME: str = Field(default="JobsApply", env="COMPANY_NAME")
     
 
     # OAuth - REQUIRED for Google/LinkedIn login
@@ -206,7 +206,7 @@ class Settings(BaseSettings):
     ML_RETRAIN_INTERVAL_DAYS: int = Field(default=30, env="ML_RETRAIN_INTERVAL_DAYS")
     
     # Scraping Configuration
-    SCRAPER_USER_AGENT: str = Field(default="Mozilla/5.0 (compatible; VisionAI/1.0)", env="SCRAPER_USER_AGENT")
+    SCRAPER_USER_AGENT: str = Field(default="Mozilla/5.0 (compatible; JobsApply/1.0)", env="SCRAPER_USER_AGENT")
     SCRAPER_DELAY_MIN: int = Field(default=1, env="SCRAPER_DELAY_MIN")
     SCRAPER_DELAY_MAX: int = Field(default=3, env="SCRAPER_DELAY_MAX")
     
