@@ -53,7 +53,6 @@ Allow: /assets/
 
 # Sitemap locations
 Sitemap: https://www.synovae.io/sitemap.xml
-Sitemap: https://www.synovae.io/seo/sitemap.xml
 Sitemap: https://www.synovae.io/api/v1/blog/sitemap.xml
 
 # Crawl-delay (optional - only if you want to limit crawl rate)

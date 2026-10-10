@@ -38,48 +38,41 @@
                 title: 'JobsApply - Upload Your CV and Find Jobs',
                 description: 'Drop a PDF, DOCX, or TXT CV. JobsApply reads it, then you set a title, location, and salary and browse the jobs underneath.',
                 keywords: 'upload CV, find jobs, job search, job matching, apply to jobs, resume, JobsApply',
-                image: 'https://www.synovae.io/assets/images/og/og-home.png',
+                image: 'https://www.synovae.io/assets/images/og/og-default.png',
                 type: 'website'
             },
             'home': {
                 title: 'About JobsApply - A CV That Already Fits the Job',
                 description: 'JobsApply matches openings, rewrites your materials for each role, and takes the repetitive application work off your plate.',
                 keywords: 'JobsApply, AI job applications, CV matching, tailored resume, job search',
-                image: 'https://www.synovae.io/assets/images/og/og-home.png',
+                image: 'https://www.synovae.io/assets/images/og/og-default.png',
                 type: 'website'
             },
             'how-it-works': {
                 title: 'How It Works - JobsApply',
                 description: 'Four steps: upload your CV, find matching jobs, customize each application, and apply.',
                 keywords: 'how it works, upload CV, find jobs, customize application, apply to jobs',
-                image: 'https://www.synovae.io/assets/images/og/og-how-it-works.png',
-                type: 'article'
+                image: 'https://www.synovae.io/assets/images/og/og-default.png',
+                type: 'website'
             },
             'features': {
                 title: 'Features - JobsApply',
                 description: 'AI CV analysis, job matching, tailored applications, cover letters, and application tracking. Built to get you hired faster.',
                 keywords: 'CV analysis, job matching, cover letter, application tracking, auto apply',
-                image: 'https://www.synovae.io/assets/images/og/og-features.png',
+                image: 'https://www.synovae.io/assets/images/og/og-default.png',
                 type: 'website'
             },
             'pricing': {
                 title: 'Pricing - JobsApply',
-                description: 'Simple, transparent pricing. Start free and upgrade as your job search picks up. No hidden fees, cancel anytime.',
+                description: 'Free, Basic, and Premium. Start on the free plan and upgrade as your job search picks up. No hidden fees, cancel anytime.',
                 keywords: 'pricing, free plan, basic plan, premium plan, job application pricing',
-                image: 'https://www.synovae.io/assets/images/og/og-pricing.png',
-                type: 'website'
-            },
-            'info/contact': {
-                title: 'Contact Us - JobsApply',
-                description: 'Questions about uploading a CV, matching jobs, or your account? Contact the JobsApply team.',
-                keywords: 'contact, support, help, customer service, job search help',
-                image: 'https://www.synovae.io/assets/images/og/og-contact.png',
+                image: 'https://www.synovae.io/assets/images/og/og-default.png',
                 type: 'website'
             },
             'register': {
                 title: 'Sign Up - JobsApply',
                 description: 'Create a free JobsApply account. Upload your CV, see matching jobs, and apply. Get started in a couple of minutes.',
-                keywords: 'sign up, register, create account, free trial, job search registration',
+                keywords: 'sign up, register, create account, free plan, job search registration',
                 image: 'https://www.synovae.io/assets/images/og/og-default.png',
                 type: 'website'
             },
@@ -126,7 +119,23 @@
                 description: 'Contact JobsApply about your CV, job matches, applications, or account.',
                 keywords: 'contact JobsApply, customer support, job search help, technical support',
                 canonical: 'https://www.synovae.io/info/contact',
-                image: 'https://www.synovae.io/assets/images/og/og-contact.png'
+                image: 'https://www.synovae.io/assets/images/og/og-default.png'
+            },
+            'info/guides/guides': {
+                title: 'User Guides - JobsApply',
+                description: 'Guides for creating an account, uploading a CV, customizing applications, auto-apply, and managing your JobsApply plan.',
+                keywords: 'JobsApply guides, upload CV, auto apply, account help',
+                image: 'https://www.synovae.io/assets/images/og/og-default.png',
+                type: 'website',
+                canonical: 'https://www.synovae.io/info/guides/guides'
+            },
+            'info/guides/guide': {
+                title: 'Guide - JobsApply',
+                description: 'A JobsApply guide for uploading a CV, finding jobs, and sending applications.',
+                keywords: 'JobsApply guide, job search help',
+                image: 'https://www.synovae.io/assets/images/og/og-default.png',
+                type: 'article',
+                canonical: 'https://www.synovae.io/info/guides/guide'
             },
             'dashboard': {
                 title: 'Dashboard - JobsApply',
@@ -202,7 +211,7 @@
             keywords: pageSEO.keywords || '',
             image: pageSEO.image || seoConfig.defaultImage,
             type: pageSEO.type || 'website',
-            url: `${seoConfig.baseUrl}/${currentPage === 'index' ? '' : currentPage}`
+            url: pageSEO.canonical || `${seoConfig.baseUrl}/${currentPage === 'index' ? '' : currentPage}`
         };
     }
 
@@ -313,12 +322,6 @@
             setOrUpdateMeta('twitter:site', seoConfig.twitterHandle);
         }
 
-        // Favicon - Modern approach with multiple formats
-        head.appendChild(createLink('icon', '/assets/images/favicon.ico', 'image/x-icon'));
-        head.appendChild(createLink('icon', '/assets/images/favicon/android-chrome-192x192.png', 'image/png'));
-        head.appendChild(createLink('icon', '/assets/images/favicon/android-chrome-512x512.png', 'image/png'));
-        head.appendChild(createLink('apple-touch-icon', '/assets/images/favicon/apple-touch-icon'));
-
         // RSS Feed and Sitemap discovery
         setOrUpdateLink('alternate', `${seoConfig.baseUrl}/api/v1/blog/feed.xml`, 'application/rss+xml');
         const sitemapLink = document.createElement('link');
@@ -353,7 +356,6 @@
             "@type": "Organization",
             "name": seoConfig.siteName,
             "url": seoConfig.baseUrl,
-            "logo": `${seoConfig.baseUrl}/assets/images/my-logo.png`,
             "description": seoConfig.defaultDescription,
             "sameAs": seoConfig.socialLinks,
             "contactPoint": {
@@ -368,12 +370,7 @@
             "@context": "https://schema.org",
             "@type": "WebSite",
             "name": seoConfig.siteName,
-            "url": seoConfig.baseUrl,
-            "potentialAction": {
-                "@type": "SearchAction",
-                "target": `${seoConfig.baseUrl}/dashboard?search={search_term_string}`,
-                "query-input": "required name=search_term_string"
-            }
+            "url": seoConfig.baseUrl
         };
 
         // Page-specific structured data

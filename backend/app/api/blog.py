@@ -268,7 +268,7 @@ async def get_sitemap(
     
     for post in posts.posts:
         xml += '  <url>\n'
-        xml += f'    <loc>https://synovae.io/info/blog-post?slug={post.slug}</loc>\n'
+        xml += f'    <loc>https://www.synovae.io/info/blog-post?slug={post.slug}</loc>\n'
         if post.published_at:
             xml += f'    <lastmod>{post.published_at.strftime("%Y-%m-%d")}</lastmod>\n'
         xml += '    <changefreq>weekly</changefreq>\n'
@@ -300,19 +300,19 @@ async def get_rss_feed(
     xml += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n'
     xml += '  <channel>\n'
     xml += '    <title>JobsApply Blog</title>\n'
-    xml += '    <link>https://synovae.io/info/blog</link>\n'
+    xml += '    <link>https://www.synovae.io/info/blog</link>\n'
     xml += '    <description>AI-Powered Job Application Platform - Blog</description>\n'
     xml += '    <language>en-us</language>\n'
-    xml += '    <atom:link href="https://synovae.io/api/v1/blog/feed.xml" rel="self" type="application/rss+xml" />\n'
+    xml += '    <atom:link href="https://www.synovae.io/api/v1/blog/feed.xml" rel="self" type="application/rss+xml" />\n'
     
     for post in posts.posts:
         xml += '    <item>\n'
         xml += f'      <title>{post.title}</title>\n'
-        xml += f'      <link>https://synovae.io/info/blog-post?slug={post.slug}</link>\n'
+        xml += f'      <link>https://www.synovae.io/info/blog-post?slug={post.slug}</link>\n'
         xml += f'      <description>{post.excerpt or ""}</description>\n'
         if post.published_at:
             xml += f'      <pubDate>{post.published_at.strftime("%a, %d %b %Y %H:%M:%S +0000")}</pubDate>\n'
-        xml += f'      <guid>https://synovae.io/info/blog-post?slug={post.slug}</guid>\n'
+        xml += f'      <guid>https://www.synovae.io/info/blog-post?slug={post.slug}</guid>\n'
         xml += '    </item>\n'
     
     xml += '  </channel>\n'
