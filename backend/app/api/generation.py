@@ -17,6 +17,7 @@ from app.database import get_database
 from app.services.documents.cv_customization_service import cv_customization_service
 from app.services.documents.cover_letter_service import cover_letter_service
 from app.services.documents.pdf_service import pdf_service
+from app.services.documents.customization_quota import customization_quota
 from bson import ObjectId
 
 logger = logging.getLogger(__name__)
@@ -81,16 +82,15 @@ async def customize_cv_for_job(
         
         # Customize and cover letters start on Basic
         subscription_tier = current_user.get("subscription_tier", "free")
-        if str(subscription_tier).lower() not in {"basic", "premium"}:
+        subscription_tier = str(subscription_tier).lower()
+        if subscription_tier not in {"basic", "premium"}:
             raise HTTPException(
                 status_code=403,
                 detail="Customizing a CV and selecting a cover letter are included on Basic and Premium."
             )
-        if not await _check_generation_limit(user_id, subscription_tier, db):
-            raise HTTPException(
-                status_code=403,
-                detail="Generation limit reached for your subscription tier. Please upgrade."
-            )
+        quota_kinds = ["cv", "letter"] if request.include_cover_letter else ["cv"]
+        quota_key = customization_quota.job_key(job_id=request.job_id)
+        await customization_quota.require(db, user_id, subscription_tier, quota_key, quota_kinds)
         
         # Get CV document
         cv_doc = await db.documents.find_one({
@@ -190,6 +190,7 @@ async def customize_cv_for_job(
             {"_id": ObjectId(cv_doc_id)},
             {"$set": {"pdf_url": cv_pdf_url}}
         )
+        await customization_quota.record(db, user_id, quota_key, "cv")
         
         cover_letter_id = None
         cover_letter_pdf_url = None
@@ -234,9 +235,7 @@ async def customize_cv_for_job(
                     {"_id": ObjectId(cover_letter_id)},
                     {"$set": {"pdf_url": cover_letter_pdf_url}}
                 )
-        
-        # Track usage
-        await _track_generation_usage(user_id, db)
+                await customization_quota.record(db, user_id, quota_key, "letter")
         
         return GenerationResponse(
             success=True,
@@ -299,11 +298,27 @@ async def batch_customize_cvs(
         
         if not jobs:
             raise HTTPException(status_code=404, detail="No valid jobs found")
-        
+
+        subscription_tier = str(subscription_tier).lower()
+        allowed_jobs = []
+        blocked_messages = []
+        for job in jobs:
+            decision = await customization_quota.check(
+                db,
+                user_id,
+                subscription_tier,
+                customization_quota.job_key(job_id=str(job["_id"])),
+                ["cv"],
+            )
+            if decision.allowed:
+                allowed_jobs.append(job)
+            else:
+                blocked_messages.append(decision.message)
+
         # Generate customized CVs
         results = await cv_customization_service.generate_multiple_versions(
             cv_data=cv_data,
-            jobs=jobs,
+            jobs=allowed_jobs,
             user_id=user_id
         )
         
@@ -314,7 +329,13 @@ async def batch_customize_cvs(
         for result in results:
             if result.get("success"):
                 success_count += 1
-                
+                await customization_quota.record(
+                    db,
+                    user_id,
+                    customization_quota.job_key(job_id=result["job_id"]),
+                    "cv",
+                )
+
                 # Generate PDF if successful
                 should_watermark = subscription_tier == "free"
                 try:
@@ -352,16 +373,15 @@ async def batch_customize_cvs(
                 cv_pdf_url=cv_pdf_url,
                 match_score=result.get("job_match_score")
             ))
-        
-        # Track usage
-        for _ in range(success_count):
-            await _track_generation_usage(user_id, db)
-        
+
+        for message in blocked_messages:
+            response_results.append(GenerationResponse(success=False, message=message))
+
         return BatchGenerationResponse(
             success=True,
             results=response_results,
             total_generated=success_count,
-            failed_count=len(results) - success_count
+            failed_count=len(response_results) - success_count
         )
         
     except HTTPException:

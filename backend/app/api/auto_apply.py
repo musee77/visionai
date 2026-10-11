@@ -14,7 +14,6 @@ from app.api.deps import get_current_user
 from app.database import get_database
 from app.models.user import User
 from app.workers.auto_apply import (
-    enable_auto_apply_for_user,
     trigger_single_user_test
 )
 from app.services.intelligence.matching_service import matching_service
@@ -120,7 +119,6 @@ async def enable_auto_apply(
 
     max_daily_applications = settings.max_daily_applications
     min_match_score = settings.min_match_score
-    user_id = str(current_user["_id"])
 
     await db["users"].update_one(
         {"_id": current_user["_id"]},
@@ -132,7 +130,6 @@ async def enable_auto_apply(
             "preferences.auto_apply_enabled_at": datetime.utcnow()
         }}
     )
-    enable_auto_apply_for_user.delay(user_id, max_daily_applications, min_match_score)
 
     return {
         "success": True,

@@ -158,8 +158,9 @@ function showFreePlanStats() {
     document.getElementById('currentTierStatus').textContent = 'Status: Active · $0';
     renderUsageStats({ manual_applications: 0, auto_applications: 0 }, {
         manual_applications: 3,
-        auto_applications: 0
-    });
+        auto_applications: 0,
+        tailored_jobs: 0
+    }, { used: 0, limit: 0 });
 }
 
 function formatQuota(used, limit) {
@@ -170,7 +171,7 @@ function formatQuota(used, limit) {
     return `${count} of ${limit}`;
 }
 
-function renderUsageStats(usage, limits) {
+function renderUsageStats(usage, limits, tailored) {
     const box = document.getElementById('currentUsage');
     if (!box) return;
     const source = usage || {};
@@ -183,9 +184,12 @@ function renderUsageStats(usage, limits) {
             ? `${automated} · ${bonusLeft} referral left`
             : `${bonusLeft} referral application${bonusLeft === 1 ? '' : 's'} left`;
     }
+    const jobs = tailored || {};
+    const tailoredText = formatQuota(jobs.used, jobs.limit === undefined ? allowance.tailored_jobs : jobs.limit);
     box.innerHTML = `
         <div class="text-base font-semibold text-gray-900">${manual} manual</div>
         <div class="text-sm font-medium text-gray-500">${automated} automated</div>
+        <div class="text-sm font-medium text-gray-500">${tailoredText} tailored jobs</div>
     `;
 }
 
@@ -282,7 +286,7 @@ async function loadUsageStats() {
             statusEl.textContent = `Status: ${status} · ${billingSummary(data.price_cents, data.billing_interval)}`;
         }
 
-        renderUsageStats(data.current_usage, data.limits);
+        renderUsageStats(data.current_usage, data.limits, data.tailored_jobs);
 
     } catch (error) {
         console.error('Failed to load usage:', error);

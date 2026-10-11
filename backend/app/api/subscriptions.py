@@ -233,8 +233,10 @@ async def get_usage_stats(
         price_cents = 0
         currency = "USD"
         billing_interval = subscription.billing_interval
+        tier = str(current_user.get("subscription_tier") or "free").lower()
         if plan:
             billing_interval = plan.billing_interval or billing_interval
+            tier = str(getattr(plan.tier, "value", plan.tier) or tier).lower()
             if plan.price:
                 price_cents = int(plan.price.amount or 0)
                 currency = getattr(plan.price.currency, "value", plan.price.currency) or "USD"
@@ -248,6 +250,10 @@ async def get_usage_stats(
                     "auto_applications": auto.max_value if auto else 0,
                     "referral_bonus_auto_applications": auto_bonus,
                 }
+        from app.services.documents.customization_quota import customization_quota
+        tailored = await customization_quota.summary(db, user_id, tier)
+        limits["tailored_jobs"] = tailored["limit"]
+        limits["tailored_jobs_daily"] = tailored["daily_limit"]
 
         return {
             "subscription_id": subscription.id,
@@ -259,6 +265,7 @@ async def get_usage_stats(
             "price_cents": price_cents,
             "currency": currency,
             "limits": limits,
+            "tailored_jobs": tailored,
             "current_usage": subscription.current_usage,
             "usage_reset_date": subscription.usage_reset_date,
             "current_period_end": subscription.current_period_end

@@ -506,8 +506,34 @@ class DocumentManager {
         if (modal && form) {
             form.dataset.documentId = documentId;
             form.reset();
+            this.showDocumentQuota('customizeQuotaNote');
             modal.classList.remove('hidden');
             modal.classList.add('flex');
+        }
+    }
+
+    async showDocumentQuota(elementId) {
+        const note = document.getElementById(elementId);
+        if (!note) return;
+        note.textContent = '';
+        try {
+            const response = await fetch('/api/v1/subscriptions/usage', {
+                headers: { 'Authorization': `Bearer ${this.getAuthToken()}` }
+            });
+            if (!response.ok) return;
+            const data = await response.json();
+            const jobs = data.tailored_jobs || {};
+            const limit = Number(jobs.limit) || 0;
+            if (!limit) return;
+            const remaining = Number(jobs.remaining) || 0;
+            let text = `${remaining} of ${limit} tailored jobs left this billing period.`;
+            if (Number(jobs.daily_limit) > 0) {
+                const dailyLeft = Math.max(0, Number(jobs.daily_limit) - Number(jobs.daily_new || 0));
+                text += ` ${dailyLeft} new jobs left today.`;
+            }
+            note.textContent = text;
+        } catch (error) {
+            console.error('Failed to load customization allowance', error);
         }
     }
 

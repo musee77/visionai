@@ -123,6 +123,8 @@ services:
   celery-worker:
     image: ${ECR_REGISTRY}/visionai-backend:${IMAGE_TAG:-latest}
     command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=1
+    healthcheck:
+      disable: true
     networks:
       - app-network
     environment:
@@ -175,6 +177,8 @@ services:
   celery-beat:
     image: ${ECR_REGISTRY}/visionai-backend:${IMAGE_TAG:-latest}
     command: celery -A app.workers.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule.db
+    healthcheck:
+      disable: true
     networks:
       - app-network
     environment:

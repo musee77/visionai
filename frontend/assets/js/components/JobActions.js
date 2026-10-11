@@ -76,6 +76,7 @@ class JobActionComponent {
 
                             <!-- Form -->
                             <div id="customizeForm" class="space-y-6">
+                                <p id="customizeQuota" class="text-sm text-gray-500"></p>
                                 <div>
                                     <label for="cvSelect" class="block text-sm font-medium text-gray-700 mb-2">Select Your CV</label>
                                     <select id="cvSelect" class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500">
@@ -199,19 +200,9 @@ class JobActionComponent {
             }
         }
 
-        // 2. Check Usage Limits (if any for paid tiers)
-        // Currently Basic/Premium are unlimited (9999), but we keep this check for future proofing
-        // or if we switch back to credit based.
-        const canGenerate = await this.checkGenerationLimits();
-        if (!canGenerate) {
-            // If they passed PremiumGuard but failed this, it means they hit a hard cap (unlikely for now)
-            if (typeof UpgradeModal !== 'undefined') {
-                UpgradeModal.show('Limit Reached', 'You have reached your generation limit for this month.');
-            } else {
-                alert('Limit Reached');
-            }
-            return;
-        }
+        // 2. Show how many tailored jobs are left. Regenerating a job already
+        // tailored still goes to the server, which allows two extra runs.
+        await this.showCustomizationQuota();
 
         // Reset state
         if (window.resetProgressBar) window.resetProgressBar();
@@ -223,30 +214,28 @@ class JobActionComponent {
         await this.loadCVs();
     }
 
-    async checkGenerationLimits() {
+    async showCustomizationQuota() {
+        const note = document.getElementById('customizeQuota');
+        if (!note) return;
+        note.textContent = '';
         try {
-            // We already checked tier access via PremiumGuard.
-            // Here we just check if they are over the limit for their tier.
-            const response = await fetch(`${CONFIG.API_BASE_URL}/api/v1/applications/stats/overview`, {
+            const response = await fetch(`${CONFIG.API_BASE_URL}/api/v1/subscriptions/usage`, {
                 headers: { 'Authorization': `Bearer ${CVision.Utils.getToken()}` }
             });
-
-            if (response.ok) {
-                const stats = await response.json();
-                const generationsUsed = stats.cv_generations_this_month || 0;
-
-                // Fetch user to confirm tier logic if needed, or rely on what PremiumGuard assumes
-                // Ideally this logic should be unified in backend or PremiumGuard, 
-                // but for now we mirror the logic: 
-                // Basic/Premium = 9999 (Unlimited).
-                // If we are here, we are at least Basic.
-
-                return generationsUsed < 9999;
+            if (!response.ok) return;
+            const data = await response.json();
+            const jobs = data.tailored_jobs || {};
+            const limit = Number(jobs.limit) || 0;
+            if (!limit) return;
+            const remaining = Number(jobs.remaining) || 0;
+            let text = `${remaining} of ${limit} tailored jobs left this billing period.`;
+            if (Number(jobs.daily_limit) > 0) {
+                const dailyLeft = Math.max(0, Number(jobs.daily_limit) - Number(jobs.daily_new || 0));
+                text += ` ${dailyLeft} new jobs left today.`;
             }
-            return true; // Fail open if stat check fails
+            note.textContent = text;
         } catch (error) {
-            console.error('Failed to check limits:', error);
-            return true;
+            console.error('Failed to load customization allowance', error);
         }
     }
 

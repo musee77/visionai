@@ -36,7 +36,7 @@ const CVisionChatbot = {
         pricing: {
             keywords: ['price', 'cost', 'plan', 'subscription', 'free', 'premium', 'basic', 'upgrade'],
             responses: [
-                "We have 3 pricing plans:\n\n💚 Free — $0\n• 3 manual applications per month\n\n✋ Basic — $4.99/month\n• Manual applications with no monthly cap\n\n🚀 Premium — $49.99/month\n• Automated applications\n\nWant to see the pricing page?"
+                "We have 3 pricing plans:\n\n💚 Free — $0\n• 3 manual applications per month\n\n✋ Basic — $4.99/month\n• Manual applications with no monthly cap\n• 15 tailored jobs per month\n\n🚀 Premium — $49.99/month\n• Automated applications\n• 100 tailored jobs per month, 10 new jobs a day\n\nWant to see the pricing page?"
             ]
         },
         howItWorks: {

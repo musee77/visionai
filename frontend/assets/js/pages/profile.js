@@ -226,8 +226,8 @@ function quotaWidth(used, limit) {
 async function loadPlanDetails(tier) {
     const fallback = {
         free: { plan: 'Free', price_cents: 0, billing_interval: 'monthly', limits: { manual_applications: 3, auto_applications: 0 }, current_usage: {} },
-        basic: { plan: 'Basic', price_cents: 499, billing_interval: 'monthly', limits: { manual_applications: 999999, auto_applications: 0 }, current_usage: {} },
-        premium: { plan: 'Premium', price_cents: 4999, billing_interval: 'monthly', limits: { manual_applications: 9999, auto_applications: 9999 }, current_usage: {} }
+        basic: { plan: 'Basic', price_cents: 499, billing_interval: 'monthly', limits: { manual_applications: 999999, auto_applications: 0, tailored_jobs: 15 }, tailored_jobs: { used: 0, limit: 15 }, current_usage: {} },
+        premium: { plan: 'Premium', price_cents: 4999, billing_interval: 'monthly', limits: { manual_applications: 9999, auto_applications: 9999, tailored_jobs: 100, tailored_jobs_daily: 10 }, tailored_jobs: { used: 0, limit: 100 }, current_usage: {} }
     };
     let data = fallback[tier] || fallback.free;
     try {
@@ -260,6 +260,11 @@ async function loadPlanDetails(tier) {
     if (manual) manual.textContent = manualText;
     if (manualBar) manualBar.style.width = quotaWidth(usage.manual_applications, limits.manual_applications);
     if (auto) auto.textContent = autoText;
+    const tailored = document.getElementById('tailoredUsage');
+    if (tailored) {
+        const jobs = data.tailored_jobs || {};
+        tailored.textContent = formatQuota(jobs.used, jobs.limit === undefined ? limits.tailored_jobs : jobs.limit);
+    }
 
     const upgrade = document.getElementById('upgradeAccountBtn');
     const planId = String(data.plan_id || data.tier || tier || '');

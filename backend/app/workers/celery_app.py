@@ -68,6 +68,11 @@ celery_app.conf.beat_schedule = {
         'schedule': crontab(hour='*/6'),  # Every 6 hours
         'args': ()
     },
+    'check-pending-verifications': {
+        'task': 'app.workers.auto_apply.check_pending_verifications',
+        'schedule': crontab(minute='*/5'),
+        'args': ()
+    },
     # Hybrid Monitoring - Check status of non-email applications
     'monitor-portal-applications': {
         'task': 'app.workers.auto_apply.monitor_portal_applications',
@@ -83,5 +88,30 @@ celery_app.conf.beat_schedule = {
         'task': 'app.workers.job_scraper.expire_old_jobs_task',
         'schedule': crontab(hour=3, minute=0),  # Daily at 3 AM UTC
         'args': (30,)
+    },
+    'send-interview-reminders': {
+        'task': 'app.workers.notification_scheduler.send_interview_reminders',
+        'schedule': crontab(minute=0),
+        'args': ()
+    },
+    'send-follow-up-reminders': {
+        'task': 'app.workers.notification_scheduler.send_follow_up_reminders',
+        'schedule': crontab(hour=9, minute=0),
+        'args': ()
+    },
+    'send-weekly-notification-summaries': {
+        'task': 'app.workers.notification_scheduler.send_weekly_summaries',
+        'schedule': crontab(day_of_week=1, hour=10, minute=0),
+        'args': ()
+    },
+    'send-monthly-reports': {
+        'task': 'app.workers.notification_scheduler.send_monthly_reports',
+        'schedule': crontab(day_of_month=1, hour=10, minute=0),
+        'args': ()
+    },
+    'cleanup-old-notifications': {
+        'task': 'app.workers.notification_scheduler.cleanup_old_notifications',
+        'schedule': crontab(day_of_week=0, hour=2, minute=0),
+        'args': ()
     },
 }

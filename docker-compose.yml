@@ -91,7 +91,9 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: vision_ai_worker
-    command: celery -A app.workers.celery_app worker --loglevel=info
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=1
+    healthcheck:
+      disable: true
     volumes:
       - ./backend:/app
       - ./uploads:/app/uploads
@@ -120,7 +122,9 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: vision_ai_beat
-    command: celery -A app.workers.celery_app beat --loglevel=info
+    command: celery -A app.workers.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    healthcheck:
+      disable: true
     volumes:
       - ./backend:/app
     env_file:

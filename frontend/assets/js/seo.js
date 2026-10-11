@@ -64,7 +64,7 @@
             },
             'pricing': {
                 title: 'Pricing - JobsApply',
-                description: 'Free, Basic, and Premium. Start on the free plan and upgrade as your job search picks up. No hidden fees, cancel anytime.',
+                description: 'Free, Basic, and Premium. Basic includes 15 tailored jobs a month. Premium includes 100, with 10 new jobs a day.',
                 keywords: 'pricing, free plan, basic plan, premium plan, job application pricing',
                 image: 'https://www.synovae.io/assets/images/og/og-default.png',
                 type: 'website'

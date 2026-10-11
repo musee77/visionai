@@ -79,8 +79,8 @@ class SubscriptionService:
         manual_plus_limits = SubscriptionLimits(
             monthly_manual_applications=create_limit("monthly_manual_applications", 999999),
             monthly_auto_applications=create_limit("monthly_auto_applications", 0),
-            monthly_cv_generations=create_limit("monthly_cv_generations", 9999),
-            monthly_cover_letters=create_limit("monthly_cover_letters", 999999),
+            monthly_cv_generations=create_limit("monthly_cv_generations", 15),
+            monthly_cover_letters=create_limit("monthly_cover_letters", 15),
             concurrent_applications=create_limit("concurrent_applications", 1, "instant", False),
             max_jobs_per_search=50,
             api_rate_limit_per_minute=10,
@@ -94,8 +94,8 @@ class SubscriptionService:
         basic_limits = SubscriptionLimits(
             monthly_manual_applications=create_limit("monthly_manual_applications", 9999),
             monthly_auto_applications=create_limit("monthly_auto_applications", 600), # 20 per day * 30
-            monthly_cv_generations=create_limit("monthly_cv_generations", 9999),
-            monthly_cover_letters=create_limit("monthly_cover_letters", 9999),
+            monthly_cv_generations=create_limit("monthly_cv_generations", 15),
+            monthly_cover_letters=create_limit("monthly_cover_letters", 15),
             concurrent_applications=create_limit("concurrent_applications", 20, "daily", True),
             max_jobs_per_search=50,
             api_rate_limit_per_minute=50,
@@ -114,8 +114,8 @@ class SubscriptionService:
         premium_limits = SubscriptionLimits(
             monthly_manual_applications=create_limit("monthly_manual_applications", 9999),
             monthly_auto_applications=create_limit("monthly_auto_applications", 9999),
-            monthly_cv_generations=create_limit("monthly_cv_generations", 9999),
-            monthly_cover_letters=create_limit("monthly_cover_letters", 9999),
+            monthly_cv_generations=create_limit("monthly_cv_generations", 100),
+            monthly_cover_letters=create_limit("monthly_cover_letters", 100),
             concurrent_applications=create_limit("concurrent_applications", 9999, "instant", False),
             max_jobs_per_search=100,
             api_rate_limit_per_minute=200,
@@ -142,10 +142,10 @@ class SubscriptionService:
         
         premium_features = [
             "Auto-apply included",
+            "100 tailored jobs per month",
+            "10 new tailored jobs per day",
             "Manual applications with no monthly cap",
             "Billed monthly",
-            "Full automation enabled",
-            "Advanced analytics dashboard"
         ]
         
         self.PLANS = {
@@ -197,7 +197,8 @@ class SubscriptionService:
                 limits=manual_plus_limits,
                 features=[
                     "Manual applications with no monthly cap",
-                    "Customize a CV for each job",
+                    "15 tailored jobs per month",
+                    "2 regenerations included for each job",
                     "Select a cover letter when you apply",
                     "Billed monthly"
                 ],

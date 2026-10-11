@@ -18,10 +18,14 @@ from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+_open_clients = []
+_LOCK_SECONDS = 30 * 60
+
 
 async def get_database():
     """Get database connection"""
     client = AsyncIOMotorClient(settings.MONGODB_URL)
+    _open_clients.append(client)
     return client[settings.DATABASE_NAME]
 
 
@@ -32,7 +36,37 @@ def run_async(coro):
     try:
         return loop.run_until_complete(coro)
     finally:
+        for client in _open_clients:
+            try:
+                client.close()
+            except Exception:
+                logger.warning("Failed to close Mongo client", exc_info=True)
+        _open_clients.clear()
+        try:
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        except Exception:
+            pass
         loop.close()
+
+
+def _redis_lock():
+    import redis
+    return redis.Redis.from_url(settings.CELERY_BROKER_URL)
+
+
+def _acquire_user_lock(user_id: str) -> bool:
+    try:
+        return bool(_redis_lock().set(f"auto-apply-lock:{user_id}", "1", nx=True, ex=_LOCK_SECONDS))
+    except Exception:
+        logger.error("Could not acquire auto-apply lock for %s", user_id, exc_info=True)
+        return False
+
+
+def _release_user_lock(user_id: str) -> None:
+    try:
+        _redis_lock().delete(f"auto-apply-lock:{user_id}")
+    except Exception:
+        logger.warning("Could not release auto-apply lock for %s", user_id, exc_info=True)
 
 
 async def calculate_match_score(user_cv, job):
@@ -363,7 +397,7 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
             "user_id": user_id,
             "created_at": {"$gte": today_start},
             "auto_applied": True,
-            "status": {"$nin": ["failed", "withdrawn", "awaiting_review"]}
+            "status": {"$nin": ["failed", "withdrawn"]}
         })
         
         if applications_today >= max_daily_applications:
@@ -564,7 +598,16 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
                     })
                 
                 logger.info(f">>> STARTED: Generating Smart CV for {job_id}")
-                custom_cv_id = await generate_custom_cv(user_cv, job)
+                from app.services.documents.customization_quota import customization_quota
+                quota_key = customization_quota.job_key(job_id=job_id)
+                cv_decision = await customization_quota.check(db, user_id, tier, quota_key, ["cv"])
+                custom_cv_id = None
+                if cv_decision.allowed:
+                    custom_cv_id = await generate_custom_cv(user_cv, job)
+                    if custom_cv_id:
+                        await customization_quota.record(db, user_id, quota_key, "cv")
+                else:
+                    logger.info(f"Skipping tailored CV for {job_id}: {cv_decision.message}")
                 if not custom_cv_id:
                     custom_cv_id = await _uploaded_cv_id(db, user_id)
                     logger.info(f"Custom CV unavailable, using uploaded CV {custom_cv_id}")
@@ -584,7 +627,14 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
 
                 # Generate cover letter
                 logger.info(f">>> STARTED: Writing Cover Letter for {job_id}")
-                cover_letter_id = await generate_cover_letter(user_cv, job)
+                letter_decision = await customization_quota.check(db, user_id, tier, quota_key, ["letter"])
+                cover_letter_id = None
+                if letter_decision.allowed:
+                    cover_letter_id = await generate_cover_letter(user_cv, job)
+                    if cover_letter_id:
+                        await customization_quota.record(db, user_id, quota_key, "letter")
+                else:
+                    logger.info(f"Skipping tailored cover letter for {job_id}: {letter_decision.message}")
                 if not cover_letter_id:
                     cover_letter_id = await _basic_cover_letter(user_cv, job)
                     logger.info(f"Generated cover letter unavailable, stored a plain letter {cover_letter_id}")
@@ -682,17 +732,52 @@ async def process_auto_apply_for_user(user: Dict, db, task_instance=None) -> Dic
         return {"success": False, "error": str(e), "stats": stats}
 
 
+async def _load_and_process(user_id: str, task_instance=None):
+    db = await get_database()
+    user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        return {"success": False, "error": "User not found"}
+    return await process_auto_apply_for_user(user, db, task_instance=task_instance)
+
+
+def _run_user_locked(user_id: str, task_instance=None):
+    if not _acquire_user_lock(user_id):
+        return {
+            "success": True,
+            "skipped": True,
+            "applications_sent": 0,
+            "message": "Auto-apply is already running for this user.",
+        }
+    try:
+        return run_async(_load_and_process(user_id, task_instance))
+    finally:
+        _release_user_lock(user_id)
+
+
+@celery_app.task(
+    bind=True,
+    name="app.workers.auto_apply.process_user_auto_apply",
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
+def process_user_auto_apply(self, user_id: str):
+    """Run auto-apply for one user. The six-hour job queues one of these per user."""
+    try:
+        return _run_user_locked(user_id, task_instance=self)
+    except Exception as e:
+        logger.error(f"Error in process_user_auto_apply for {user_id}: {e}")
+        raise
+
+
 @celery_app.task(name="app.workers.auto_apply.auto_apply_to_matching_jobs")
 def auto_apply_to_matching_jobs():
     """
-    FULL AUTOMATION: Find matching jobs and automatically apply
-    Runs every 6 hours
+    Queue one auto-apply task per enabled user.
+    Runs every 6 hours.
     """
-    async def _auto_apply():
+    async def _user_ids():
         try:
             db = await get_database()
-            
-            # Get users with auto-apply enabled
             auto_apply_users = await db.users.find({
                 "preferences.auto_apply_enabled": True,
                 "$or": [
@@ -700,49 +785,40 @@ def auto_apply_to_matching_jobs():
                     {"referral_bonus_auto_applications": {"$gt": 0}}
                 ]
             }).to_list(length=None)
-            
-            if not auto_apply_users:
-                logger.info("No users with auto-apply enabled")
-                return {"success": True, "applications": 0}
-            
-            total_applications = 0
-            
-            for user in auto_apply_users:
-                # No task instance passed for batch job (or we could bind it too if needed later)
-                result = await process_auto_apply_for_user(user, db)
-                if result.get("success"):
-                    total_applications += result.get("applications_sent", 0)
-            
-            logger.info(f"Auto-applied to {total_applications} jobs")
-            return {"success": True, "applications": total_applications}
-            
+            return [str(user["_id"]) for user in auto_apply_users]
         except Exception as e:
             logger.error(f"Error in auto_apply_to_matching_jobs: {e}")
             return {"success": False, "error": str(e)}
-    
-    return run_async(_auto_apply())
+
+    user_ids = run_async(_user_ids())
+    if isinstance(user_ids, dict):
+        return user_ids
+    if not user_ids:
+        logger.info("No users with auto-apply enabled")
+        return {"success": True, "queued": 0}
+
+    for user_id in user_ids:
+        process_user_auto_apply.delay(user_id)
+    logger.info(f"Queued auto-apply for {len(user_ids)} users")
+    return {"success": True, "queued": len(user_ids)}
 
 
-@celery_app.task(bind=True, name="app.workers.auto_apply.trigger_single_user_test")
+@celery_app.task(
+    bind=True,
+    name="app.workers.auto_apply.trigger_single_user_test",
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
 def trigger_single_user_test(self, user_id: str):
     """
     Trigger a single test run for a specific user.
     Calculates matches and applies to jobs immediately.
     """
-    async def _run_test():
-        try:
-            db = await get_database()
-            user = await db.users.find_one({"_id": ObjectId(user_id)})
-            if not user:
-                return {"success": False, "error": "User not found"}
-            
-            return await process_auto_apply_for_user(user, db, task_instance=self)
-            
-        except Exception as e:
-            logger.error(f"Error in single user test: {e}")
-            return {"success": False, "error": str(e)}
-
-    return run_async(_run_test())
+    try:
+        return _run_user_locked(user_id, task_instance=self)
+    except Exception as e:
+        logger.error(f"Error in single user test: {e}")
+        raise
 
 
 @celery_app.task(name="app.workers.auto_apply.enable_auto_apply_for_user")
@@ -775,7 +851,11 @@ def enable_auto_apply_for_user(user_id: str, max_daily_applications: int = 5, mi
     
     return run_async(_enable())
 
-@celery_app.task(name="app.workers.auto_apply.monitor_browser_application")
+@celery_app.task(
+    name="app.workers.auto_apply.monitor_browser_application",
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
 def monitor_browser_application(application_id: str):
     """
     Check status of a specific browser-applied job.
@@ -814,7 +894,11 @@ def monitor_browser_application(application_id: str):
 
     return run_async(_monitor())
 
-@celery_app.task(name="app.workers.auto_apply.monitor_portal_applications")
+@celery_app.task(
+    name="app.workers.auto_apply.monitor_portal_applications",
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
 def monitor_portal_applications():
     """
     Periodically check status of browser-applied jobs.
@@ -860,11 +944,15 @@ def monitor_portal_applications():
 
     return run_async(_monitor())
 
-@celery_app.task(name="app.workers.auto_apply.check_pending_verifications")
+@celery_app.task(
+    name="app.workers.auto_apply.check_pending_verifications",
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
 def check_pending_verifications():
     """
-    Scan all 'pending_verification' applications and attempt to verify them.
-    Runs every 5 minutes (configured in celery beat).
+    Scan applications waiting on a portal code.
+    Beat runs this every 5 minutes.
     """
     async def _check():
         try:
@@ -889,7 +977,11 @@ def check_pending_verifications():
     return run_async(_check())
 
 
-@celery_app.task(name="app.workers.auto_apply.verify_and_resume_application")
+@celery_app.task(
+    name="app.workers.auto_apply.verify_and_resume_application",
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
 def verify_and_resume_application(application_id: str):
     """
     Vision AI Extreme Mode: Find link, click it, and resume job application.

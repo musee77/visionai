@@ -42,7 +42,8 @@ const PricingPlans = (function () {
             isPopular: false,
             features: [
                 'Manual applications with no monthly cap',
-                'Customize a CV for each job',
+                '15 tailored jobs per month',
+                '2 regenerations included for each job',
                 'Select a cover letter when you apply',
                 'Billed monthly'
             ],
@@ -60,6 +61,8 @@ const PricingPlans = (function () {
             isPopular: true,
             features: [
                 'Auto-apply included',
+                '100 tailored jobs per month',
+                '10 new tailored jobs per day',
                 'Manual applications with no monthly cap',
                 'Billed monthly'
             ],

@@ -2,8 +2,7 @@
 """
 Celery Worker for Background Tasks and Scheduled Notifications
 """
-from celery import Celery
-from celery.schedules import crontab
+from app.workers.celery_app import celery_app
 from datetime import datetime, timedelta
 import asyncio
 import logging
@@ -15,59 +14,14 @@ from app.services.core.analytics_service import AnalyticsService
 
 logger = logging.getLogger(__name__)
 
-# Initialize Celery
-celery_app = Celery(
-    "cvision_worker",
-    broker=getattr(settings, "CELERY_BROKER_URL", "redis://localhost:6379/1"),
-    backend=getattr(settings, "CELERY_RESULT_BACKEND", "redis://localhost:6379/2")
-)
-
-# Celery configuration
-celery_app.conf.update(
-    task_serializer="json",
-    accept_content=["json"],
-    result_serializer="json",
-    timezone="UTC",
-    enable_utc=True,
-    task_track_started=True,
-    task_time_limit=30 * 60,  # 30 minutes
-    task_soft_time_limit=25 * 60,  # 25 minutes
-)
-
-# Scheduled tasks
-celery_app.conf.beat_schedule = {
-    # Check for interview reminders every hour
-    "send-interview-reminders": {
-        "task": "app.workers.notification_scheduler.send_interview_reminders",
-        "schedule": crontab(minute=0),  # Every hour
-    },
-    # Check for follow-up reminders every day at 9 AM
-    "send-follow-up-reminders": {
-        "task": "app.workers.notification_scheduler.send_follow_up_reminders",
-        "schedule": crontab(hour=9, minute=0),  # 9 AM daily
-    },
-    # Send weekly summary every Monday at 10 AM
-    "send-weekly-summaries": {
-        "task": "app.workers.notification_scheduler.send_weekly_summaries",
-        "schedule": crontab(day_of_week=1, hour=10, minute=0),  # Monday 10 AM
-    },
-    # Send monthly report on 1st of each month at 10 AM
-    "send-monthly-reports": {
-        "task": "app.workers.notification_scheduler.send_monthly_reports",
-        "schedule": crontab(day_of_month=1, hour=10, minute=0),  # 1st of month, 10 AM
-    },
-    # Clean up old notifications every week
-    "cleanup-old-notifications": {
-        "task": "app.workers.notification_scheduler.cleanup_old_notifications",
-        "schedule": crontab(day_of_week=0, hour=2, minute=0),  # Sunday 2 AM
-    },
-}
+_open_clients = []
 
 
 async def get_database():
     """Get database connection"""
     client = AsyncIOMotorClient(settings.MONGODB_URL)
-    return client[settings.MONGODB_DB]
+    _open_clients.append(client)
+    return client[settings.DATABASE_NAME]
 
 
 def run_async(coro):
@@ -77,6 +31,16 @@ def run_async(coro):
     try:
         return loop.run_until_complete(coro)
     finally:
+        for client in _open_clients:
+            try:
+                client.close()
+            except Exception:
+                logger.warning("Failed to close Mongo client", exc_info=True)
+        _open_clients.clear()
+        try:
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        except Exception:
+            pass
         loop.close()
 
 

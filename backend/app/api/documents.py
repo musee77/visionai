@@ -271,13 +271,7 @@ async def _require_document_generation(current_user: Dict[str, Any]):
             detail="Customizing a CV and selecting a cover letter are included on Basic and Premium."
         )
     db = await get_database()
-    from app.api.generation import _check_generation_limit
-    if not await _check_generation_limit(user_id, subscription_tier, db):
-        raise HTTPException(
-            status_code=403,
-            detail="Generation limit reached for your subscription tier. Please upgrade."
-        )
-    return user_id, db
+    return user_id, subscription_tier, db
 
 
 @router.post("/{document_id}/customize")
@@ -287,7 +281,14 @@ async def customize_document(
     current_user: Dict[str, Any] = Depends(get_current_active_user)
 ):
     """Customize a CV from a pasted company, role, and job description."""
-    user_id, db = await _require_document_generation(current_user)
+    user_id, subscription_tier, db = await _require_document_generation(current_user)
+    from app.services.documents.customization_quota import customization_quota
+    quota_key = customization_quota.job_key(
+        company_name=request.company_name,
+        job_title=request.job_title,
+        job_description=request.job_description,
+    )
+    await customization_quota.require(db, user_id, subscription_tier, quota_key, ["cv"])
     result = await document_service.customize_cv_for_job(
         document_id=document_id,
         job_description=request.job_description,
@@ -296,8 +297,7 @@ async def customize_document(
         user_id=user_id,
         user_preferences=request.user_preferences
     )
-    from app.api.generation import _track_generation_usage
-    await _track_generation_usage(user_id, db)
+    await customization_quota.record(db, user_id, quota_key, "cv")
     return result
 
 
@@ -310,7 +310,14 @@ async def generate_document_cover_letter(
     """Generate a cover letter from a pasted company, role, and job description."""
     if not (request.job_title or "").strip():
         raise HTTPException(status_code=400, detail="Job title is required.")
-    user_id, db = await _require_document_generation(current_user)
+    user_id, subscription_tier, db = await _require_document_generation(current_user)
+    from app.services.documents.customization_quota import customization_quota
+    quota_key = customization_quota.job_key(
+        company_name=request.company_name,
+        job_title=request.job_title,
+        job_description=request.job_description,
+    )
+    await customization_quota.require(db, user_id, subscription_tier, quota_key, ["letter"])
     result = await document_service.generate_cover_letter(
         document_id=document_id,
         job_description=request.job_description,
@@ -319,8 +326,7 @@ async def generate_document_cover_letter(
         user_id=user_id,
         user_preferences=request.user_preferences
     )
-    from app.api.generation import _track_generation_usage
-    await _track_generation_usage(user_id, db)
+    await customization_quota.record(db, user_id, quota_key, "letter")
     return result
 
 
